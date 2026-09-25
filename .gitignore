@@ -1,0 +1,33 @@
+# .NET / Avalonia
+bin/
+obj/
+out/
+publish/
+*.user
+*.suo
+.vs/
+.idea/
+*.DotSettings.user
+
+# NuGet
+*.nupkg
+*.snupkg
+project.lock.json
+
+# SnowLuma runtime data (downloaded in-app, never committed)
+snowluma/
+*.tar.gz
+
+# Local secrets & runtime configs (AI keys, tokens, teacher map)
+appsettings.local.json
+appsettings.*.local.json
+TeacherMap.local.json
+local.*
+
+# Downloaded courseware / archive test fixtures
+archive/
+fixtures/private/
+
+# OS
+.DS_Store
+Thumbs.db
