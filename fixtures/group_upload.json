@@ -1,0 +1,14 @@
+{
+  "time": 1790319000,
+  "self_id": 123456,
+  "post_type": "notice",
+  "notice_type": "group_upload",
+  "group_id": 100200300,
+  "user_id": 10002,
+  "file": {
+    "id": "/abc-def-123",
+    "name": "第三章课件.pptx",
+    "size": 12345678,
+    "busid": 102
+  }
+}

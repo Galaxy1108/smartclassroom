@@ -1,0 +1,19 @@
+{
+  "time": 1790318400,
+  "self_id": 123456,
+  "post_type": "message",
+  "message_type": "group",
+  "sub_type": "normal",
+  "message_id": 987654321,
+  "group_id": 100200300,
+  "user_id": 10001,
+  "message": "[CQ:at,qq=123456] 张老师：小明现在来一下[CQ:image,file=abc.jpg,url=https://example.com/a.jpg]",
+  "raw_message": "[CQ:at,qq=123456] 张老师：小明现在来一下[CQ:image,file=abc.jpg,url=https://example.com/a.jpg]",
+  "font": 0,
+  "sender": {
+    "user_id": 10001,
+    "nickname": "张数学",
+    "card": "张老师",
+    "role": "admin"
+  }
+}

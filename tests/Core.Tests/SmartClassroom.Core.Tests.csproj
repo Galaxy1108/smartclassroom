@@ -17,4 +17,10 @@
     <ProjectReference Include="..\..\src\Core\SmartClassroom.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\fixtures\*.json" Link="fixtures\%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
