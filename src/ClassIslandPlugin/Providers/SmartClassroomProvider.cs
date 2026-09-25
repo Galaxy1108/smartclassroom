@@ -14,6 +14,13 @@ namespace SmartClassroom.ClassIslandPlugin.Providers;
 [NotificationChannelInfo("7c9e6679-8f2e-4a3b-9c5d-1a2b3c4d5e72", name: "手动请求", description: "需要用户在 ClassIsland 中手动操作的请求")]
 public class SmartClassroomProvider : NotificationProviderBase
 {
+    public static SmartClassroomProvider? Current { get; private set; }
+
+    public SmartClassroomProvider()
+    {
+        Current = this;
+    }
+
     public static readonly Guid SummonChannelId = Guid.Parse("7c9e6679-8f2e-4a3b-9c5d-1a2b3c4d5e70");
     public static readonly Guid ExchangeChannelId = Guid.Parse("7c9e6679-8f2e-4a3b-9c5d-1a2b3c4d5e71");
     public static readonly Guid ManualChannelId = Guid.Parse("7c9e6679-8f2e-4a3b-9c5d-1a2b3c4d5e72");

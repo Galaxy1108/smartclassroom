@@ -8,6 +8,11 @@
              不调用 Windows-only API，使同一 DLL 在 Linux 版 ClassIsland 上也可加载。 -->
     </PropertyGroup>
 
+    <!-- localhost 执行接口用 Kestrel（Microsoft.AspNetCore.App 为纯托管跨平台框架引用）。 -->
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
     <PropertyGroup>
         <ClassIslandPluginSdkVersion>1.7.106.2-dev-v2</ClassIslandPluginSdkVersion>
     </PropertyGroup>

@@ -1,6 +1,6 @@
-using SmartClassroom.Contracts;
 
-namespace SmartClassroom.Core;
+
+namespace SmartClassroom.Contracts;
 
 /// <summary>某日课表快照（插件从 ClassIsland 档案读取后传入，供纯逻辑校验）。</summary>
 public sealed record ClassDaySnapshot
@@ -26,7 +26,8 @@ public static class ExchangeValidator
         IReadOnlyDictionary<DateOnly, ClassDaySnapshot> days,
         DateOnly today,
         double minConfidence = 0.5,
-        Func<int, bool>? isPeriodFuture = null)
+        Func<int, bool>? isPeriodFuture = null,
+        bool supportCrossDayExecution = false)
     {
         ExchangeVerdict No(string msg) => new()
         {
@@ -72,6 +73,8 @@ public static class ExchangeValidator
                     return No($"{req.To.Date:MM-dd} 当天没有课表，跨天换课已转人工。");
                 if (toDay.Periods.All(p => p.Index != req.To.PeriodIndex))
                     return No($"{req.To.Date:MM-dd} 第{req.To.PeriodIndex}节不存在，请手动确认。");
+                if (!supportCrossDayExecution)
+                    return No($"跨天换课已解析（{req.From.Date:MM-dd}第{req.From.PeriodIndex}节 ↔ {req.To.Date:MM-dd}第{req.To.PeriodIndex}节），需在 ClassIsland 中手动设置临时层课表。");
                 return Yes(req, $"已通过临时层课表处理跨天换课：{req.From.Date:MM-dd}第{req.From.PeriodIndex}节 ↔ {req.To.Date:MM-dd}第{req.To.PeriodIndex}节。");
 
             default:
