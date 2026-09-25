@@ -1,6 +1,6 @@
-using ClassroomEnhancement.Contracts;
+using SmartClassroom.Contracts;
 
-namespace ClassroomEnhancement.Core;
+namespace SmartClassroom.Core;
 
 /// <summary>
 /// 教师映射：QQ 号 / 群名片 / 昵称 → 老师（姓名 + 科目）。

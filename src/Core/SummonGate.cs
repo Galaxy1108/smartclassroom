@@ -1,4 +1,4 @@
-namespace ClassroomEnhancement.Core;
+namespace SmartClassroom.Core;
 
 /// <summary>
 /// 召唤消息的纯本地预检：紧急词判定 + 通知去重键。
