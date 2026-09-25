@@ -1,4 +1,4 @@
-# Classroom Enhancement 教室增强
+# Classroom Enhancement 智慧课堂
 
 跨平台（Linux / Windows）教室应用 + 配套 ClassIsland 插件。
 

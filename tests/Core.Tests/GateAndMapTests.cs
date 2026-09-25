@@ -1,7 +1,7 @@
-using ClassroomEnhancement.Core;
+using SmartClassroom.Core;
 using Xunit;
 
-namespace ClassroomEnhancement.Core.Tests;
+namespace SmartClassroom.Core.Tests;
 
 public sealed class SummonGateTests
 {

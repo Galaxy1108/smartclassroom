@@ -1,7 +1,7 @@
 // App 与 ClassIsland 插件之间的共享契约。
 // 序列化：System.Text.Json，命名策略 camelCase，时间统一 DateTimeOffset (ISO 8601)。
 
-namespace ClassroomEnhancement.Contracts;
+namespace SmartClassroom.Contracts;
 
 /// <summary>召唤事件：老师在群里叫某人过去。</summary>
 public sealed record SummonEvent
