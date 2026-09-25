@@ -1,4 +1,5 @@
 using ClassroomEnhancement.Core;
+using Xunit;
 
 namespace ClassroomEnhancement.Core.Tests;
 
