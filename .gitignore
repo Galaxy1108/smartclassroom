@@ -28,6 +28,10 @@ local.*
 archive/
 fixtures/private/
 
+# Local .NET SDK + installer (per-machine, managed outside repo)
+.dotnet/
+.tools/
+
 # OS
 .DS_Store
 Thumbs.db
