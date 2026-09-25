@@ -9,6 +9,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Contracts\SmartClassroom.Contracts.csproj" />
+    <!-- IPC 客户端：2.1.0 是最后一个含 net8.0 构建的版本（2.1.1.x 仅 net10.0）；
+         与 2.1.x 主机同 dotnetCampus.Ipc alpha410，协议一致，联调复核。 -->
+    <PackageReference Include="ClassIsland.Shared.Ipc" Version="2.1.0" />
   </ItemGroup>
 
 </Project>
