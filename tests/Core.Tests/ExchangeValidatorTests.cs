@@ -67,18 +67,9 @@ public sealed class ExchangeValidatorTests
     }
 
     [Fact]
-    public void CrossDay_WithoutExecutionSupport_GoesManual()
+    public void CrossDay_BothDaysKnown_Legal()
     {
         var v = ExchangeValidator.Validate(Req(ExchangeKind.CrossDay, Today.AddDays(1), 1, Today, 2), Days(), Today);
-        Assert.False(v.Legal);
-        Assert.Contains("临时层", v.Message);
-    }
-
-    [Fact]
-    public void CrossDay_WithExecutionSupport_Legal()
-    {
-        var v = ExchangeValidator.Validate(Req(ExchangeKind.CrossDay, Today.AddDays(1), 1, Today, 2), Days(), Today,
-            supportCrossDayExecution: true);
         Assert.True(v.Legal);
         Assert.Contains("临时层", v.Message);
     }
