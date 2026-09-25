@@ -1,0 +1,60 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SmartClassroom.App.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="660" d:DesignHeight="440"
+        x:Class="SmartClassroom.App.Views.CoursewareWindow"
+        x:DataType="vm:CoursewareViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="您可能需要的课件"
+        Width="660" Height="440" MinWidth="480" MinHeight="320">
+
+    <Design.DataContext>
+        <vm:CoursewareViewModel />
+    </Design.DataContext>
+
+    <DockPanel Margin="12">
+        <TextBlock DockPanel.Dock="Top" Text="今天老师发过这些文件，双击打开："
+                   Margin="0,0,0,8" Opacity="0.8" />
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+            <Button Content="打开文件夹" Click="OpenFolder_Click" />
+            <Button Content="关闭" Click="Close_Click" />
+        </StackPanel>
+
+        <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Items}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CoursewareItem">
+                        <Border Width="150" Margin="4" Padding="8" CornerRadius="8"
+                                BorderThickness="1"
+                                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+                                Background="{DynamicResource SystemControlBackgroundAltMediumLowBrush}"
+                                DoubleTapped="Card_DoubleTapped" Cursor="Hand">
+                            <StackPanel Spacing="4">
+                                <Image Source="{Binding Thumbnail}" Width="120" Height="80"
+                                       Stretch="Uniform" IsVisible="{Binding IsImage}" />
+                                <Border Height="80" CornerRadius="4" IsVisible="{Binding !IsImage}"
+                                        Background="{DynamicResource SystemAccentColor}">
+                                    <TextBlock Text="{Binding TypeLabel}" FontSize="22" FontWeight="Bold"
+                                               Foreground="White"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="{Binding FileName}" TextWrapping="Wrap" MaxLines="2"
+                                           FontSize="12" />
+                                <TextBlock Text="{Binding SizeText}" FontSize="11" Opacity="0.6" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+
+</Window>
