@@ -22,12 +22,10 @@
 
         <TabControl Margin="8">
             <TabItem Header="作业">
-                <TextBlock Text="作业墙（v0.2 接入 QQ + AI 后展示）"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6" />
+                <views:HomeworkView />
             </TabItem>
             <TabItem Header="事件">
-                <TextBlock Text="召唤 / 换课事件队列（v0.2/v0.3）"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6" />
+                <views:EventsView />
             </TabItem>
             <TabItem Header="课件">
                 <TextBlock Text="当天课件（v0.4 文件归档后展示）"
