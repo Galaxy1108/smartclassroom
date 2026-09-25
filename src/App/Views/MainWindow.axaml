@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:SmartClassroom.App.ViewModels"
+        xmlns:views="using:SmartClassroom.App.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
@@ -33,8 +34,7 @@
                            HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6" />
             </TabItem>
             <TabItem Header="设置">
-                <TextBlock Text="AI / QQ / SnowLuma 下载器 / 教师映射（v0.1 后续 + v0.4）"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6" />
+                <views:SettingsView />
             </TabItem>
         </TabControl>
     </DockPanel>
