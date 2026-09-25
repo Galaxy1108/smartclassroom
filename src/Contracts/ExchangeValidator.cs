@@ -26,8 +26,7 @@ public static class ExchangeValidator
         IReadOnlyDictionary<DateOnly, ClassDaySnapshot> days,
         DateOnly today,
         double minConfidence = 0.5,
-        Func<int, bool>? isPeriodFuture = null,
-        bool supportCrossDayExecution = false)
+        Func<int, bool>? isPeriodFuture = null)
     {
         ExchangeVerdict No(string msg) => new()
         {
@@ -73,8 +72,7 @@ public static class ExchangeValidator
                     return No($"{req.To.Date:MM-dd} 当天没有课表，跨天换课已转人工。");
                 if (toDay.Periods.All(p => p.Index != req.To.PeriodIndex))
                     return No($"{req.To.Date:MM-dd} 第{req.To.PeriodIndex}节不存在，请手动确认。");
-                if (!supportCrossDayExecution)
-                    return No($"跨天换课已解析（{req.From.Date:MM-dd}第{req.From.PeriodIndex}节 ↔ {req.To.Date:MM-dd}第{req.To.PeriodIndex}节），需在 ClassIsland 中手动设置临时层课表。");
+                // 执行层在涉及的两个日期各建临时层后互换科目，原周循环课表不受影响。
                 return Yes(req, $"已通过临时层课表处理跨天换课：{req.From.Date:MM-dd}第{req.From.PeriodIndex}节 ↔ {req.To.Date:MM-dd}第{req.To.PeriodIndex}节。");
 
             default:

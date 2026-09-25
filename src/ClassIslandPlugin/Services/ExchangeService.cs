@@ -7,11 +7,10 @@ namespace SmartClassroom.ClassIslandPlugin.Services;
 
 /// <summary>
 /// 换课执行服务（跑在 ClassIsland 进程内，可直接用档案与课表服务）。
-/// 流程：按日期取课表 → 建快照 → ExchangeValidator 校验 → 同日 Swap/Replace 落课；
-/// 跨天执行暂未启用（supportCrossDayExecution: false），合法解析也转人工。
-///
-/// 注意：ClassPlan.RefreshClassesList 是 internal，插件不依赖它；
-/// 以 Classes 集合顺序对应 TimeType==0 时间点（与主机内部维护的不变量一致）。
+/// 覆盖语义（据 ClassIsland 源码 ProfileService/LessonsService）：
+/// 任何一次性改课都必须走临时层——CreateTempClassPlan 深拷贝源课表，
+/// 挂到 Profile.OrderedSchedules[date] 做按日期覆盖，原周循环课表不受影响。
+/// 同日与跨天统一走此路径；目标日期已有临时层时直接复用，不重复创建。
 /// </summary>
 public class ExchangeService
 {
@@ -23,52 +22,52 @@ public class ExchangeService
         var today = DateOnly.FromDateTime(DateTime.Now);
         try
         {
-            var days = new Dictionary<DateOnly, ClassDaySnapshot>();
+            // 1) 按日期解析课表（含临时层覆盖）。
+            var plans = new Dictionary<DateOnly, (ClassPlan Plan, Guid Id)>();
             foreach (var date in new[] { req.From.Date }.Concat(req.To is null ? [] : [req.To.Date]).Distinct())
             {
-                var snap = BuildSnapshot(date);
-                if (snap is null)
-                    return new ExchangeVerdict
-                    {
-                        RequestId = req.RequestId,
-                        Legal = false,
-                        Message = $"{date:MM-dd} 当天没有课表，无法自动换课，请手动确认。"
-                    };
-                days[date] = snap;
+                var plan = Lessons.GetClassPlanByDate(date.ToDateTime(TimeOnly.MinValue), out var guid);
+                if (plan is null || guid is null)
+                    return Fail(req, $"{date:MM-dd} 当天没有课表，无法自动换课，请手动确认。");
+                plans[date] = (plan, guid.Value);
             }
 
+            // 2) 建快照 + 校验。
+            var days = plans.ToDictionary(kv => kv.Key, kv => BuildSnapshot(kv.Key, kv.Value.Plan));
             Func<int, bool>? isFuture = null;
             if (req.From.Date == today)
             {
-                var ends = PeriodEndTimes(today);
+                var ends = PeriodEndTimes(plans[req.From.Date].Plan);
                 if (ends is not null)
                     isFuture = idx => ends.TryGetValue(idx, out var end) && DateTime.Now.TimeOfDay < end;
             }
-
-            var verdict = ExchangeValidator.Validate(req, days, today,
-                isPeriodFuture: isFuture, supportCrossDayExecution: false);
+            var verdict = ExchangeValidator.Validate(req, days, today, isPeriodFuture: isFuture);
             if (!verdict.Legal)
                 return verdict;
 
-            // 落课：仅同日 Swap / Replace（PeriodIndex 从 1 开始，对应 Classes 顺序）。
-            var plan = Lessons.GetClassPlanByDate(req.From.Date.ToDateTime(TimeOnly.MinValue), out _);
-            if (plan is null)
-                return Fail(req, "课表解析失败，请手动确认。");
-            var count = CountPeriods(plan);
-
+            // 3) 落课：确保临时层后编辑。
             if (req.Kind == ExchangeKind.Swap && req.To is not null)
             {
-                if (!TryClass(plan, req.From.PeriodIndex, count, out var a) ||
-                    !TryClass(plan, req.To.PeriodIndex, count, out var b))
+                var fromTemp = EnsureTemp(plans[req.From.Date], req.From.Date);
+                var toTemp = EnsureTemp(plans[req.To.Date], req.To.Date);
+                if (fromTemp is null || toTemp is null)
+                    return Fail(req, "创建临时层课表失败，请手动确认。");
+                // 同日 Swap：同一临时层内对调；跨天：在各自日期临时层内互换科目。
+                var fromSide = GetClass(fromTemp, req.From.PeriodIndex);
+                var toSide = GetClass(toTemp, req.To.PeriodIndex);
+                if (fromSide is null || toSide is null)
                     return Fail(req, "课表节次定位失败，请手动确认。");
-                (a.SubjectId, b.SubjectId) = (b.SubjectId, a.SubjectId);
+                (fromSide.SubjectId, toSide.SubjectId) = (toSide.SubjectId, fromSide.SubjectId);
             }
             else if (req.Kind == ExchangeKind.Replace && req.NewSubject is not null)
             {
-                if (!TryClass(plan, req.From.PeriodIndex, count, out var target))
+                var temp = EnsureTemp(plans[req.From.Date], req.From.Date);
+                if (temp is null)
+                    return Fail(req, "创建临时层课表失败，请手动确认。");
+                var target = GetClass(temp, req.From.PeriodIndex);
+                if (target is null)
                     return Fail(req, "课表节次定位失败，请手动确认。");
-                var profile = Profiles.Profile;
-                var subject = profile.Subjects.FirstOrDefault(kv => kv.Value.Name == req.NewSubject);
+                var subject = Profiles.Profile.Subjects.FirstOrDefault(kv => kv.Value.Name == req.NewSubject);
                 if (subject.Value is null)
                     return Fail(req, $"课表中没有「{req.NewSubject}」科目，请手动确认。");
                 target.SubjectId = subject.Key;
@@ -79,7 +78,7 @@ public class ExchangeService
             }
 
             Profiles.SaveProfile();
-            return verdict with { Message = verdict.Message + "（已写入课表）" };
+            return verdict with { Message = verdict.Message + "（已写入临时层课表）" };
         }
         catch (Exception ex)
         {
@@ -87,24 +86,40 @@ public class ExchangeService
         }
     }
 
-    private static int CountPeriods(ClassPlan plan)
-        => plan.TimeLayout?.Layouts.Count(l => l.TimeType == 0)
-           ?? plan.Classes.Count;
-
-    private static bool TryClass(ClassPlan plan, int periodIndex, int count, out ClassInfo info)
+    /// <summary>
+    /// 确保某日期有可编辑的临时层：已是覆盖层直接用；已有临时层复用；否则创建。
+    /// </summary>
+    private ClassPlan? EnsureTemp((ClassPlan Plan, Guid Id) resolved, DateOnly date)
     {
-        info = null!;
-        if (periodIndex < 1 || periodIndex > count || periodIndex > plan.Classes.Count)
-            return false;
-        info = plan.Classes[periodIndex - 1];
-        return true;
+        var profile = Profiles.Profile;
+        if (resolved.Plan.IsOverlay)
+            return resolved.Plan;
+        var key = date.ToDateTime(TimeOnly.MinValue).Date;
+        if (profile.OrderedSchedules.TryGetValue(key, out var ordered)
+            && profile.ClassPlans.TryGetValue(ordered.ClassPlanId, out var existing)
+            && existing.IsOverlay)
+            return existing;
+        var tempId = Profiles.CreateTempClassPlan(resolved.Id, enableDateTime: key);
+        if (tempId is not null && profile.ClassPlans.TryGetValue(tempId.Value, out var created))
+            return created;
+        // 并发或已存在时回读。
+        return profile.OrderedSchedules.TryGetValue(key, out var retry)
+            && profile.ClassPlans.TryGetValue(retry.ClassPlanId, out var plan) ? plan : null;
     }
 
-    private ClassDaySnapshot? BuildSnapshot(DateOnly date)
+    private static int CountPeriods(ClassPlan plan)
+        => plan.TimeLayout?.Layouts.Count(l => l.TimeType == 0) ?? plan.Classes.Count;
+
+    private static ClassInfo? GetClass(ClassPlan plan, int periodIndex)
     {
-        var plan = Lessons.GetClassPlanByDate(date.ToDateTime(TimeOnly.MinValue), out _);
-        if (plan is null)
+        var count = CountPeriods(plan);
+        if (periodIndex < 1 || periodIndex > count || periodIndex > plan.Classes.Count)
             return null;
+        return plan.Classes[periodIndex - 1];
+    }
+
+    private ClassDaySnapshot BuildSnapshot(DateOnly date, ClassPlan plan)
+    {
         var subjects = Profiles.Profile.Subjects;
         var periods = plan.Classes
             .Take(CountPeriods(plan))
@@ -116,13 +131,11 @@ public class ExchangeService
         return new ClassDaySnapshot { Date = date, Periods = periods };
     }
 
-    /// <summary>当日各节次结束时间（解析失败返回 null，调用方跳过"已上过"检查）。</summary>
-    private Dictionary<int, TimeSpan>? PeriodEndTimes(DateOnly date)
+    private static Dictionary<int, TimeSpan>? PeriodEndTimes(ClassPlan plan)
     {
         try
         {
-            var plan = Lessons.GetClassPlanByDate(date.ToDateTime(TimeOnly.MinValue), out _);
-            var layouts = plan?.TimeLayout?.Layouts.Where(l => l.TimeType == 0).ToList();
+            var layouts = plan.TimeLayout?.Layouts.Where(l => l.TimeType == 0).ToList();
             if (layouts is null || layouts.Count == 0)
                 return null;
             return layouts.Select((l, i) => (i: i + 1, l.EndTime))
