@@ -34,16 +34,20 @@ public class SmartClassroomProvider : NotificationProviderBase
     public static readonly Guid ExchangeChannelId = Guid.Parse("7c9e6679-8f2e-4a3b-9c5d-1a2b3c4d5e71");
     public static readonly Guid ManualChannelId = Guid.Parse("7c9e6679-8f2e-4a3b-9c5d-1a2b3c4d5e72");
 
-    // 图标码位取自 FluentAvalonia 的 Symbol 枚举（ClassIsland 用的就是这套 Fluent System Icons 字体）。
-    // 别照 Segoe MDL2 的码位猜：同一码位在这套字体里是别的图案（实测 E7E7 显示成笑脸）。
-    private const string SummonGlyph = "\uF8009";    // AlertUrgent
+    // 图标码位从 ClassIsland 自带的字体文件里按**字形名**取：
+    // 字体是 FluentSystemIcons-Resizable（嵌在 ClassIsland.Core.dll 里），
+    // 字形名形如 ic_fluent_megaphone_20_regular。
+    // 走过的弯路：照 Segoe MDL2 猜（E7E7 在这套字体里是笑脸）、
+    // 照 FluentAvalonia 的 Symbol 枚举取（那是另一套字体，E171 显示成折线图）—— 都不对。
+    private const string SummonGlyph = "\uEB70";    // ic_fluent_megaphone_20_regular（喊人）
 
     // ClassIsland 的模板资源键。**必须显式指定**：它不按数据类型自动选模板，
     // 不指定就会把数据对象 ToString() 出来（实测通知里显示成一长串类型名）。
     private const string MaskTemplateKey = "NotificationTwoIconsMaskTemplate";
     private const string OverlayTemplateKey = "NotificationSimpleTextOverlayTemplate";
-    private const string ExchangeGlyph = "\uE117";   // Sync（调换）
-    private const string ManualGlyph = "\uE171";     // Important
+    private const string ExchangeGlyph = "\uE15F";   // ic_fluent_arrow_swap_20_regular（对调）
+    private const string ManualGlyph = "\uE9E4";     // ic_fluent_info_20_regular（提示）
+    private const string BellGlyph = "\uE025";       // ic_fluent_alert_20_regular（Fluent 里 alert 就是铃铛）
 
     /// <summary>按渠道发送一条提醒。mask 为遮罩大字，overlay 为正文，speech 为播报内容。</summary>
     public void Notify(Guid channelId, string mask, string? overlay = null, string? speech = null,
@@ -58,7 +62,8 @@ public class SmartClassroomProvider : NotificationProviderBase
             {
                 Text = mask,
                 LeftIconSource = new FluentIconSource(GlyphFor(channelId)),
-                HasRightIcon = false
+                RightIconSource = new FluentIconSource(BellGlyph),
+                HasRightIcon = true
             })
             {
                 ContentTemplateResourceKey = MaskTemplateKey,

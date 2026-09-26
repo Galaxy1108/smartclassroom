@@ -354,7 +354,8 @@ SnowLuma 的 `config/runtime.json` 里 `hookAutoLoad` 默认是 **false**：
 - 图标：`new FluentIconSource("\uF8009")`。码位要取自 **FluentAvalonia 的 `Symbol` 枚举**
   （ClassIsland 用的就是这套 Fluent System Icons 字体）；照 Segoe MDL2 猜会错位
   （实测 `E7E7` 在这套字体里是笑脸）。当前：召唤=`F8009`(AlertUrgent)、
-  换课=`E117`(Sync)、手动=`E171`(Important)。
+  换课=`E15F`(arrow_swap)、手动=`E9E4`(info)，右侧统一用 `E025`(alert，Fluent 里就是铃铛；
+  别用 `service_bell` —— 那个在这个尺寸下看着像餐盘盖)。
 
 三个渠道各配了图标（召唤=铃铛、换课=提示、手动=警告），渠道属性里也带上了 `iconGlyph`。
 
