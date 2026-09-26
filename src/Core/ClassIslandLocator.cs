@@ -61,6 +61,35 @@ public static class ClassIslandLocator
     }
 
     /// <summary>在候选根下找 token 文件；找不到返回 null。</summary>
+    /// <summary>插件 DLL 应该放的位置：&lt;ClassIsland 根&gt;/Plugins/&lt;插件 id&gt;/。</summary>
+    public static string RelativePluginDir => Path.Combine("Plugins", PluginId);
+
+    /// <summary>已存在的 ClassIsland 根目录（用来决定插件往哪装）。</summary>
+    public static string? FindExistingRoot(IEnumerable<string>? roots = null)
+        => (roots ?? CandidateRoots()).FirstOrDefault(Directory.Exists);
+
+    /// <summary>
+    /// 把插件文件装进 ClassIsland。
+    /// 从 <paramref name="sourceDir"/>（应用自带的 classisland-plugin 目录）复制到
+    /// &lt;ClassIsland 根&gt;/Plugins/&lt;插件 id&gt;/。返回装到了哪里；失败抛异常。
+    /// </summary>
+    public static string InstallPlugin(string sourceDir, string? root = null)
+    {
+        var target = root ?? FindExistingRoot();
+        if (target is null || !Directory.Exists(target))
+        {
+            // 不要凭空造一个 ClassIsland 目录出来：宁可告诉用户手动放哪
+            throw new InvalidOperationException(
+                "没找到 ClassIsland 安装目录。请手动把 classisland-plugin 里的文件复制到 "
+                + "ClassIsland 的 Plugins/" + PluginId + " 目录，然后重启 ClassIsland。");
+        }
+        var dir = Path.Combine(target, RelativePluginDir);
+        Directory.CreateDirectory(dir);
+        foreach (var file in Directory.GetFiles(sourceDir))
+            File.Copy(file, Path.Combine(dir, Path.GetFileName(file)), overwrite: true);
+        return dir;
+    }
+
     public static string? FindTokenFile(IEnumerable<string>? roots = null)
     {
         foreach (var root in roots ?? CandidateRoots())

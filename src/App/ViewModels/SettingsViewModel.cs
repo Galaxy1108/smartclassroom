@@ -236,7 +236,7 @@ public sealed class SettingsViewModel : ViewModelBase
 
     /// <summary>QQ 连接就绪：有监听群号，且有 OneBot 地址。</summary>
     public bool QqReady
-        => (ParseGroupIds().Count > 0 || ListenAllGroups)
+        => (ParseGroupIds().Count > 0 || ListenAllGroups || ListenTeacherPrivate)
            && (OneBotHttp.Trim().Length > 0 || OneBotWs.Trim().Length > 0);
 
     /// <summary>AI 就绪：有模型；内置直连还要求服务地址，pi-ai 走 provider 目录。</summary>
@@ -276,6 +276,36 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public bool HasSummonVoiceHint => SummonVoiceHint.Length > 0;
 
+    /// <summary>应用自带的插件文件目录（打包时放在应用目录下）。</summary>
+    public static string BundledPluginDir =>
+        Path.Combine(AppContext.BaseDirectory, "classisland-plugin");
+
+    public bool HasBundledPlugin => Directory.Exists(BundledPluginDir);
+
+    /// <summary>
+    /// 把自带插件装进 ClassIsland（用户"插件没给我"的正面解决：应用直接给）。
+    /// </summary>
+    public void InstallClassIslandPlugin()
+    {
+        if (!HasBundledPlugin)
+        {
+            Toasts.Error("安装包缺少插件文件", "请从 Release 页面下载 classisland-plugin 压缩包。");
+            return;
+        }
+        try
+        {
+            var dir = ClassIslandLocator.InstallPlugin(BundledPluginDir);
+            AppendLog($"已安装 ClassIsland 插件到 {dir}");
+            Toasts.Success("插件已安装", "重启 ClassIsland 后即可连接（状态会自动变成已连接）。");
+            RefreshIntegrationState();
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"安装 ClassIsland 插件失败：{ex.Message}");
+            Toasts.Error("安装插件失败", ex.Message);
+        }
+    }
+
     /// <summary>重新判断集成就绪情况（改设置、打开设置页、自动查找 token 后调用）。</summary>
     public void RefreshIntegrationState()
     {
@@ -299,8 +329,9 @@ public sealed class SettingsViewModel : ViewModelBase
         if (needQq)
         {
             // 精确到缺哪一项：只写"QQ 连接"会让"地址填了、群没选"的人一头雾水
-            if (ParseGroupIds().Count == 0 && !ListenAllGroups)
-                missing.Add("监听群号");
+            // 只监听私聊也是合法配置（老师私聊发作业/召唤）
+            if (ParseGroupIds().Count == 0 && !ListenAllGroups && !ListenTeacherPrivate)
+                missing.Add("监听群号或老师私聊");
             if (OneBotHttp.Trim().Length == 0 && OneBotWs.Trim().Length == 0)
                 missing.Add("OneBot 地址");
         }
@@ -1199,6 +1230,7 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             if (!Set(ref _listenTeacherPrivate, value))
                 return;
+            RefreshFeatureGates();   // 它也算一种"QQ 连接"配置
             SaveSettings();
         }
     }

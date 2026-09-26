@@ -70,3 +70,50 @@ public sealed class ClassIslandLocatorTests : IDisposable
         Assert.Equal(roots.Count, roots.Distinct().Count());
     }
 }
+
+/// <summary>
+/// 插件安装：用户"你 classisland 插件没给我"的正面解决 ——
+/// 应用自带插件文件，一键复制到 ClassIsland 的 Plugins/<id>/ 目录。
+/// </summary>
+public sealed class ClassIslandPluginInstallTests
+{
+    [Fact]
+    public void InstallPlugin_CopiesFilesIntoPluginsDir()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "sc-ci-" + Guid.NewGuid().ToString("N"));
+        var src = Path.Combine(Path.GetTempPath(), "sc-plugin-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(src);
+        File.WriteAllText(Path.Combine(src, "SmartClassroom.ClassIslandPlugin.dll"), "dll");
+        File.WriteAllText(Path.Combine(src, "manifest.yml"), "id: smartclassroom.bridge");
+        try
+        {
+            var dir = ClassIslandLocator.InstallPlugin(src, root);
+
+            Assert.Equal(Path.Combine(root, "Plugins", "smartclassroom.bridge"), dir);
+            Assert.True(File.Exists(Path.Combine(dir, "SmartClassroom.ClassIslandPlugin.dll")));
+            Assert.True(File.Exists(Path.Combine(dir, "manifest.yml")));
+
+            ClassIslandLocator.InstallPlugin(src, root);   // 重复安装不报错（覆盖）
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+            Directory.Delete(src, true);
+        }
+    }
+
+    [Fact]
+    public void InstallPlugin_WithoutClassIsland_ExplainsWhatToDo()
+    {
+        var src = Path.Combine(Path.GetTempPath(), "sc-plugin-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(src);
+        try
+        {
+            var ex = Assert.Throws<InvalidOperationException>(
+                () => ClassIslandLocator.InstallPlugin(src, Path.Combine(Path.GetTempPath(), "sc-none-" + Guid.NewGuid().ToString("N"))));
+            Assert.Contains("Plugins", ex.Message);      // 告诉用户手动放哪
+        }
+        finally { Directory.Delete(src, true); }
+    }
+}

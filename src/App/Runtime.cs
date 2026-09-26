@@ -224,8 +224,10 @@ public static class Runtime
             {
                 await oneBot.RunEventLoopAsync(async (ev, ct) =>
                 {
-                    // 没列群号（或开了「监听全部群」）时不按群过滤
-                    var wanted = listenAll || groups.Count == 0;
+                    // 只有开了「监听全部群」才不过滤。
+                    // 注意：不能写成 groups.Count == 0 就全放行 —— 那样"只监听私聊"的用户
+                    // 会意外处理所有群的消息。
+                    var wanted = listenAll;
                     switch (ev)
                     {
                         case GroupMessageEvent m when wanted || groups.Contains(m.GroupId):

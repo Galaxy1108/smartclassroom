@@ -24,6 +24,15 @@ mkdir -p "$OUT/ai-sidecar"
 cp "$ROOT/tools/ai-sidecar/package.json" "$ROOT/tools/ai-sidecar/sidecar.mjs" "$OUT/ai-sidecar/"
 cp -a "$ROOT/tools/ai-sidecar/node_modules" "$OUT/ai-sidecar/"
 
+echo "==> 3.4/4 打包 ClassIsland 插件（应用自带 + 单独 .cipx）"
+PLUGIN_STAGE="$ROOT/pkg/plugin-stage"
+rm -rf "$PLUGIN_STAGE"
+dotnet publish "$ROOT/src/ClassIslandPlugin/SmartClassroom.ClassIslandPlugin.csproj" \
+  -c Release -o "$PLUGIN_STAGE" --nologo -v q
+rm -rf "$ROOT/pkg/stage/classisland-plugin"
+cp -a "$PLUGIN_STAGE" "$ROOT/pkg/stage/classisland-plugin"
+rm -f "$ROOT/pkg/stage/classisland-plugin"/*.pdb
+
 echo "==> 3.5/4 归一权限（工作区文件可能是 0600）"
 chmod -R a+rX "$OUT"
 

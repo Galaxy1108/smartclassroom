@@ -353,6 +353,9 @@
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBox Text="{Binding PluginToken}" MinWidth="240" PasswordChar="•" />
                         <Button Content="自动查找" Click="LocateToken_Click" />
+                        <Button Content="安装插件" Click="InstallPlugin_Click"
+                                IsVisible="{Binding HasBundledPlugin}"
+                                ToolTip.Tip="把应用自带的 ClassIsland 插件复制到 ClassIsland 的 Plugins 目录" />
                     </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>

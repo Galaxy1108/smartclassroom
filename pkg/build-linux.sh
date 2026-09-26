@@ -21,6 +21,18 @@ mkdir -p "$ROOT/pkg/stage/ai-sidecar"
 cp "$ROOT/tools/ai-sidecar/package.json" "$ROOT/tools/ai-sidecar/sidecar.mjs" "$ROOT/pkg/stage/ai-sidecar/"
 cp -a "$ROOT/tools/ai-sidecar/node_modules" "$ROOT/pkg/stage/ai-sidecar/"
 
+echo "==> 3.4/4 打包 ClassIsland 插件（应用自带 + 单独 .cipx）"
+PLUGIN_STAGE="$ROOT/pkg/plugin-stage"
+rm -rf "$PLUGIN_STAGE"
+dotnet publish "$ROOT/src/ClassIslandPlugin/SmartClassroom.ClassIslandPlugin.csproj" \
+  -c Release -o "$PLUGIN_STAGE" --nologo -v q
+# 应用自带一份，设置页的「安装插件」直接用它
+rm -rf "$ROOT/pkg/stage/classisland-plugin"
+cp -a "$PLUGIN_STAGE" "$ROOT/pkg/stage/classisland-plugin"
+rm -f "$ROOT/pkg/stage/classisland-plugin"/*.pdb
+# 单独一份 .cipx（ClassIsland 的插件包格式就是 zip）
+(cd "$PLUGIN_STAGE" && zip -q -r "$ROOT/pkg/smartclassroom-classisland-plugin.cipx" . -x "*.pdb")
+
 echo "==> 3.5/4 归一权限（工作区文件可能是 0600）"
 chmod -R a+rX "$ROOT/pkg/stage"
 

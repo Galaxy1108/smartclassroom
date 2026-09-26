@@ -328,6 +328,18 @@ SnowLuma 的 `config/runtime.json` 里 `hookAutoLoad` 默认是 **false**：
 所以点「启动」时应用会把这个开关打开（写回 `runtime.json`，保留其它字段，原子替换），
 并在事件页记一条「已开启 SnowLuma 的自动注入」。想关掉在 WebUI 里改回去即可。
 
+### ClassIsland 插件（应用自带，一键安装）
+
+配套插件在 `src/ClassIslandPlugin/`，**安装包里自带一份**：
+
+- 设置页 → ClassIsland 集成 → **「安装插件」**：应用把它复制到
+  `<ClassIsland 根>/Plugins/smartclassroom.bridge/`，重启 ClassIsland 后状态就会变成"已连接"；
+- 也单独提供 `smartclassroom-classisland-plugin.cipx`（ClassIsland 的插件包，就是个 zip），
+  可以自己在 ClassIsland 里导入；
+- 找不到 ClassIsland 目录时会明确告诉你手动把 `classisland-plugin` 里的文件放到哪。
+
+> 之前几个版本只发布了应用、**没有发布插件** —— 所以 ClassIsland 一直是"未连接"。
+
 ### ClassIsland 的状态与语音播报
 
 - 「连接状态」只显示**短状态**（`已连接 · 插件 vX · 课表已加载` / `未连接`），
@@ -382,7 +394,8 @@ rm config/webui.json && ./launcher.sh            # 或者删掉配置，让它�
 - **「选择群…」**：从 OneBot 拉该账号的群列表（带群名与人数），**复选框多选**，不用手打群号；
   （早先用的是多选 ListBox —— Avalonia 的多选要按 Ctrl 点，看起来就像只能单选，所以换掉了）
 - **「监听老师私聊」**：老师私聊发的「来一下」/作业也处理；只认老师映射里的 QQ，
-  陌生人私聊一律忽略（名单为空时不做过滤）；
+  陌生人私聊一律忽略（名单为空时不做过滤）。**只监听私聊是合法配置** ——
+  不选群也能开功能（那种情况下群消息一律不处理）；
 - 也可以直接在输入框里手填（英文逗号分隔）；
 - **「监听全部群」**开关：确实想全监听时打开（会在事件页记一条警告）。
 

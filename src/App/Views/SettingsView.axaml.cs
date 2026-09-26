@@ -214,6 +214,10 @@ public partial class SettingsView : UserControl
     private async void Stop_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => await Vm.StopAsync();
 
+    /// <summary>把应用自带的 ClassIsland 插件装进 ClassIsland。</summary>
+    private void InstallPlugin_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => Vm.InstallClassIslandPlugin();
+
     /// <summary>给每个账号自动分配互不冲突的 OneBot 端口并重启 SnowLuma。</summary>
     private async void AutoAssignPorts_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => await Vm.AutoAssignPortsAsync();

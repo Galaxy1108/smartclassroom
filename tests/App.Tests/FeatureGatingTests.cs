@@ -97,6 +97,29 @@ public sealed class FeatureGatingTests : IDisposable
         Assert.True(vm.ClassIslandReady);
     }
 
+    /// <summary>
+    /// 只监听老师私聊也是合法配置 —— 用户要的就是私聊，不该逼他选群。
+    /// </summary>
+    [AvaloniaFact]
+    public void PrivateOnly_CountsAsQqReady()
+    {
+        var vm = new SettingsViewModel(_path)
+        {
+            OneBotHttp = "http://127.0.0.1:3000",
+            AiBaseUrl = "u",
+            AiModel = "m"
+        };
+        Assert.False(vm.QqReady);                 // 没群也没私聊
+
+        vm.ListenTeacherPrivate = true;
+        Assert.True(vm.QqReady);                  // 私聊够了
+        Assert.Equal("", vm.SummonGateHint);      // 召唤可以开
+
+        vm.ListenTeacherPrivate = false;
+        Assert.False(vm.QqReady);
+        Assert.Contains("监听群号或老师私聊", vm.SummonGateHint);   // 说清两种选择
+    }
+
     [AvaloniaFact]
     public void EnablingFeatureWithoutIntegrations_IsRejected_AndNotSaved()
     {
