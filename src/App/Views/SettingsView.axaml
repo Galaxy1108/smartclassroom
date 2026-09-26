@@ -1,50 +1,73 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:SmartClassroom.App.ViewModels"
+             xmlns:fa="using:FluentAvalonia.UI.Controls"
              x:Class="SmartClassroom.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
     <ScrollViewer>
-        <StackPanel Spacing="12" Margin="4">
-            <TextBlock Text="AI" FontWeight="Bold" FontSize="15" />
-            <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" RowSpacing="6" ColumnSpacing="8">
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="BaseUrl" VerticalAlignment="Center" />
-                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding AiBaseUrl}" />
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="Model" VerticalAlignment="Center" />
-                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding AiModel}" />
-            </Grid>
+        <StackPanel Spacing="4" Margin="4" MaxWidth="860" HorizontalAlignment="Left">
+            <TextBlock Text="AI" Theme="{StaticResource SubtitleTextBlockStyle}" Margin="0,4" />
+            <fa:SettingsExpander Header="服务地址"
+                                 Description="OpenAI-compatible 接口，如 https://api.example.com/v1">
+                <fa:SettingsExpander.Footer>
+                    <TextBox Text="{Binding AiBaseUrl}" MinWidth="280" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="模型"
+                                 Description="如 gpt-4o-mini">
+                <fa:SettingsExpander.Footer>
+                    <TextBox Text="{Binding AiModel}" MinWidth="280" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
 
-            <TextBlock Text="QQ 连接（OneBot）" FontWeight="Bold" FontSize="15" />
-            <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto" RowSpacing="6" ColumnSpacing="8">
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="HTTP" VerticalAlignment="Center" />
-                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding OneBotHttp}" />
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="WebSocket" VerticalAlignment="Center" />
-                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding OneBotWs}" />
-            </Grid>
+            <TextBlock Text="QQ 连接" Theme="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,4" />
+            <fa:SettingsExpander Header="OneBot HTTP"
+                                 Description="SnowLuma 默认 http://127.0.0.1:3000">
+                <fa:SettingsExpander.Footer>
+                    <TextBox Text="{Binding OneBotHttp}" MinWidth="280" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="OneBot WebSocket"
+                                 Description="SnowLuma 默认 ws://127.0.0.1:3001">
+                <fa:SettingsExpander.Footer>
+                    <TextBox Text="{Binding OneBotWs}" MinWidth="280" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
 
-            <TextBlock Text="SnowLuma 下载器（不随应用附带）" FontWeight="Bold" FontSize="15" />
-            <TextBlock Text="{Binding InstallDir}" Opacity="0.6" FontSize="12" />
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="刷新版本" Click="Refresh_Click" />
-                <ComboBox MinWidth="160" ItemsSource="{Binding Releases}"
-                          SelectedItem="{Binding SelectedRelease}">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate x:DataType="vm:SettingsViewModel">
-                            <TextBlock Text="{Binding Tag}" />
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-                <Button Content="下载并安装" Click="Download_Click" />
-            </StackPanel>
+            <TextBlock Text="SnowLuma 下载器" Theme="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,4" />
+            <TextBlock Text="{Binding InstallDir}" Opacity="0.6" FontSize="12" Margin="0,0,0,4" />
+            <fa:SettingsExpander Header="版本"
+                                 Description="不随应用附带，在此下载。完整版内置 Node，精简版需自装 Node ≥ 22。">
+                <fa:SettingsExpander.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ComboBox MinWidth="150" ItemsSource="{Binding Releases}"
+                                  SelectedItem="{Binding SelectedRelease}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SettingsViewModel">
+                                    <TextBlock Text="{Binding Tag}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Button Content="刷新" Click="Refresh_Click" />
+                        <Button Content="下载并安装" Classes="accent" Click="Download_Click" />
+                    </StackPanel>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
             <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="6"
-                         IsVisible="{Binding Busy}" />
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="启动" Click="Start_Click" />
-                <Button Content="停止" Click="Stop_Click" />
-                <Button Content="探测状态" Click="Probe_Click" />
-                <TextBlock Text="{Binding Status}" VerticalAlignment="Center" FontWeight="Bold" />
-            </StackPanel>
+                         IsVisible="{Binding Busy}" Margin="0,4" />
+            <fa:SettingsExpander Header="运行状态"
+                                 Description="注入三态：QQ 未运行 / 已注入未登录 / 在线">
+                <fa:SettingsExpander.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="启动" Click="Start_Click" />
+                        <Button Content="停止" Click="Stop_Click" />
+                        <Button Content="探测" Click="Probe_Click" />
+                        <TextBlock Text="{Binding Status}" VerticalAlignment="Center" FontWeight="Bold" />
+                    </StackPanel>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
 
-            <TextBlock Text="日志" FontWeight="Bold" FontSize="15" />
+            <TextBlock Text="日志" Theme="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,4" />
             <TextBox Text="{Binding Log}" IsReadOnly="True" AcceptsReturn="True"
                      Height="160" FontFamily="Monospace" />
         </StackPanel>

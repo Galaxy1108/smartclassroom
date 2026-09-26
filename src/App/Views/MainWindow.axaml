@@ -2,39 +2,43 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:SmartClassroom.App.ViewModels"
         xmlns:views="using:SmartClassroom.App.Views"
+        xmlns:fa="using:FluentAvalonia.UI.Controls"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
+        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="640"
         x:Class="SmartClassroom.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="智慧课堂">
+        Title="智慧课堂" Width="1000" Height="640" MinWidth="720" MinHeight="480">
 
     <Design.DataContext>
         <vm:MainViewModel />
     </Design.DataContext>
 
-    <DockPanel>
-        <Border DockPanel.Dock="Bottom" Padding="8,4" BorderThickness="0,1,0,0"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+    <Grid RowDefinitions="*,Auto">
+        <fa:NavigationView Grid.Row="0" x:Name="NavView"
+                           PaneDisplayMode="Auto"
+                           IsSettingsVisible="False"
+                           OpenPaneLength="200"
+                           SelectionChanged="NavView_SelectionChanged">
+            <fa:NavigationView.MenuItems>
+                <fa:NavigationViewItem Content="作业" Tag="home" />
+                <fa:NavigationViewItem Content="事件" Tag="events" />
+                <fa:NavigationViewItem Content="课件" Tag="courseware" />
+                <fa:NavigationViewItem Content="设置" Tag="settings" />
+            </fa:NavigationView.MenuItems>
+            <ScrollViewer Padding="20,12,20,20">
+                <StackPanel Spacing="8">
+                    <TextBlock x:Name="PageTitle" Theme="{StaticResource TitleTextBlockStyle}" Text="作业" />
+                    <ContentControl x:Name="PageHost" />
+                </StackPanel>
+            </ScrollViewer>
+        </fa:NavigationView>
+
+        <Border Grid.Row="1" Padding="12,6" BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
             <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.8" />
         </Border>
-
-        <TabControl Margin="8">
-            <TabItem Header="作业">
-                <views:HomeworkView />
-            </TabItem>
-            <TabItem Header="事件">
-                <views:EventsView />
-            </TabItem>
-            <TabItem Header="课件">
-                <TextBlock Text="当天课件（v0.4 文件归档后展示）"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6" />
-            </TabItem>
-            <TabItem Header="设置">
-                <views:SettingsView />
-            </TabItem>
-        </TabControl>
-    </DockPanel>
+    </Grid>
 
 </Window>

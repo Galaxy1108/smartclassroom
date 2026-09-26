@@ -13,8 +13,8 @@
                     <DataTemplate x:DataType="c:HomeworkItem">
                         <Border Margin="4" Padding="10" CornerRadius="8"
                                 BorderThickness="1"
-                                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                                Background="{DynamicResource SystemControlBackgroundAltMediumLowBrush}">
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
                             <StackPanel Spacing="4">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{Binding Subject}" FontWeight="Bold" FontSize="15" />

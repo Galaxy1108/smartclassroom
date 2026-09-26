@@ -10,6 +10,7 @@ public sealed class CoursewareWindowTests
     [AvaloniaFact]
     public void CoursewareWindow_ShowsItemsWithTitle()
     {
+        TestSetup.EnsureApp();
         var png = Path.Combine(Path.GetTempPath(), "sc-thumb-test.png");
         // 最小合法 PNG（1x1），避免依赖外部图片库。
         File.WriteAllBytes(png, Convert.FromBase64String(

@@ -11,6 +11,7 @@ public sealed class SettingsViewTests
     [AvaloniaFact]
     public void SettingsView_BuildsWithDefaults()
     {
+        TestSetup.EnsureApp();
         var vm = new SettingsViewModel();
         var view = new SettingsView { DataContext = vm };
         var window = new Window { Content = view };

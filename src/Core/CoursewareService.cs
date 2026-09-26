@@ -45,11 +45,12 @@ public sealed class CoursewareService
         }
     }
 
-    /// <summary>查询某日某老师（按姓名或 QQ）的课件。返回前先过滤本地文件仍存在的。</summary>
+    /// <summary>查询某日课件。老师与 QQ 均为空时返回当日全部。</summary>
     public IReadOnlyList<CoursewareFile> Query(DateOnly date, string? teacherName, long? teacherQq = null)
         => _files.Where(f => f.ClassDate == date
             && f.LocalPath is not null && File.Exists(f.LocalPath)
-            && (teacherName is not null && f.Sender.TeacherName == teacherName
+            && (teacherName is null && teacherQq is null
+                || teacherName is not null && f.Sender.TeacherName == teacherName
                 || teacherQq is not null && f.Sender.UserId == teacherQq))
             .OrderBy(f => f.FileName).ToList();
 
