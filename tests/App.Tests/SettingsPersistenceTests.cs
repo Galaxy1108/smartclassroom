@@ -29,13 +29,13 @@ public sealed class SettingsPersistenceTests : IDisposable
         SettingsStore.Save(shared, _path);
 
         var vm = new SettingsViewModel(_path, null, shared);
-        vm.AiApiKey = "oc_sk_live";
+        vm.AiApiKey = "test-key-not-a-real-secret";
         vm.SaveSettings();
 
         SettingsStore.Save(shared, _path);                    // ← Runtime.Stop() 的动作
 
-        Assert.Equal("oc_sk_live", SettingsStore.Load(_path).AiApiKey);
-        Assert.Equal("oc_sk_live", shared.AiApiKey);          // 同一份数据，不可能互相覆盖
+        Assert.Equal("test-key-not-a-real-secret", SettingsStore.Load(_path).AiApiKey);
+        Assert.Equal("test-key-not-a-real-secret", shared.AiApiKey);          // 同一份数据，不可能互相覆盖
     }
 
     [AvaloniaFact]
