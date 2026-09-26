@@ -40,14 +40,16 @@ function models() {
 }
 
 /** 端点是否为「自定义 OpenAI 兼容」——有 baseUrl 就自己造一个临时 provider。 */
-function customProvider(baseUrl, modelId, apiKey) {
+function customProvider(baseUrl, modelId, apiKey, reasoningLevel) {
   const model = {
     id: modelId,
     name: modelId,
     api: 'openai-completions',
     provider: 'smartclassroom-custom',
     baseUrl,
-    reasoning: false,
+    // 由调用方声明的推理等级决定是否声明"支持推理"：
+    // 不声明就不会给端点发它可能不认识的参数；声明了 pi-ai 才会按等级压低思考量。
+    reasoning: !!reasoningLevel && reasoningLevel !== 'off',
     input: ['text'],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 128000,
@@ -113,19 +115,19 @@ async function handle(req) {
 
     let model;
     if (req.baseUrl) {
-      const provider = customProvider(req.baseUrl, req.model, req.apiKey);
+      const provider = customProvider(req.baseUrl, req.model, req.apiKey, req.reasoning);
       const m = createModels();
       m.setProvider(provider);
       model = m.getModel('smartclassroom-custom', req.model);
       if (!model) throw new Error(`自定义端点模型解析失败：${req.model}`);
-      const res = await m.complete(model, context);
-      return { text: textOf(res), usage: usageOf(res) };
+      const res = await completeWith(m, model, context, req);
+      return { text: requireText(res), usage: usageOf(res) };
     }
 
     model = getBuiltinModel(req.provider, req.model);
     if (!model) throw new Error(`未知模型：${req.provider}/${req.model}`);
-    const res = await models().complete(model, context, req.apiKey ? { apiKey: req.apiKey } : undefined);
-    return { text: textOf(res), usage: usageOf(res) };
+    const res = await completeWith(models(), model, context, req);
+    return { text: requireText(res), usage: usageOf(res) };
   }
 
   throw new Error(`未知命令：${cmd}`);
@@ -138,6 +140,58 @@ function textOf(message) {
     .map((b) => b.text ?? '')
     .join('')
     .trim();
+}
+
+/**
+ * 解释"为什么没有文本内容"。
+ * 空内容绝不能当成成功返回——上层只会看到"连通但什么都没得到"。
+ * 常见原因：推理模型把输出都花在 thinking 上、输出被长度上限截断、只返回了工具调用。
+ */
+function describeEmpty(message) {
+  const blocks = Array.isArray(message?.content) ? message.content : [];
+  const types = [...new Set(blocks.map((b) => b?.type).filter(Boolean))];
+  const stop =
+    message?.stopReason ?? message?.finishReason ?? message?.stop_reason ?? message?.finish_reason ?? 'unknown';
+
+  const parts = ['AI 返回了空内容'];
+  parts.push(`内容块类型: ${types.length ? types.join(',') : '无'}`);
+  parts.push(`结束原因: ${stop}`);
+  if (types.includes('thinking') || types.includes('reasoning')) {
+    const thinkingChars = blocks
+      .filter((b) => b?.type === 'thinking' || b?.type === 'reasoning')
+      .reduce((n, b) => n + (b.thinking ?? b.text ?? '').length, 0);
+    parts.push(`只有思考内容（${thinkingChars} 字，推理模型把输出用在思考上）`);
+  }
+  if (types.includes('toolCall')) parts.push('只返回了工具调用');
+  parts.push('建议改用非推理模型，或放宽输出长度上限');
+  return parts.join('；');
+}
+
+/**
+ * 统一的补全调用。
+ * 默认用 minimal 推理强度：我们的任务是"把群消息整理成 JSON"，
+ * 不需要长思考——推理模型把输出全花在思考上时，final text 会是空的。
+ */
+async function completeWith(collection, model, context, req) {
+  const options = {};
+  if (req.apiKey) options.apiKey = req.apiKey;
+  if (req.reasoning ?? 'minimal') options.reasoning = req.reasoning ?? 'minimal';
+  if (req.maxTokens) options.maxTokens = req.maxTokens;
+
+  try {
+    return await collection.completeSimple(model, context, options);
+  } catch (e) {
+    // 个别模型不支持指定推理等级：退回默认参数再试一次
+    log('completeSimple(options) failed, retrying with defaults:', e?.message ?? String(e));
+    return await collection.completeSimple(model, context, {});
+  }
+}
+
+/** 取出最终文本；为空则抛错（带诊断）。 */
+function requireText(message) {
+  const text = textOf(message);
+  if (!text) throw new Error(describeEmpty(message));
+  return text;
 }
 
 function usageOf(message) {

@@ -202,6 +202,6 @@ public sealed class HomeworkManualAddTests
 
         vm.SuspendRefresh = false;
         vm.Refresh();
-        Assert.Equal(1, vm.Items.Count);
+        Assert.Single(vm.Items);
     }
 }

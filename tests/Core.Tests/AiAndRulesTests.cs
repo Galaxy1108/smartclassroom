@@ -75,4 +75,58 @@ public sealed class AiGatewayTests
         Assert.Equal(3, d.From.Period);
         Assert.NotNull(d.To);
     }
+
+    [Fact]
+    public async Task AskAsync_EmptyContent_ThrowsWithDiagnosis_NotEmptyString()
+    {
+        var reply = """{"choices":[{"finish_reason":"length","message":{"content":""}}]}""";
+        var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
+            new HttpClient(new StubHandler(reply)));
+
+        // 关键：空内容必须报错，而不是当成成功的空字符串——
+        // 否则界面上只会显示"可用，但返回为空"，完全查不出原因。
+        var ex = await Assert.ThrowsAsync<AiException>(() => ai.AskAsync("s", "u"));
+        Assert.Contains("空内容", ex.Message);
+        Assert.Contains("finish_reason=length", ex.Message);
+    }
+
+    [Fact]
+    public async Task AskAsync_ReasoningOnlyContent_ExplainsReasoningModel()
+    {
+        var reply = """{"choices":[{"finish_reason":"stop","message":{"content":"","reasoning_content":"想了很久但没输出"}}]}""";
+        var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
+            new HttpClient(new StubHandler(reply)));
+
+        var ex = await Assert.ThrowsAsync<AiException>(() => ai.AskAsync("s", "u"));
+        Assert.Contains("reasoning_content", ex.Message);
+        Assert.Contains("推理模型", ex.Message);
+    }
+
+    [Fact]
+    public async Task AskAsync_Refusal_IsReported()
+    {
+        var reply = """{"choices":[{"finish_reason":"stop","message":{"content":"","refusal":"我不能这么做"}}]}""";
+        var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
+            new HttpClient(new StubHandler(reply)));
+
+        var ex = await Assert.ThrowsAsync<AiException>(() => ai.AskAsync("s", "u"));
+        Assert.Contains("refusal", ex.Message);
+    }
+
+    [Fact]
+    public async Task AskAsync_WhitespaceContent_AlsoCountsAsEmpty()
+    {
+        var reply = """{"choices":[{"message":{"content":"   \n  "}}]}""";
+        var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
+            new HttpClient(new StubHandler(reply)));
+        await Assert.ThrowsAsync<AiException>(() => ai.AskAsync("s", "u"));
+    }
+
+    [Fact]
+    public async Task AskAsync_NormalContent_StillWorks()
+    {
+        var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
+            new HttpClient(new StubHandler(ChatReply("  可用  "))));
+        Assert.Equal("可用", await ai.AskAsync("s", "u"));   // 顺带裁剪空白
+    }
 }

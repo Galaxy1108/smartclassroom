@@ -28,6 +28,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _pluginStatus = "未检测";
     private string _sidecarInfo = "";
     private string _aiTestResult = "";
+    private string _aiReasoning = "minimal";
     private bool _isNodeReady;
     private bool _isLocked;
     private bool _minimizeToTray = true;
@@ -309,6 +310,19 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public string AiTestResult { get => _aiTestResult; private set => Set(ref _aiTestResult, value); }
 
+    /// <summary>pi-ai 推理强度可选值。</summary>
+    public List<string> ReasoningLevels { get; } = ["minimal", "low", "medium", "high"];
+
+    /// <summary>
+    /// pi-ai 推理强度。默认 minimal：长思考对"整理成 JSON"没有帮助，反而可能
+    /// 让推理模型只输出思考、final text 为空。
+    /// </summary>
+    public string AiReasoning
+    {
+        get => _aiReasoning;
+        set { if (Set(ref _aiReasoning, value)) SaveSettings(); }
+    }
+
     public List<AiProviderPreset> AiProviders { get; } =
     [
         new("OpenAI 官方", "https://api.openai.com/v1"),
@@ -412,6 +426,7 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             SidecarDir = NodeRuntime.SidecarDir(_appDir),
             Provider = SelectedProvider?.Id ?? AiModelProviderHint,
+            Reasoning = AiReasoning,
             Model = AiModel,
             ApiKey = AiApiKey,
             BaseUrl = AiBaseUrl
@@ -716,6 +731,7 @@ public sealed class SettingsViewModel : ViewModelBase
         AiApiKey = s.AiApiKey;
         AiModel = s.AiModel;
         AiModelProviderHint = s.AiProvider.Length > 0 ? s.AiProvider : "deepseek";
+        _aiReasoning = s.AiReasoning.Length > 0 ? s.AiReasoning : "minimal";
         OneBotHttp = s.OneBotHttp;
         OneBotWs = s.OneBotWs;
         GroupIdsText = string.Join(",", s.GroupIds);
@@ -746,6 +762,7 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             AiEngine = AiEngine.ToStorage(),
             AiProvider = SelectedProvider?.Id ?? AiModelProviderHint,
+            AiReasoning = AiReasoning,
             AiBaseUrl = AiBaseUrl,
             AiApiKey = AiApiKey,
             AiModel = AiModel,

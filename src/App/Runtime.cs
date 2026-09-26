@@ -69,7 +69,8 @@ public static class Runtime
                 Provider = Settings.AiProvider.Length > 0 ? Settings.AiProvider : null,
                 Model = Settings.AiModel,
                 ApiKey = Settings.AiApiKey,
-                BaseUrl = Settings.AiBaseUrl
+                BaseUrl = Settings.AiBaseUrl,
+                Reasoning = Settings.AiReasoning
             })
             : new AiGateway(new AiOptions
             {

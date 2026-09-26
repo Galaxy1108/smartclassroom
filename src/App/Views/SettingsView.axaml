@@ -199,6 +199,14 @@
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
 
+            <fa:SettingsExpander Header="推理强度" IsVisible="{Binding IsPiAi}"
+                                 Description="默认 minimal。调高会让推理模型花更多输出在思考上，可能出现「只有思考、正文为空」。">
+                <fa:SettingsExpander.Footer>
+                    <ComboBox MinWidth="140" ItemsSource="{Binding ReasoningLevels}"
+                              SelectedItem="{Binding AiReasoning}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
             <fa:SettingsExpander Header="服务地址"
                                  Description="pi-ai 引擎留空则用所选 provider 官方端点；填了则按自定义 OpenAI 兼容端点处理。">
                 <fa:SettingsExpander.Footer>

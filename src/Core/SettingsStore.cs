@@ -16,6 +16,9 @@ public sealed class AppSettings
     /// <summary>pi-ai provider id（如 deepseek、openai）；为空时走 AiBaseUrl 自定义端点。</summary>
     public string AiProvider { get; set; } = "";
 
+    /// <summary>pi-ai 推理强度（minimal/low/medium/high）。默认 minimal，避免"只有思考、没有输出"。</summary>
+    public string AiReasoning { get; set; } = "minimal";
+
     public string OneBotHttp { get; set; } = "http://127.0.0.1:3000";
     public string OneBotWs { get; set; } = "ws://127.0.0.1:3001";
     public string OneBotToken { get; set; } = "";

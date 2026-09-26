@@ -22,6 +22,16 @@ public sealed record SidecarOptions
     public string? BaseUrl { get; init; }
 
     public int TimeoutSeconds { get; init; } = 40;
+
+    /// <summary>
+    /// 推理强度：minimal/low/medium/high。
+    /// 默认 minimal —— 我们的任务是"整理成 JSON"，长思考既慢又贵，
+    /// 而且推理模型可能把输出全用在思考上导致最终文本为空。
+    /// </summary>
+    public string Reasoning { get; init; } = "minimal";
+
+    /// <summary>输出长度上限；null 用模型默认。</summary>
+    public int? MaxTokens { get; init; }
 }
 
 /// <summary>边车返回的模型条目。</summary>
@@ -61,6 +71,8 @@ public sealed class PiAiSidecarClient : IAiClient, IAsyncDisposable
             model = _options.Model,
             apiKey = _options.ApiKey,
             baseUrl = _options.BaseUrl,
+            reasoning = _options.Reasoning,
+            maxTokens = _options.MaxTokens,
             system,
             user
         }, cancel).ConfigureAwait(false);
