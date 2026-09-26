@@ -7,7 +7,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- 版本号：软件更新检查会拿它跟 GitHub 上的最新 tag/Release 比。
          发版时这里与 pkg/PKGBUILD 的 pkgver 一起改（两处保持一致）。 -->
-    <Version>0.34.0</Version>
+    <Version>0.34.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

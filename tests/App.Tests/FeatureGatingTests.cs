@@ -69,6 +69,34 @@ public sealed class FeatureGatingTests : IDisposable
         Assert.True(vm.FeatureSummon);             // 选完群后自动打开
     }
 
+    /// <summary>
+    /// 装 ClassIsland 的目的就是用它的语音播报 —— 没连上时虽然能降级（应用内通知），
+    /// 但必须明说"没有语音播报"，而不是悄悄降级。
+    /// </summary>
+    [AvaloniaFact]
+    public async Task SummonWithoutClassIsland_WarnsAboutMissingVoice()
+    {
+        var vm = new SettingsViewModel(_path) { PluginToken = "" };
+        vm.RefreshIntegrationState();
+
+        Assert.False(vm.ClassIslandReady);
+        Assert.True(vm.HasSummonVoiceHint);
+        Assert.Contains("没有语音播报", vm.SummonVoiceHint);
+        Assert.True(vm.PluginStatus.Length <= 4, $"状态行要短，别被截断：{vm.PluginStatus}");
+
+        // 探测失败后：状态仍然短，排查细节挪到 Tooltip
+        vm.PluginToken = "tok";
+        vm.PluginPort = 1;                       // 必然连不上
+        await vm.ProbePluginAsync();
+        Assert.Equal("未连接", vm.PluginStatus);
+        Assert.Contains("请确认", vm.PluginStatusDetail);
+
+        vm.PluginToken = "tok";
+        vm.RefreshIntegrationState();
+        Assert.False(vm.HasSummonVoiceHint);
+        Assert.True(vm.ClassIslandReady);
+    }
+
     [AvaloniaFact]
     public void EnablingFeatureWithoutIntegrations_IsRejected_AndNotSaved()
     {

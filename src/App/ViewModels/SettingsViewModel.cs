@@ -251,6 +251,31 @@ public sealed class SettingsViewModel : ViewModelBase
         private set => Set(ref _classIslandReady, value);
     }
 
+    private string _pluginStatusDetail = "";
+    /// <summary>未连接时的排查提示（状态行只显示"未连接"，细节放这里）。</summary>
+    public string PluginStatusDetail
+    {
+        get => _pluginStatusDetail;
+        private set => Set(ref _pluginStatusDetail, value);
+    }
+
+    /// <summary>
+    /// 召唤通知的"降级提醒"：ClassIsland 没连上时仍然能用（应用内横幅 + 系统通知），
+    /// 但**没有语音播报** —— 用户装 ClassIsland 就是为了播报，所以要明说。
+    /// 不是拦截条件，只是一句提示。
+    /// </summary>
+    public string SummonVoiceHint
+    {
+        get
+        {
+            if (!ClassIslandReady)
+                return "ClassIsland 未连接：只发应用内通知，没有语音播报";
+            return "";
+        }
+    }
+
+    public bool HasSummonVoiceHint => SummonVoiceHint.Length > 0;
+
     /// <summary>重新判断集成就绪情况（改设置、打开设置页、自动查找 token 后调用）。</summary>
     public void RefreshIntegrationState()
     {
@@ -258,6 +283,10 @@ public sealed class SettingsViewModel : ViewModelBase
         try { located = ClassIslandLocator.TryReadToken() is not null; }
         catch { located = false; }
         ClassIslandReady = PluginToken.Trim().Length > 0 || located;
+        if (ClassIslandReady)
+            PluginStatusDetail = "";
+        OnPropertyChanged(nameof(SummonVoiceHint));
+        OnPropertyChanged(nameof(HasSummonVoiceHint));
         RefreshFeatureGates();
     }
 
@@ -820,7 +849,8 @@ public sealed class SettingsViewModel : ViewModelBase
             var status = await link.StatusAsync();
             if (status is null)
             {
-                PluginStatus = "未连接（请确认 ClassIsland 已启动、插件已加载、端口与 token 正确）";
+                PluginStatus = "未连接";   // 细节放 Tooltip/日志，别把状态行撑爆
+                PluginStatusDetail = "请确认 ClassIsland 已启动、插件已加载、端口与 token 正确";
                 PluginSeverity = NoticeSeverity.Error;
                 Toasts.Error("ClassIsland 插件未连接");
             }

@@ -37,6 +37,9 @@
             <TextBlock Text="{Binding SummonGateHint}" IsVisible="{Binding !CanEnableSummon}"
                        FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
                        TextWrapping="Wrap" Margin="2,0,0,2" />
+            <TextBlock Text="{Binding SummonVoiceHint}" IsVisible="{Binding HasSummonVoiceHint}"
+                       FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
+                       TextWrapping="Wrap" Margin="2,0,0,2" />
 
             <fa:SettingsExpander Header="作业自动录入"
                                  Description="AI 整理老师布置的作业并上墙">
