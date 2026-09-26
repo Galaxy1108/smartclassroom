@@ -266,8 +266,14 @@ public sealed class SettingsViewModel : ViewModelBase
     private List<string> MissingFor(bool needQq, bool needAi, bool needClassIsland)
     {
         var missing = new List<string>();
-        if (needQq && !QqReady)
-            missing.Add("QQ 连接");
+        if (needQq)
+        {
+            // 精确到缺哪一项：只写"QQ 连接"会让"地址填了、群没选"的人一头雾水
+            if (ParseGroupIds().Count == 0 && !ListenAllGroups)
+                missing.Add("监听群号");
+            if (OneBotHttp.Trim().Length == 0 && OneBotWs.Trim().Length == 0)
+                missing.Add("OneBot 地址");
+        }
         if (needAi && !AiReady)
             missing.Add("AI");
         if (needClassIsland && !ClassIslandReady)
@@ -1234,10 +1240,16 @@ public sealed class SettingsViewModel : ViewModelBase
         foreach (var uin in uins)
             MergeCandidate(new QqAccount { Uin = uin, Nickname = nicknames.GetValueOrDefault(uin, "") });
 
-        MultiAccountHint = uins.Count <= 1
+        // 每个账号已经各用一组端口时，这个问题就不存在了，别再提示
+        var ports = uins
+            .Select(u => SnowlumaManager.ReadOneBotEndpoint(InstallDir, u)?.Http)
+            .Where(p => p is not null)
+            .ToList();
+        var distinctPorts = ports.Count > 0 && ports.Distinct().Count() == ports.Count;
+        MultiAccountHint = uins.Count <= 1 || distinctPorts
             ? ""
-            : $"检测到 {uins.Count} 个 QQ 账号登录（{string.Join("、", uins)}）。"
-              + "建议只保留班级 QQ 登录，或点「自动分配端口」让每个账号各用一组端口。";
+            : $"检测到 {uins.Count} 个 QQ 账号登录（{string.Join("、", uins)}），"
+              + "但它们共用同一组 OneBot 端口，只有一个能连上。点「自动分配端口」即可解决。";
     }
 
     /// <summary>随机初始密码：避开容易看错的 0/O/1/l/I。</summary>

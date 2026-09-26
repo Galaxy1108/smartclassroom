@@ -73,7 +73,7 @@ public static class Dialogs
             return null;
 
         var hint = onlineUin is > 0
-            ? $"当前注入实例登录的是 {onlineUin}（{onlineNickname ?? "未知昵称"}）。" +
+            ? $"当前接入的是 {onlineUin}（{onlineNickname ?? "未知昵称"}）——即 OneBot 端口所属的账号。" +
               "如果你有多个 QQ 号，请选这个班用的那个。"
             : candidates.Count > 0
                 // 有候选就别说"没检测到"——这些就是从 SnowLuma 日志里读出来的登录账号
@@ -82,7 +82,7 @@ public static class Dialogs
                 : "没有检测到在线的 QQ 实例。可以手动输入 QQ 号。";
 
         var labels = candidates
-            .Select(a => $"{a.Uin}（{a.Nickname}）{(a.Uin == onlineUin ? "  · 当前在线" : "")}")
+            .Select(a => $"{a.Uin}（{a.Nickname}）{(a.Uin == onlineUin ? "  · 当前接入" : "")}")
             .ToList();
         var list = new ListBox
         {

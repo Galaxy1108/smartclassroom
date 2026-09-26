@@ -256,16 +256,17 @@ public sealed class SnowlumaManagerTests : IDisposable
 
         var assigned = SnowlumaManager.AssignDistinctPorts(dir);
 
+        // 不写死具体端口：本机 3000/3001 可能被别的程序占着（会被自动跳过）
         Assert.Equal(2, assigned.Count);
-        Assert.Equal(3000, assigned[0].Http);
-        Assert.Equal(3001, assigned[0].Ws);
-        Assert.Equal(3010, assigned[1].Http);      // 第二个账号换一组端口，不再 EADDRINUSE
-        Assert.Equal(3011, assigned[1].Ws);
+        Assert.Equal(2, assigned.Select(a => a.Http).Distinct().Count());   // 两组互不冲突
+        Assert.All(assigned, a => Assert.Equal(a.Http + 1, a.Ws));
+        Assert.True(assigned[1].Http > assigned[0].Http);
 
         var first = SnowlumaManager.ReadOneBotEndpoint(dir, 100000001);
-        Assert.Equal("http://127.0.0.1:3000", first!.Http);
+        Assert.Equal($"http://127.0.0.1:{assigned[0].Http}", first!.Http);
         Assert.Equal("t100000001", first.Token);   // 其它字段没被写丢
-        Assert.Equal("http://127.0.0.1:3010", SnowlumaManager.ReadOneBotEndpoint(dir, 100000002)!.Http);
+        Assert.Equal(assigned[1].Http, SnowlumaManager.ReadOneBotEndpoint(dir, 100000002)!.Uin > 0
+            ? assigned[1].Http : -1);
     }
 
     [Fact]

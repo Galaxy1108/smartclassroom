@@ -262,11 +262,15 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     {
         var result = new List<(long, int, int)>();
         var accounts = ReadOneBotAccounts(installDir);
-        for (var i = 0; i < accounts.Count; i++)
+        var basePort = startHttp;
+        foreach (var uin in accounts)
         {
-            var uin = accounts[i];
-            var httpPort = startHttp + i * step;
-            var wsPort = httpPort + 1;
+            // 跳过已被别的程序占用的端口对（实测机器上 3000/3001 可能被另一个 SnowLuma 占着）
+            while (basePort < startHttp + step * 100 && !PortPairFree(basePort))
+                basePort += step;
+            var httpPort = basePort;
+            var wsPort = basePort + 1;
+            basePort += step;
             try
             {
                 var path = Path.Combine(installDir, "config", $"onebot_{uin}.json");
@@ -288,6 +292,22 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
             catch { /* 单个账号写失败就跳过 */ }
         }
         return result;
+    }
+
+    /// <summary>这一对端口是否空闲（用来避开别的程序已占用的端口）。</summary>
+    private static bool PortPairFree(int httpPort)
+    {
+        foreach (var port in new[] { httpPort, httpPort + 1 })
+        {
+            try
+            {
+                var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+                listener.Start();
+                listener.Stop();
+            }
+            catch { return false; }
+        }
+        return true;
     }
 
     /// <summary>有 OneBot 配置的账号（config/onebot_*.json）。</summary>
@@ -525,8 +545,20 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
                 string text;
                 try { text = File.ReadAllText(cmdline).Replace('\0', ' '); }
                 catch { continue; }   // 别的用户的进程读不到
-                if (text.Contains("index.mjs") && text.Contains(installDir))
+                if (!text.Contains("index.mjs"))
+                    continue;
+                if (text.Contains(installDir))
                     return pid;
+                // 用相对路径启动时（./node index.mjs）命令行里没有目录，只能看工作目录。
+                // 踩过的坑：漏了这种情况 → 认不出已有实例 → 又开一个 → 两个实例抢端口。
+                try
+                {
+                    var cwd = new DirectoryInfo($"/proc/{name}/cwd").LinkTarget;
+                    if (cwd is not null
+                        && Path.GetFullPath(cwd).TrimEnd('/') == Path.GetFullPath(installDir).TrimEnd('/'))
+                        return pid;
+                }
+                catch { /* 读不到 cwd 就算了 */ }
             }
         }
         catch { /* 扫不了就算了 */ }

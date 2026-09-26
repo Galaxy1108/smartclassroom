@@ -32,10 +32,11 @@ public sealed class FeatureGatingTests : IDisposable
         Assert.False(vm.CanEnableFileArchive);
         Assert.False(vm.CanEnableCoursewarePopup);
 
-        Assert.Contains("QQ 连接", vm.SummonGateHint);
+        // 缺哪一项就显示哪一项
+        Assert.Contains("监听群号", vm.SummonGateHint);
         Assert.Contains("AI", vm.HomeworkGateHint);
         Assert.Contains("ClassIsland", vm.ExchangeGateHint);
-        Assert.Contains("QQ 连接", vm.ArchiveGateHint);
+        Assert.Contains("监听群号", vm.ArchiveGateHint);
         Assert.Contains("ClassIsland", vm.CoursewareGateHint);
     }
 
