@@ -24,6 +24,11 @@ public sealed class CoursewareViewModel : ViewModelBase
 
     public string Title => "您可能需要的课件";
 
+    public bool IsEmpty => Items.Count == 0;
+
+    public string EmptyHint => "今天还没有归档到课件。老师往群里发文件后，"
+                             + "开启「群文件自动归档」即可在这里看到。";
+
     public static CoursewareViewModel FromFiles(IEnumerable<(string FileName, string LocalPath, long Size)> files)
     {
         var vm = new CoursewareViewModel();

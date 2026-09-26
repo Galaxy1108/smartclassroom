@@ -14,6 +14,7 @@ namespace SmartClassroom.App;
 public static class Runtime
 {
     private static CancellationTokenSource? _cts;
+    private static System.Timers.Timer? _saveTimer;
 
     public static AppSettings Settings { get; private set; } = new();
     public static HomeworkStore Homework { get; } = new();
@@ -28,8 +29,14 @@ public static class Runtime
         _cts = new CancellationTokenSource();
         var cancel = _cts.Token;
         Settings = SettingsStore.Load();
+        LoadState();
         if (Settings.ArchiveRoot.Length > 0)
             Courseware.RebuildFromArchive(Settings.ArchiveRoot);
+
+        // 周期性落盘 + 退出时落盘（数据量小，直接整体写）。
+        _saveTimer = new System.Timers.Timer(30_000) { AutoReset = true };
+        _saveTimer.Elapsed += (_, _) => SaveState();
+        _saveTimer.Start();
 
         var configured = Settings.GroupIds.Count > 0
             && Settings.AiBaseUrl.Length > 0 && Settings.AiModel.Length > 0;
@@ -73,7 +80,7 @@ public static class Runtime
                 : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SmartClassroom", "archive")
         });
         var pipeline = new PipelineService(teachers, new AiAnalyzer(ai), gate, plugin,
-            oneBot, archive, Courseware, Homework, Feed, Pending);
+            oneBot, archive, Courseware, Homework, Feed, Pending, Settings.ToFeatureFlags());
         Pipeline = pipeline;
         pipeline.CoursewareSuggested += files => Dispatcher.UIThread.Post(() =>
         {
@@ -93,7 +100,50 @@ public static class Runtime
 
     public static void Stop()
     {
+        SaveState();
+        _saveTimer?.Stop();
+        _saveTimer?.Dispose();
+        _saveTimer = null;
         try { _cts?.Cancel(); } catch { }
+    }
+
+    /// <summary>恢复上次的作业 / 待处理 / 事件时间线。</summary>
+    public static void LoadState()
+    {
+        try
+        {
+            var state = AppStateStore.Load();
+            if (state.Homework.Count > 0)
+                Homework.ReplaceAll(state.Homework);
+            if (state.Pending.Count > 0)
+                Pending.ReplaceAll(state.Pending);
+            if (state.Feed.Count > 0)
+                Feed.ReplaceAll(state.Feed);
+            Feed.Append("state", $"已恢复上次状态", 
+                $"作业 {state.Homework.Count} 条 / 待处理 {state.Pending.Count} 条 / 事件 {state.Feed.Count} 条");
+        }
+        catch (Exception ex)
+        {
+            Feed.Append("state", "状态恢复失败", ex.Message);
+        }
+    }
+
+    /// <summary>落盘（原子替换，见 AppStateStore）。</summary>
+    public static void SaveState()
+    {
+        try
+        {
+            AppStateStore.Save(new PersistedState
+            {
+                Homework = Homework.All.ToList(),
+                Pending = Pending.All.ToList(),
+                Feed = Feed.Entries.ToList()
+            });
+        }
+        catch
+        {
+            // 落盘失败不影响运行
+        }
     }
 
     private static async Task RunQqLoopAsync(OneBotClient oneBot, PipelineService pipeline, MainViewModel status, CancellationToken cancel)

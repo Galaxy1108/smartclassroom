@@ -4,7 +4,7 @@ using SmartClassroom.Core;
 
 namespace SmartClassroom.App.ViewModels;
 
-/// <summary>作业墙：绑定 HomeworkStore。</summary>
+/// <summary>作业墙：绑定 HomeworkStore，支持手动添加（可选是否入库由调用方决定）。</summary>
 public sealed class HomeworkViewModel : ViewModelBase
 {
     private readonly HomeworkStore _store;
@@ -19,6 +19,76 @@ public sealed class HomeworkViewModel : ViewModelBase
 
     public ObservableCollection<HomeworkItem> Items { get; } = new();
 
+    public bool IsEmpty => Items.Count == 0;
+
+    // ---------- 手动添加 ----------
+    private bool _isAdding;
+    public bool IsAdding
+    {
+        get => _isAdding;
+        set => Set(ref _isAdding, value);
+    }
+
+    private string _formSubject = "";
+    public string FormSubject { get => _formSubject; set => Set(ref _formSubject, value); }
+
+    private string _formDate = DateTime.Now.ToString("yyyy-MM-dd");
+    public string FormDate { get => _formDate; set => Set(ref _formDate, value); }
+
+    private string _formItems = "";
+    public string FormItems { get => _formItems; set => Set(ref _formItems, value); }
+
+    private string _formDue = "";
+    public string FormDue { get => _formDue; set => Set(ref _formDue, value); }
+
+    private string _addResult = "";
+    public string AddResult { get => _addResult; private set => Set(ref _addResult, value); }
+
+    public void BeginAdd()
+    {
+        IsAdding = true;
+        AddResult = "";
+        FormSubject = "";
+        FormDate = DateTime.Now.ToString("yyyy-MM-dd");
+        FormItems = "";
+        FormDue = "";
+    }
+
+    public void CancelAdd() => IsAdding = false;
+
+    /// <summary>提交手动添加。成功返回 true。校验失败时保留表单内容，方便改。</summary>
+    public bool SubmitAdd()
+    {
+        if (string.IsNullOrWhiteSpace(FormSubject))
+        {
+            AddResult = "请填写科目。";
+            return false;
+        }
+        var items = FormItems
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+        if (items.Count == 0)
+        {
+            AddResult = "请至少填写一条作业内容。";
+            return false;
+        }
+        var date = DateOnly.TryParse(FormDate, out var d) ? d : DateOnly.FromDateTime(DateTime.Now);
+        _store.AddOrMerge(new HomeworkItem
+        {
+            HomeworkId = Guid.NewGuid().ToString(),
+            Subject = FormSubject.Trim(),
+            Date = date,
+            Items = items,
+            Due = string.IsNullOrWhiteSpace(FormDue) ? null : FormDue.Trim(),
+            Sender = new SenderInfo { UserId = 0, TeacherName = "手动添加" },
+            Source = new MessageRef { GroupId = 0, MessageId = 0 }
+        });
+        AddResult = $"已添加：{FormSubject.Trim()}（{date:MM-dd}）";
+        IsAdding = false;
+        Refresh();
+        return true;
+    }
+
     public void Refresh()
     {
         Items.Clear();
@@ -26,8 +96,6 @@ public sealed class HomeworkViewModel : ViewModelBase
             Items.Add(h);
         OnPropertyChanged(nameof(IsEmpty));
     }
-
-    public bool IsEmpty => Items.Count == 0;
 
     public void AddItem(HomeworkItem item)
     {

@@ -12,6 +12,51 @@
              否则换行文本会按无限宽度测量、按有限宽度排布，导致高度算错（底边被切）。 -->
         <StackPanel Spacing="4" Margin="4,4,16,24" MaxWidth="900" HorizontalAlignment="Stretch">
 
+            <!-- ================= 功能开关（默认全关） ================= -->
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,4">
+                <PathIcon Width="16" Height="16" Data="{StaticResource IconSettings}" VerticalAlignment="Center" />
+                <TextBlock Text="功能开关" Theme="{StaticResource SubtitleTextBlockStyle}" />
+            </StackPanel>
+            <local:NoticeBar Severity="Warning" Title="以下增强功能默认全部关闭">
+                <local:NoticeBar.ActionContent>
+                    <TextBlock TextWrapping="Wrap" FontSize="12"
+                               Text="这些功能会读取班级群消息并产生实际影响（发通知、改课表、下载文件），所以默认不启用。开启后会立即保存，重启应用生效。" />
+                </local:NoticeBar.ActionContent>
+            </local:NoticeBar>
+
+            <fa:SettingsExpander Header="召唤通知"
+                                 Description="老师在群里叫「xxx 来一下」时发 ClassIsland 通知；上课中排队、下课再发，带「现在/立刻」则立刻发。">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding FeatureSummon}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="作业自动录入"
+                                 Description="AI 把老师宣布的当日作业整理成条目上墙到「作业」页。">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding FeatureHomework}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="换课自动处理"
+                                 Description="AI 解析换课（调换/替换/跨天）后交插件校验，合法才落课（临时层），非法转人工。">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding FeatureExchange}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="群文件自动归档"
+                                 Description="老师发的群文件自动下载，按发送者分类存到归档目录。">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding FeatureFileArchive}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="上课课件弹窗"
+                                 Description="上课时若当天该科老师发过文件，弹出「您可能需要的课件」窗口。">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding FeatureCoursewarePopup}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <TextBlock Text="{Binding FeatureSummary}" FontSize="12" Opacity="0.75"
+                       TextWrapping="Wrap" Margin="2,4,0,0" />
+
             <!-- ================= AI ================= -->
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,4">
                 <PathIcon Width="16" Height="16" Data="{StaticResource IconCloud}" VerticalAlignment="Center" />

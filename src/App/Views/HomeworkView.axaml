@@ -4,34 +4,73 @@
              xmlns:c="using:SmartClassroom.Contracts"
              x:Class="SmartClassroom.App.Views.HomeworkView"
              x:DataType="vm:HomeworkViewModel">
-    <Grid RowDefinitions="Auto,*">
-        <TextBlock Grid.Row="0" Text="还没有作业。老师在群里布置后，这里会自动整理上墙。"
-                   IsVisible="{Binding IsEmpty}" Opacity="0.6" Margin="4" />
-        <ScrollViewer Grid.Row="1">
-            <ItemsControl ItemsSource="{Binding Items}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="c:HomeworkItem">
-                        <Border Margin="4" Padding="10" CornerRadius="8"
-                                BorderThickness="1"
-                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
-                            <StackPanel Spacing="4">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="{Binding Subject}" FontWeight="Bold" FontSize="15" />
-                                    <TextBlock Text="{Binding Date}" Opacity="0.6" VerticalAlignment="Center" />
+    <Grid RowDefinitions="Auto,Auto,*" MaxWidth="900" HorizontalAlignment="Stretch">
+        <!-- 工具栏 -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+            <Button Content="手动添加作业" Classes="accent" Click="BeginAdd_Click" />
+            <TextBlock Text="{Binding AddResult}" VerticalAlignment="Center" FontSize="12"
+                       Opacity="0.85" TextWrapping="Wrap" MaxWidth="520" />
+        </StackPanel>
+
+        <!-- 手动添加表单 -->
+        <Border Grid.Row="1" IsVisible="{Binding IsAdding}" Margin="0,0,0,8"
+                Padding="12,10" CornerRadius="6" BorderThickness="1"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+            <StackPanel Spacing="8">
+                <TextBlock Text="手动添加作业" FontWeight="SemiBold" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="科目" VerticalAlignment="Center" Width="60" />
+                    <TextBox Text="{Binding FormSubject}" Width="150" Watermark="数学" />
+                    <TextBlock Text="日期" VerticalAlignment="Center" Width="44" />
+                    <TextBox Text="{Binding FormDate}" Width="130" Watermark="yyyy-MM-dd" />
+                    <TextBlock Text="截止" VerticalAlignment="Center" Width="44" />
+                    <TextBox Text="{Binding FormDue}" Width="130" Watermark="可空" />
+                </StackPanel>
+                <TextBlock Text="作业条目（一行一条，同科目同日会自动合并去重）" FontSize="12" Opacity="0.7" />
+                <TextBox Text="{Binding FormItems}" AcceptsReturn="True" Height="90"
+                         TextWrapping="Wrap" Watermark="练习册P10&#x0a;试卷一张" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="提交" Classes="accent" Click="SubmitAdd_Click" />
+                    <Button Content="取消" Click="CancelAdd_Click" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- 列表 -->
+        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="4">
+                <TextBlock Text="还没有作业。老师在群里布置后会自动上墙（需开启「作业自动录入」），也可以上面手动添加。"
+                           IsVisible="{Binding IsEmpty}" Opacity="0.6" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="c:HomeworkItem">
+                            <Border Margin="0,2" Padding="12,10" CornerRadius="6"
+                                    BorderThickness="1"
+                                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                                <StackPanel Spacing="4">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" FontSize="15" />
+                                        <TextBlock Text="{Binding Date}" Opacity="0.6" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Due}" Opacity="0.6" FontSize="12"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Sender.TeacherName}" Opacity="0.5" FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <ItemsControl ItemsSource="{Binding Items}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding StringFormat='• {0}'}" TextWrapping="Wrap" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </StackPanel>
-                                <ItemsControl ItemsSource="{Binding Items}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding StringFormat='• {0}'}" TextWrapping="Wrap" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
         </ScrollViewer>
     </Grid>
 </UserControl>

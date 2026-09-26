@@ -37,4 +37,15 @@ public sealed class CoursewareTests
             File.Delete(png);
         }
     }
+
+    [AvaloniaFact]
+    public void EmptyCourseware_HasHintForPreviewWindow()
+    {
+        // 预览按钮在空列表时也要能打开窗口并说明原因
+        // （之前空列表直接 return，用户点了没反应会以为弹窗坏了）
+        var vm = new CoursewareViewModel();
+        Assert.True(vm.IsEmpty);
+        Assert.False(string.IsNullOrWhiteSpace(vm.EmptyHint));
+        Assert.Contains("归档", vm.EmptyHint);
+    }
 }

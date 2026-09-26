@@ -29,6 +29,11 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _sidecarInfo = "";
     private string _aiTestResult = "";
     private bool _isNodeReady;
+    private bool _featureSummon;
+    private bool _featureHomework;
+    private bool _featureExchange;
+    private bool _featureFileArchive;
+    private bool _featureCoursewarePopup;
     private double _nodeProgress;
 
     public SettingsViewModel() : this(SettingsStore.DefaultPath, AppContext.BaseDirectory) { }
@@ -45,11 +50,65 @@ public sealed class SettingsViewModel : ViewModelBase
         AutostartEnabled = AutostartManager.IsEnabled(InstallDir);
         RefreshSidecarInfo();
         RefreshNodeStatus();
+        OnPropertyChanged(nameof(FeatureSummary));
     }
 
     public string SettingsPath { get; }
 
     private void AppendLog(string line) => Log += line + "\n";
+
+    // ================= 功能开关（默认全关） =================
+    //
+    // 这些能力会读班级群消息并产生副作用（发通知、改课表、下文件），
+    // 所以默认全部关闭，由用户逐项开启。
+
+    public bool FeatureSummon
+    {
+        get => _featureSummon;
+        set { if (Set(ref _featureSummon, value)) OnFeatureChanged(); }
+    }
+
+    public bool FeatureHomework
+    {
+        get => _featureHomework;
+        set { if (Set(ref _featureHomework, value)) OnFeatureChanged(); }
+    }
+
+    public bool FeatureExchange
+    {
+        get => _featureExchange;
+        set { if (Set(ref _featureExchange, value)) OnFeatureChanged(); }
+    }
+
+    public bool FeatureFileArchive
+    {
+        get => _featureFileArchive;
+        set { if (Set(ref _featureFileArchive, value)) OnFeatureChanged(); }
+    }
+
+    public bool FeatureCoursewarePopup
+    {
+        get => _featureCoursewarePopup;
+        set { if (Set(ref _featureCoursewarePopup, value)) OnFeatureChanged(); }
+    }
+
+    /// <summary>当前开关摘要（保存后重启生效）。</summary>
+    public string FeatureSummary => CurrentFlags().Describe();
+
+    private void OnFeatureChanged()
+    {
+        SaveSettings();
+        OnPropertyChanged(nameof(FeatureSummary));
+    }
+
+    private FeatureFlags CurrentFlags() => new()
+    {
+        Summon = FeatureSummon,
+        Homework = FeatureHomework,
+        Exchange = FeatureExchange,
+        FileArchive = FeatureFileArchive,
+        CoursewarePopup = FeatureCoursewarePopup
+    };
 
     // ================= AI =================
 
@@ -544,6 +603,11 @@ public sealed class SettingsViewModel : ViewModelBase
         PluginToken = s.PluginToken;
         PluginPort = s.PluginPort;
         _riskAccepted = s.RiskAccepted;
+        _featureSummon = s.FeatureSummon;
+        _featureHomework = s.FeatureHomework;
+        _featureExchange = s.FeatureExchange;
+        _featureFileArchive = s.FeatureFileArchive;
+        _featureCoursewarePopup = s.FeatureCoursewarePopup;
         _engineOption = Engines.FirstOrDefault(e => e.Engine == AiEngineParser.Parse(s.AiEngine)) ?? Engines[0];
         Teachers.Clear();
         foreach (var t in s.Teachers)
@@ -574,7 +638,12 @@ public sealed class SettingsViewModel : ViewModelBase
                 Name = t.Name,
                 Subject = t.Subject
             }).ToList(),
-            RiskAccepted = RiskAccepted
+            RiskAccepted = RiskAccepted,
+            FeatureSummon = FeatureSummon,
+            FeatureHomework = FeatureHomework,
+            FeatureExchange = FeatureExchange,
+            FeatureFileArchive = FeatureFileArchive,
+            FeatureCoursewarePopup = FeatureCoursewarePopup
         }, SettingsPath);
         AppendLog("设置已保存。");
     }

@@ -30,6 +30,24 @@ public sealed class AppSettings
 
     public List<Teacher> Teachers { get; set; } = [];
     public bool RiskAccepted { get; set; } = false;
+
+    // ---- 功能开关：默认全部关闭 ----
+    // 这些功能会读班级群消息并产生副作用（发通知、落课、下文件），必须显式开启。
+    public bool FeatureSummon { get; set; } = false;
+    public bool FeatureHomework { get; set; } = false;
+    public bool FeatureExchange { get; set; } = false;
+    public bool FeatureFileArchive { get; set; } = false;
+    public bool FeatureCoursewarePopup { get; set; } = false;
+
+    /// <summary>把设置里的开关投影成管线用的 FeatureFlags。</summary>
+    public FeatureFlags ToFeatureFlags() => new()
+    {
+        Summon = FeatureSummon,
+        Homework = FeatureHomework,
+        Exchange = FeatureExchange,
+        FileArchive = FeatureFileArchive,
+        CoursewarePopup = FeatureCoursewarePopup
+    };
 }
 
 public static class SettingsStore

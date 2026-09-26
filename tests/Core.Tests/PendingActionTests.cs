@@ -67,7 +67,7 @@ public sealed class PendingActionTests : IDisposable
                 new TeacherMap([new Teacher { Qq = 10001, Name = "张老师", Subject = "数学" }]),
                 new AiAnalyzer(ai), gate, plugin, oneBot,
                 new FileArchive(new ArchiveOptions { Root = archiveRoot }),
-                new CoursewareService(), Homework, Feed, Pending);
+                new CoursewareService(), Homework, Feed, Pending, TestFlags.AllOn);
         }
     }
 

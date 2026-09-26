@@ -9,6 +9,13 @@ public sealed class HomeworkStore
 
     public IReadOnlyList<HomeworkItem> All => _items.OrderByDescending(h => h.Date).ToList();
 
+    /// <summary>整体替换（从磁盘恢复时用）。</summary>
+    public void ReplaceAll(IEnumerable<HomeworkItem> items)
+    {
+        _items.Clear();
+        _items.AddRange(items);
+    }
+
     public IReadOnlyList<HomeworkItem> ForDate(DateOnly date)
         => _items.Where(h => h.Date == date).OrderBy(h => h.Subject).ToList();
 
@@ -38,6 +45,16 @@ public sealed class ActivityFeed(int capacity = 200)
     public void Append(string kind, string title, string detail)
     {
         _entries.AddFirst(new ActivityEntry(DateTimeOffset.Now, kind, title, detail));
+        while (_entries.Count > capacity)
+            _entries.RemoveLast();
+    }
+
+    /// <summary>整体替换（从磁盘恢复时用，按时间倒序重放）。</summary>
+    public void ReplaceAll(IEnumerable<ActivityEntry> entries)
+    {
+        _entries.Clear();
+        foreach (var e in entries.OrderByDescending(x => x.At))
+            _entries.AddLast(e);
         while (_entries.Count > capacity)
             _entries.RemoveLast();
     }

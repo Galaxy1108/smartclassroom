@@ -19,8 +19,11 @@ public sealed class PipelineService(
     CoursewareService courseware,
     HomeworkStore homework,
     ActivityFeed feed,
-    PendingStore pending)
+    PendingStore pending,
+    FeatureFlags flags)
 {
+    private readonly HashSet<string> _disabledNotified = [];
+
     private ScheduleGate.SendFunc Send => plugin.NotifyAsync;
 
     public PendingStore Pending => pending;
@@ -34,17 +37,48 @@ public sealed class PipelineService(
         var kind = RuleEngine.ClassifyLocal(ev.Text);
         if (kind == RuleEngine.Kind.None)
             return;
+
         if (kind.HasFlag(RuleEngine.Kind.Summon))
-            await HandleSummonAsync(ev, sender, cancel).ConfigureAwait(false);
+        {
+            if (flags.Summon)
+                await HandleSummonAsync(ev, sender, cancel).ConfigureAwait(false);
+            else
+                NoteDisabled("summon", "召唤通知");
+        }
         if (kind.HasFlag(RuleEngine.Kind.Homework))
-            await HandleHomeworkAsync(ev, sender, cancel).ConfigureAwait(false);
+        {
+            if (flags.Homework)
+                await HandleHomeworkAsync(ev, sender, cancel).ConfigureAwait(false);
+            else
+                NoteDisabled("homework", "作业自动录入");
+        }
         if (kind.HasFlag(RuleEngine.Kind.Exchange))
-            await HandleExchangeAsync(ev, sender, cancel).ConfigureAwait(false);
+        {
+            if (flags.Exchange)
+                await HandleExchangeAsync(ev, sender, cancel).ConfigureAwait(false);
+            else
+                NoteDisabled("exchange", "换课自动处理");
+        }
+    }
+
+    /// <summary>
+    /// 功能未开启时，每类只提示一次（避免每条命中关键词的消息都刷屏）。
+    /// 这样"老师说了话但没反应"在事件页里能直接看出原因。
+    /// </summary>
+    private void NoteDisabled(string kind, string featureName)
+    {
+        if (_disabledNotified.Add(kind))
+            feed.Append(kind, $"「{featureName}」未启用，已跳过", "可在 设置 → 功能开关 中开启");
     }
 
     /// <summary>群文件上传入口。</summary>
     public async Task OnGroupUploadAsync(GroupUploadEvent ev, CancellationToken cancel = default)
     {
+        if (!flags.FileArchive)
+        {
+            NoteDisabled("file", "群文件自动归档");
+            return;
+        }
         var sender = teachers.ToSender(ev.UserId, null, null);
         ArchiveOutcome outcome;
         try
@@ -87,6 +121,11 @@ public sealed class PipelineService(
     /// <summary>上课事件：当天老师有课件则弹推荐（App 层订阅）。</summary>
     public void OnClassStarted(DateOnly date, string subject, string? teacherName, long? teacherQq = null)
     {
+        if (!flags.CoursewarePopup)
+        {
+            NoteDisabled("courseware", "课件弹窗");
+            return;
+        }
         var files = courseware.Query(date, teacherName, teacherQq);
         if (files.Count == 0 || !courseware.TryMarkShown(date, subject))
             return;

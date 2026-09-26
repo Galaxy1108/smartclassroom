@@ -68,7 +68,7 @@ public sealed class PipelineTests
         var archive = new FileArchive(new ArchiveOptions { Root = archiveRoot },
             new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([9]) })));
         return new PipelineService(_teachers, new AiAnalyzer(ai), gate, plugin, oneBot, archive,
-            new CoursewareService(), new HomeworkStore(), new ActivityFeed(), new PendingStore());
+            new CoursewareService(), new HomeworkStore(), new ActivityFeed(), new PendingStore(), TestFlags.AllOn);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class PipelineTests
         var oneBot = new OneBotClient("http://q", "ws://q");
         var pipe = new PipelineService(_teachers, new AiAnalyzer(ai), gate, plugin, oneBot,
             new FileArchive(new ArchiveOptions { Root = Path.GetTempPath() }),
-            new CoursewareService(), store, new ActivityFeed(), new PendingStore());
+            new CoursewareService(), store, new ActivityFeed(), new PendingStore(), TestFlags.AllOn);
         await pipe.OnGroupMessageAsync(Msg("今天数学作业：练习册P10"));
         Assert.Single(store.ForDate(new DateOnly(2026, 9, 25)));
     }
@@ -148,7 +148,7 @@ public sealed class PipelineTests
         var oneBot = new OneBotClient("http://q", "ws://q");
         var pipe = new PipelineService(_teachers, new AiAnalyzer(ai), gate, plugin, oneBot,
             new FileArchive(new ArchiveOptions { Root = Path.GetTempPath() }),
-            new CoursewareService(), new HomeworkStore(), new ActivityFeed(), new PendingStore());
+            new CoursewareService(), new HomeworkStore(), new ActivityFeed(), new PendingStore(), TestFlags.AllOn);
         await pipe.OnGroupMessageAsync(Msg("第一节和第二节换一下"));
         Assert.Equal(1, gate.PendingCount);
         await pipe.OnClassEndedAsync();
@@ -171,7 +171,7 @@ public sealed class PipelineTests
             var pipe = new PipelineService(_teachers, new AiAnalyzer(ai), gate, plugin, oneBot,
                 new FileArchive(new ArchiveOptions { Root = archiveRoot },
                     new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([9]) }))),
-                courseware, new HomeworkStore(), new ActivityFeed(), new PendingStore());
+                courseware, new HomeworkStore(), new ActivityFeed(), new PendingStore(), TestFlags.AllOn);
             await pipe.OnGroupUploadAsync(new GroupUploadEvent
             {
                 GroupId = 1, UserId = 10001,

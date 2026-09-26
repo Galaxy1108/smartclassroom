@@ -63,4 +63,11 @@ public sealed class PendingStore
     }
 
     public void Clear() => _items.Clear();
+
+    /// <summary>整体替换（从磁盘恢复时用）。</summary>
+    public void ReplaceAll(IEnumerable<PendingItem> items)
+    {
+        _items.Clear();
+        _items.AddRange(items);
+    }
 }
