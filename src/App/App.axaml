@@ -28,11 +28,9 @@
         <Style Selector="Border.hwcard:pointerover">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorSecondaryBrush}" />
         </Style>
+        <!-- 被拖动的那张原位卡片压暗（不做缩放，避免超出格子边界） -->
         <Style Selector="Border.hwcard.dragging">
-            <Setter Property="RenderTransform" Value="scale(1.04)" />
-            <Setter Property="BoxShadow" Value="0 10 28 0 #48000000" />
-            <Setter Property="Opacity" Value="0.96" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+            <Setter Property="Opacity" Value="0.3" />
         </Style>
     </Application.Styles>
 
