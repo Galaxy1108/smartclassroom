@@ -33,3 +33,25 @@
 
 WinUI3 外观来自 [FluentAvaloniaUI](https://github.com/amwx/FluentAvalonia)（MIT，与 ClassIsland 同款控件库：NavigationView、SettingsExpander、Win11 控件样式），Avalonia 钉在 ClassIsland 同款 11.3.17。
 已知差距：设置行暂未配图标（Segoe 图标字体 Linux 下无系统 fallback，为防 tofu 先空着；后续方案：内嵌开源图标字体如 Lucide，ClassIsland 也是这么干的）。
+
+## AI 引擎（双选）
+
+设置页「AI → 接入引擎」二选一，随时切换、改动即存：
+
+| 引擎 | 说明 | 依赖 |
+|---|---|---|
+| 内置直连（默认） | 直接 POST 到 OpenAI 兼容的 `/chat/completions`，零额外依赖 | 无 |
+| pi-ai（Node 边车） | 经 Node 子进程使用 [`@earendil-works/pi-ai`](https://www.npmjs.com/package/@earendil-works/pi-ai)：自带 provider 与模型目录（41 个 provider）、统一鉴权与用量统计 | **Node ≥ 22.19** |
+
+pi-ai 是 TypeScript/npm 包，.NET 无法直接引用，因此做成 stdio JSONL 边车（`tools/ai-sidecar/sidecar.mjs`）：
+主程序 spawn Node，按行收发 JSON。边车崩溃会自动重启；任何失败都转成 `AiException`，上层按"保守降级"处理
+（召唤排队、作业/换课转人工），不会让应用崩。
+
+- 打包：Linux 包依赖 `nodejs`；Windows zip 需用户自备 Node ≥ 22.19（或安装 SnowLuma 完整版，其内置 Node 会被自动复用）。
+- 自检：`tools/mock-openai.py` 是本地假端点，用于不花钱验证自定义 baseUrl 链路。
+
+## ClassIsland 集成
+
+插件经 `127.0.0.1:5199`（可改）提供 `/status`、`/notify`、`/exchange`，需 Bearer token：
+token 由插件首次启动时在 ClassIsland 配置目录的 `smartclassroom.bridge/bridge.token` 生成，
+复制到设置页「ClassIsland 集成 → 桥接 Token」，点「探测」应显示插件版本与课表加载状态。
