@@ -25,6 +25,12 @@ public sealed class AppSettings
     public List<long> GroupIds { get; set; } = [];
 
     /// <summary>
+    /// 用户自己指定的 SnowLuma WebUI 初始密码（空 = 由应用随机生成一个）。
+    /// 启动时通过官方环境变量 SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD 传给它。
+    /// </summary>
+    public string SnowLumaWebUiPassword { get; set; } = "";
+
+    /// <summary>
     /// 已同意的 SnowLuma 协议版本号（空 = 没同意过）。
     /// 就是 SnowLuma 自己算的那个内容哈希：协议文本一改版本就变，会重新征得同意。
     /// </summary>
@@ -92,6 +98,7 @@ public sealed class AppSettings
         QqAccount = 0;
         QqAccounts = [];
         SnowLumaAgreementsVersion = "";
+        SnowLumaWebUiPassword = "";
         ArchiveRoot = d.ArchiveRoot;
         ArchiveDownloadAll = d.ArchiveDownloadAll;
         PluginToken = d.PluginToken;

@@ -214,6 +214,17 @@ public partial class SettingsView : UserControl
         }
     }
 
+    /// <summary>让用户自己设定 SnowLuma WebUI 的初始密码（留空 = 改回自动生成）。</summary>
+    private async void SetWebUiPassword_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var value = await Dialogs.PromptAsync("SnowLuma WebUI 密码",
+            "设置 WebUI（http://127.0.0.1:5099，用户名 admin）的初始密码。留空则改回由应用自动生成。下次启动 SnowLuma 时生效。",
+            watermark: "留空 = 自动生成", password: true);
+        if (value is null)
+            return;   // 取消
+        Vm.SetWebUiPassword(value);
+    }
+
     /// <summary>打开 SnowLuma 的日志目录（注入失败的原因只写在那里）。</summary>
     private void OpenQqLog_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => OpenFolder(System.IO.Path.Combine(Vm.InstallDir, "logs"));

@@ -929,17 +929,73 @@ public sealed class SettingsViewModel : ViewModelBase
         ? $"登录 WebUI：用户名 admin，初始密码 {WebUiPassword}（登录后请自行修改）"
         : "";
 
+    /// <summary>密码是用户自己定的（否则就是应用自动生成的）。</summary>
+    public bool WebUiPasswordIsManual => _webUiPasswordManual;
+
+    private bool _webUiPasswordManual;
+
+    /// <summary>用户自己设定 WebUI 初始密码（空 = 改回自动生成）。</summary>
+    public void SetWebUiPassword(string value)
+    {
+        var trimmed = value.Trim();
+        _webUiPasswordManual = trimmed.Length > 0;
+        WebUiPassword = trimmed;
+        SaveSettings();
+        AppendLog(_webUiPasswordManual ? "已设置 SnowLuma WebUI 密码（下次启动生效）" : "已改为自动生成 WebUI 密码");
+        Toasts.Success(_webUiPasswordManual ? "已设置 WebUI 密码" : "已改为自动生成密码",
+            _webUiPasswordManual ? "下次启动 SnowLuma 时生效。" : "");
+    }
+
     /// <summary>
-    /// 还在用初始密码时，生成一个并交给 SnowLuma（否则它随机生成、只打到 stdout，
-    /// GUI 启动的用户根本看不到）。已经改过密码就不插手。
+    /// 交给 SnowLuma 的 WebUI 初始密码：
+    /// 用户设过就用他的；否则（还在用初始密码时）生成一个——
+    /// 它自己随机生成的那个只打到 stdout，GUI 启动的用户根本看不到。
+    /// 已经改过密码就不插手。
     /// </summary>
     private string? EnsureWebUiPassword()
     {
+        if (_webUiPasswordManual && WebUiPassword.Length > 0)
+        {
+            WebUiPasswordIsSetFromSettings = true;
+            return WebUiPassword;
+        }
         if (SnowlumaManager.ReadWebUiMustChangePassword(InstallDir) != true)
             return null;   // 已经改过密码 / 读不出来：不要覆盖用户的设置
         if (!HasWebUiPassword)
             WebUiPassword = GeneratePassword();
         return WebUiPassword;
+    }
+
+    /// <summary>仅供界面显示"来自设置"。</summary>
+    public bool WebUiPasswordIsSetFromSettings { get; private set; }
+
+    // ---------- 多账号：SnowLuma 给每个登录账号都开一套 OneBot，端口只有一个 ----------
+
+    private string _multiAccountHint = "";
+    /// <summary>检测到多个 QQ 登录时的提示（3000/3001 只能给一个账号）。</summary>
+    public string MultiAccountHint
+    {
+        get => _multiAccountHint;
+        private set { if (Set(ref _multiAccountHint, value)) OnPropertyChanged(nameof(HasMultiAccountHint)); }
+    }
+
+    public bool HasMultiAccountHint => MultiAccountHint.Length > 0;
+
+    /// <summary>从 SnowLuma 日志刷新"登录了哪些号"与端口冲突提示。</summary>
+    public void RefreshLoggedInAccounts()
+    {
+        var uins = SnowlumaManager.ReadLoggedInUins(InstallDir);
+        foreach (var uin in uins)
+            MergeCandidate(new QqAccount { Uin = uin, Nickname = "" });
+
+        var conflict = SnowlumaManager.LastPortConflict(InstallDir);
+        MultiAccountHint = uins.Count <= 1
+            ? ""
+            : $"检测到 {uins.Count} 个 QQ 账号登录（{string.Join("、", uins)}）。"
+              + "OneBot 的 3000/3001 端口只能给一个账号用，其余账号会 EADDRINUSE 降级"
+              + "（日志里那条 EADDRINUSE 就是这个意思）。"
+              + "建议只保留班级 QQ 登录，或在 SnowLuma 的 WebUI 里给每个账号分配不同端口。"
+              + (conflict is null ? "" : $"最近一次冲突：{Trim(conflict)}");
     }
 
     /// <summary>随机初始密码：避开容易看错的 0/O/1/l/I。</summary>
@@ -1288,6 +1344,7 @@ public sealed class SettingsViewModel : ViewModelBase
             // 用户点的是「启动注入」，所以这里替他把开关打开（可在 WebUI 里改回去）。
             EnsureAutoInjectEnabled();
 
+            RefreshLoggedInAccounts();
             var webUiPassword = EnsureWebUiPassword();
             await _manager.StartAsync(InstallDir, acceptAgreements: true, webUiPassword: webUiPassword);
             NeedsWebUiSetup = false;   // 同意是我们带过去的，不该再显示"卡在等同意"
@@ -1458,6 +1515,8 @@ public sealed class SettingsViewModel : ViewModelBase
             };
             Status = QqStatusText;
             QqDetected = s is SnowlumaStatus.Online or SnowlumaStatus.InjectedNotLoggedIn;
+            if (s is SnowlumaStatus.Online)
+                RefreshLoggedInAccounts();
 
             // 注入是在 SnowLuma 里做的，失败只写它自己的日志 → 读出来告诉用户卡在哪
             InjectionHint = s is SnowlumaStatus.StartedNotInjected
@@ -1759,6 +1818,8 @@ public sealed class SettingsViewModel : ViewModelBase
             PluginToken = s.PluginToken;
             PluginPort = s.PluginPort;
             _agreementsVersion = s.SnowLumaAgreementsVersion;
+            _webUiPasswordManual = s.SnowLumaWebUiPassword.Length > 0;
+            WebUiPassword = s.SnowLumaWebUiPassword;
             _qqAccount = s.QqAccount;
             QqCandidates.Clear();
             foreach (var a in s.QqAccounts)
@@ -1806,6 +1867,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.PluginToken = PluginToken;
         s.PluginPort = PluginPort;
         s.SnowLumaAgreementsVersion = _agreementsVersion;
+        s.SnowLumaWebUiPassword = _webUiPasswordManual ? WebUiPassword : "";
         s.QqAccount = QqAccount;
         s.QqAccounts = QqCandidates.ToList();
         s.Teachers = Teachers.Select(t => new Teacher

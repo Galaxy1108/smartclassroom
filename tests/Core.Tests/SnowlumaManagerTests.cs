@@ -143,6 +143,43 @@ public sealed class SnowlumaManagerTests : IDisposable
     public void BootstrapPasswordEnv_HasTheOfficialName()
         => Assert.Equal("SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD", SnowlumaManager.BootstrapPasswordEnv);
 
+    // ================= 多账号：日志里能看出登录了哪些号、端口冲突 =================
+
+    private string WithLog(string content)
+    {
+        var dir = InstallDir();
+        var logDir = Path.Combine(dir, "logs");
+        Directory.CreateDirectory(logDir);
+        File.WriteAllText(Path.Combine(logDir, "snowluma-test.log"), content);
+        return dir;
+    }
+
+    [Fact]
+    public void ReadLoggedInUins_PicksUpEverySession()
+    {
+        var dir = WithLog(
+            "19:18:06 DEBUG [Bridge] session started: UIN=100000001\n" +
+            "19:18:07 INFO  [OneBot] session started: UIN=100000001\n" +   // 同一个号重复出现只算一次
+            "19:18:22 DEBUG [Bridge] session started: UIN=100000002\n");
+
+        Assert.Equal([100000001L, 100000002L], SnowlumaManager.ReadLoggedInUins(dir));
+        Assert.Empty(SnowlumaManager.ReadLoggedInUins(InstallDir()));      // 没有日志
+    }
+
+    [Fact]
+    public void LastPortConflict_FindsEaddrInUse()
+    {
+        var dir = WithLog(
+            "19:18:07 OK    [100000001] [OneBot.HTTP] [http-default] listening 127.0.0.1:3000/\n" +
+            "19:18:22 ERROR [100000002] [OneBot.HTTP] server error: listen EADDRINUSE: address already in use 127.0.0.1:3000\n" +
+            "19:18:22 WARN  [OneBot] network startup degraded: UIN=100000002 failures=2\n");
+
+        var conflict = SnowlumaManager.LastPortConflict(dir);
+        Assert.NotNull(conflict);
+        Assert.Contains("EADDRINUSE", conflict);
+        Assert.Null(SnowlumaManager.LastPortConflict(InstallDir()));
+    }
+
     // ================= 注入失败的原因（只在它自己的日志里） =================
 
     [Fact]
@@ -164,6 +201,26 @@ public sealed class SnowlumaManagerTests : IDisposable
         Assert.NotNull(failure);
         Assert.Contains("7303", failure);                       // 取最新那份日志里的失败行
         Assert.DoesNotContain("old", failure!);
+    }
+
+    [Fact]
+    public void LastHookFailure_IsIgnoredOnceInjectionSucceeded()
+    {
+        // 实测踩到：18:59 注入失败，19:18 重启 QQ 后连上了（pipe connected），
+        // 但日志尾部还留着那条旧失败 —— 不能再拿它吓唬用户。
+        var stale = WithLog(
+            "18:59:29 ERROR [Hook] load failed: PID=7303 err=component loading failed [COMPONENT_LOAD_FAILED]\n" +
+            "19:09:07 INFO  [Hook] pipe connected: PID=1767099\n" +
+            "19:18:06 OK    [Hook] login detected: PID=1818839 UIN=100000001\n");
+        Assert.Null(SnowlumaManager.LastHookFailure(stale));
+
+        // 成功之后又失败：这才是当前的失败
+        var fresh = WithLog(
+            "19:18:06 OK    [Hook] login detected: PID=1818839 UIN=100000001\n" +
+            "19:20:00 ERROR [Hook] load failed: PID=99 err=component loading failed [COMPONENT_LOAD_FAILED]\n");
+        var failure = SnowlumaManager.LastHookFailure(fresh);
+        Assert.NotNull(failure);
+        Assert.Contains("PID=99", failure!);
     }
 
     [Fact]

@@ -198,6 +198,50 @@ public static class Dialogs
         }
     }
 
+    /// <summary>
+    /// 让用户输入一段文本（如 SnowLuma 的 WebUI 密码）。
+    /// 返回 null = 取消；返回 "" = 明确要清空（改回自动生成）。
+    /// </summary>
+    public static async Task<string?> PromptAsync(string title, string message,
+        string watermark = "", bool password = false, string primaryText = "保存")
+    {
+        var owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (owner is null)
+            return null;
+
+        var box = new TextBox
+        {
+            Watermark = watermark,
+            MinWidth = 320,
+            PasswordChar = password ? '•' : default
+        };
+        var content = new StackPanel
+        {
+            Spacing = 10,
+            Children =
+            {
+                new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, MaxWidth = 420, Opacity = 0.85 },
+                box
+            }
+        };
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = content,
+            PrimaryButtonText = primaryText,
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary
+        };
+        try
+        {
+            return await dialog.ShowAsync(owner) == ContentDialogResult.Primary ? box.Text ?? "" : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static ScrollViewer WrapText(string message) => new()
     {
         MaxHeight = 360,

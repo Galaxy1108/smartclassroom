@@ -340,6 +340,8 @@ SnowLuma 的 WebUI（`http://127.0.0.1:5099`）默认**每次启动随机生成�
 
 > 登录 WebUI：用户名 `admin`，初始密码 `xxxxxxxxxxxx`（登录后请自行修改）
 
+也可以**自己指定**：设置页有「设置密码…」按钮，弹窗输入即可（留空 = 改回自动生成），
+存在 `settings.json` 里，下次启动 SnowLuma 时生效。
 已经改过密码（`mustChangePassword=false`）就不再插手。想手动看/重置也可以：
 
 ```bash
@@ -348,6 +350,20 @@ cd ~/.local/share/SmartClassroom/snowluma
 SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD=你的密码 ./launcher.sh   # 或者自己指定
 rm config/webui.json && ./launcher.sh            # 或者删掉配置，让它重新生成一个
 ```
+
+### 多账号：3000/3001 只能给一个号
+
+SnowLuma 会给**每个登录的 QQ** 都开一套 OneBot 适配器，而默认端口都是 3000/3001。
+于是第二个登录的账号必然 `EADDRINUSE`（`network startup degraded: failures=2`），
+它就没有 OneBot 服务可用了 —— 这就是"两个号都登着，只有一个能连上"的原因。
+
+应用现在会从 SnowLuma 的日志里读出**登录过哪些号**（`session started: UIN=`），
+多于一个时给出提示，并把这些号都放进「检测并选择账号」的候选里
+（不只是当前占着端口的那一个）。日志里那几类 DEBUG 行（`Event0x210 unknown subType=381/382`、
+`login history sync disabled`）是无害噪音，不用管。
+
+想两个号都接入，就在 SnowLuma 的 WebUI 里给每个账号分配不同端口；
+否则建议只保留班级 QQ 登录。
 
 ### Linux 上注入的两个关卡
 

@@ -144,12 +144,8 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     private static string RuntimeConfigPath(string installDir)
         => Path.Combine(installDir, "config", "runtime.json");
 
-    /// <summary>
-    /// 从 SnowLuma 自己的日志里找最近一次注入失败的原因。
-    /// 注入是在它进程里做的，失败只写日志（"已启动但未注入"就是这么来的）：
-    /// 实测 Linux 上常见的是 `[Hook] load failed ... COMPONENT_LOAD_FAILED`。
-    /// </summary>
-    public static string? LastHookFailure(string installDir)
+    /// <summary>读最新一份日志的尾部（日志可能很大，只取最后 64KB）。</summary>
+    private static string? ReadNewestLogTail(string installDir, int tailBytes = 64 * 1024)
     {
         try
         {
@@ -161,23 +157,87 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
                 .FirstOrDefault();
             if (newest is null)
                 return null;
-
-            // 只读尾部：日志可能很大
-            const int tailBytes = 64 * 1024;
             using var fs = new FileStream(newest.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            var start = Math.Max(0, fs.Length - tailBytes);
-            fs.Seek(start, SeekOrigin.Begin);
+            fs.Seek(Math.Max(0, fs.Length - tailBytes), SeekOrigin.Begin);
             using var reader = new StreamReader(fs);
-            var text = reader.ReadToEnd();
+            return reader.ReadToEnd();
+        }
+        catch { return null; }
+    }
 
+    /// <summary>
+    /// 从日志里读出登录过的 QQ 号（多账号时不止一个）。
+    /// SnowLuma 会给每个登录账号开一套 OneBot 适配器，而默认端口都是 3000/3001，
+    /// 所以只有第一个能起来——多账号提示要用到这份名单。
+    /// </summary>
+    public static IReadOnlyList<long> ReadLoggedInUins(string installDir)
+    {
+        var text = ReadNewestLogTail(installDir);
+        if (text is null)
+            return [];
+        var uins = new List<long>();
+        foreach (var line in text.Split('\n'))
+        {
+            var idx = line.IndexOf("session started: UIN=", StringComparison.Ordinal);
+            if (idx < 0)
+                continue;
+            var rest = line[(idx + "session started: UIN=".Length)..].Trim();
+            var digits = new string(rest.TakeWhile(char.IsDigit).ToArray());
+            if (digits.Length > 0 && long.TryParse(digits, out var uin) && !uins.Contains(uin))
+                uins.Add(uin);
+        }
+        return uins;
+    }
+
+    /// <summary>日志里最近一次端口冲突（多账号共用 3000/3001 时会出现）。</summary>
+    public static string? LastPortConflict(string installDir)
+    {
+        var text = ReadNewestLogTail(installDir);
+        if (text is null)
+            return null;
+        string? last = null;
+        foreach (var line in text.Split('\n'))
+        {
+            if (line.Contains("EADDRINUSE", StringComparison.OrdinalIgnoreCase))
+                last = line.Trim();
+        }
+        return last;
+    }
+
+    /// <summary>
+    /// 从 SnowLuma 自己的日志里找最近一次注入失败的原因。
+    /// 注入是在它进程里做的，失败只写日志（"已启动但未注入"就是这么来的）：
+    /// 实测 Linux 上常见的是 `[Hook] load failed ... COMPONENT_LOAD_FAILED`。
+    /// </summary>
+    public static string? LastHookFailure(string installDir)
+    {
+        try
+        {
+            var text = ReadNewestLogTail(installDir);
+            if (text is null)
+                return null;
+
+            // 只看**最近一次注入尝试**的结果：注入成功过（pipe connected / login detected）
+            // 之后就不该再报更早的那次失败，否则会拿过期信息误导用户。
             string? last = null;
+            var sawSuccessAfterFailure = false;
             foreach (var line in text.Split('\n'))
             {
-                if (line.Contains("[Hook] load failed", StringComparison.OrdinalIgnoreCase)
-                    || line.Contains("COMPONENT_LOAD_FAILED", StringComparison.OrdinalIgnoreCase))
+                var isFailure = line.Contains("[Hook] load failed", StringComparison.OrdinalIgnoreCase)
+                                || line.Contains("COMPONENT_LOAD_FAILED", StringComparison.OrdinalIgnoreCase);
+                if (isFailure)
+                {
                     last = line.Trim();
+                    sawSuccessAfterFailure = false;
+                    continue;
+                }
+                if (line.Contains("pipe connected", StringComparison.OrdinalIgnoreCase)
+                    || line.Contains("login detected", StringComparison.OrdinalIgnoreCase))
+                {
+                    sawSuccessAfterFailure = last is not null;
+                }
             }
-            return last;
+            return sawSuccessAfterFailure ? null : last;
         }
         catch { return null; }
     }

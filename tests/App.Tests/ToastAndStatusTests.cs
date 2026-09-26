@@ -351,6 +351,51 @@ public sealed class ToastAndStatusTests : IDisposable
         Assert.Matches("^[a-zA-Z0-9]+$", a);
     }
 
+    [AvaloniaFact]
+    public void MultiAccount_IsDetectedFromLogs_AndCandidatesIncludeThem()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "sc-multi-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, "logs"));
+        File.WriteAllText(Path.Combine(dir, "logs", "snowluma-x.log"),
+            "19:18:07 INFO  [OneBot] session started: UIN=100000001\n" +
+            "19:18:22 DEBUG [Bridge] session started: UIN=100000002\n" +
+            "19:18:22 ERROR [100000002] [OneBot.HTTP] listen EADDRINUSE: address already in use 127.0.0.1:3000\n");
+        try
+        {
+            var vm = new SettingsViewModel(_path) { InstallDir = dir };
+            Assert.False(vm.HasMultiAccountHint);
+
+            vm.RefreshLoggedInAccounts();
+
+            Assert.True(vm.HasMultiAccountHint);
+            Assert.Contains("2 个 QQ 账号", vm.MultiAccountHint);
+            Assert.Contains("EADDRINUSE", vm.MultiAccountHint);
+            Assert.Contains("3000/3001", vm.MultiAccountHint);
+            // 候选账号直接来自日志 → 用户能在弹窗里挑（不只是当前占着端口的那个）
+            Assert.Equal(2, vm.QqCandidates.Count);
+            Assert.Contains(vm.QqCandidates, c => c.Uin == 100000002);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [AvaloniaFact]
+    public void WebUiPassword_CanBeSetByUser_AndPersists()
+    {
+        var vm = new SettingsViewModel(_path);
+        Assert.False(vm.WebUiPasswordIsManual);
+
+        vm.SetWebUiPassword("my-own-pass");
+
+        Assert.True(vm.WebUiPasswordIsManual);
+        Assert.Equal("my-own-pass", vm.WebUiPassword);
+        Assert.True(new SettingsViewModel(_path).WebUiPasswordIsManual);
+        Assert.Equal("my-own-pass", new SettingsViewModel(_path).WebUiPassword);
+
+        vm.SetWebUiPassword("");                       // 留空 = 改回自动生成
+        Assert.False(vm.WebUiPasswordIsManual);
+        Assert.False(new SettingsViewModel(_path).WebUiPasswordIsManual);
+    }
+
     // ================= OneBot Token 也要能填 =================
 
     [AvaloniaFact]
