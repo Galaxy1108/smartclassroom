@@ -29,7 +29,7 @@ Application.Current!.Resources["SymbolThemeFontFamily"] = new FontFamily("DejaVu
 
 Render("timeline-light.png", TimelineView(), ThemeVariant.Light, 920, 560);
 RenderShell();
-Render("settings-full.png", SettingsView(), ThemeVariant.Light, 920, 3200);   // 整页一图，方便逐段检查
+Render("settings-full.png", SettingsView(), ThemeVariant.Light, 920, 4200);   // 整页一图，方便逐段检查
 Render("timeline-dark.png", TimelineView(), ThemeVariant.Dark, 920, 560);
 Render("settings-gating.png", SettingsView(), ThemeVariant.Light, 920, 620);
 Render("settings-narrow.png", SettingsView(), ThemeVariant.Light, 620, 620);

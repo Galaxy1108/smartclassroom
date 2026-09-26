@@ -29,10 +29,15 @@ public sealed class UpdateAndDebugTests : IDisposable
             => Task.FromResult(fn(req));
     }
 
+    private int _requests;
+
     private SettingsViewModel Vm(string releaseJson, AppSettings? shared = null)
     {
-        var http = new HttpClient(new Stub(_ => new HttpResponseMessage(HttpStatusCode.OK)
-        { Content = new StringContent(releaseJson) }));
+        var http = new HttpClient(new Stub(_ =>
+        {
+            _requests++;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(releaseJson) };
+        }));
         return new SettingsViewModel(_path, null, shared, new UpdateChecker(http));
     }
 
@@ -110,6 +115,23 @@ public sealed class UpdateAndDebugTests : IDisposable
         var vm = new SettingsViewModel(_path);
         Assert.Contains("当前版本", vm.CurrentVersionText);
         Assert.Matches(@"\d+\.\d+\.\d+", vm.CurrentVersionText);
+    }
+
+    [AvaloniaFact]
+    public async Task AutoCheck_RunsOnlyOncePerProcess()
+    {
+        var vm = Vm(NewerRelease);
+
+        await vm.CheckForUpdatesOnceAsync();
+        await vm.CheckForUpdatesOnceAsync();
+        await vm.CheckForUpdatesOnceAsync();
+
+        Assert.Equal(1, _requests);   // 无认证 GitHub API 每小时只有 60 次，别反复打
+        Assert.True(vm.HasUpdate);
+
+        // 手动点「检查更新」不受限制
+        await vm.CheckForUpdatesAsync();
+        Assert.Equal(2, _requests);
     }
 
     // ================= Windows 覆盖脚本 =================

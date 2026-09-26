@@ -19,6 +19,7 @@ public partial class SettingsView : UserControl
     {
         base.OnAttachedToVisualTree(e);
         Vm.RefreshLockState();
+        _ = Vm.CheckForUpdatesOnceAsync();   // 打开设置页自动查一次更新（进程内只查一次）
     }
 
     /// <summary>

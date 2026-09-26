@@ -1395,6 +1395,20 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>下载完成后生成的"覆盖并重启"脚本路径（视图层负责提示用户运行）。</summary>
     public string? PendingUpdateScript { get => _pendingUpdateScript; private set => Set(ref _pendingUpdateScript, value); }
 
+    private bool _autoCheckedUpdate;
+
+    /// <summary>
+    /// 打开设置页时自动查一次（每个进程只查一次）。
+    /// 无认证的 GitHub API 每小时只有 60 次，反复进设置页不该反复打。
+    /// </summary>
+    public async Task CheckForUpdatesOnceAsync()
+    {
+        if (_autoCheckedUpdate)
+            return;
+        _autoCheckedUpdate = true;
+        await CheckForUpdatesAsync();
+    }
+
     public async Task CheckForUpdatesAsync()
     {
         IsCheckingUpdate = true;
