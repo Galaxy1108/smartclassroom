@@ -62,6 +62,24 @@
             <TextBlock Text="{Binding FeatureSummary}" FontSize="12" Opacity="0.75"
                        TextWrapping="Wrap" Margin="2,4,0,0" />
 
+            <!-- ================= 外观 ================= -->
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">
+                <PathIcon Width="16" Height="16" Data="{StaticResource IconInfo}" VerticalAlignment="Center" />
+                <TextBlock Text="外观" Theme="{StaticResource SubtitleTextBlockStyle}" />
+            </StackPanel>
+            <fa:SettingsExpander Header="界面与字体缩放"
+                                 Description="整体缩放字号、图标与卡片（80%~160%）。改完立即生效；教室屏幕远看嫌小就调大。">
+                <fa:SettingsExpander.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Slider Value="{Binding UiScale}" Minimum="0.8" Maximum="1.6"
+                                TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                TickPlacement="BottomRight" Width="220" />
+                        <TextBlock Text="{Binding UiScaleLabel}" VerticalAlignment="Center"
+                                   FontWeight="SemiBold" MinWidth="48" />
+                    </StackPanel>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
             <!-- ================= AI ================= -->
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,4">
                 <PathIcon Width="16" Height="16" Data="{StaticResource IconCloud}" VerticalAlignment="Center" />

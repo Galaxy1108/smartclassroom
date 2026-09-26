@@ -31,6 +31,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private bool _isNodeReady;
     private bool _isLocked;
     private bool _minimizeToTray = true;
+    private double _uiScale = UiScaling.Default;
     private string _passwordResult = "";
     private bool _featureSummon;
     private bool _featureHomework;
@@ -92,6 +93,23 @@ public sealed class SettingsViewModel : ViewModelBase
             SaveSettings();
         }
     }
+
+    /// <summary>界面与字体缩放；改动立即生效并落盘。</summary>
+    public double UiScale
+    {
+        get => _uiScale;
+        set
+        {
+            var clamped = UiScaling.Clamp(value);
+            if (!Set(ref _uiScale, clamped))
+                return;
+            UiScaling.Scale = clamped;        // 立刻应用到已打开的窗口
+            OnPropertyChanged(nameof(UiScaleLabel));
+            SaveSettings();
+        }
+    }
+
+    public string UiScaleLabel => UiScaling.Describe(_uiScale);
 
     /// <summary>托盘在当前桌面环境是否可用（不可用时关闭窗口即退出）。</summary>
     public string TrayHint => AppShell.TrayAvailable
@@ -695,6 +713,7 @@ public sealed class SettingsViewModel : ViewModelBase
         _riskAccepted = s.RiskAccepted;
         _adminHash = s.AdminPasswordHash;
         _minimizeToTray = s.MinimizeToTray;
+        _uiScale = UiScaling.Clamp(s.UiScale);
         _featureSummon = s.FeatureSummon;
         _featureHomework = s.FeatureHomework;
         _featureExchange = s.FeatureExchange;
@@ -737,7 +756,8 @@ public sealed class SettingsViewModel : ViewModelBase
             FeatureFileArchive = FeatureFileArchive,
             FeatureCoursewarePopup = FeatureCoursewarePopup,
             AdminPasswordHash = _adminHash,
-            MinimizeToTray = MinimizeToTray
+            MinimizeToTray = MinimizeToTray,
+            UiScale = UiScale
         }, SettingsPath);
         AppendLog("设置已保存。");
     }

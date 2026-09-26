@@ -108,4 +108,40 @@ public sealed class HomeworkManualAddTests
         Assert.Same(vm, view.DataContext);
         Assert.True(vm.IsEmpty);
     }
+
+    [AvaloniaFact]
+    public void Items_AreNumberedFromOne()
+    {
+        var vm = new HomeworkViewModel(new HomeworkStore());
+        vm.BeginAdd();
+        vm.FormSubject = "数学";
+        vm.FormItems = "练习册P10\n试卷一张\n预习第三节";
+        Assert.True(vm.SubmitAdd());
+
+        var card = Assert.Single(vm.Items);
+        Assert.Equal(3, card.Items.Count);
+        Assert.Equal([1, 2, 3], card.Items.Select(i => i.Number));
+        Assert.Equal("练习册P10", card.Items[0].Text);
+        Assert.Equal("预习第三节", card.Items[2].Text);
+    }
+
+    [AvaloniaFact]
+    public void AccentColor_IsStablePerSubject()
+    {
+        var a = new HomeworkCard(ManualHw("数学"), DateTime.Now);
+        var b = new HomeworkCard(ManualHw("数学"), DateTime.Now);
+        var c = new HomeworkCard(ManualHw("语文"), DateTime.Now);
+        Assert.Equal(a.AccentColor, b.AccentColor);   // 同科目同色
+        Assert.NotNull(c.AccentColor);
+    }
+
+    private static SmartClassroom.Contracts.HomeworkItem ManualHw(string subject) => new()
+    {
+        HomeworkId = System.Guid.NewGuid().ToString(),
+        Subject = subject,
+        Date = DateOnly.FromDateTime(DateTime.Now),
+        Items = ["x"],
+        Sender = new SmartClassroom.Contracts.SenderInfo { UserId = 0 },
+        Source = new SmartClassroom.Contracts.MessageRef { GroupId = 0, MessageId = 0 }
+    };
 }

@@ -78,19 +78,37 @@ public partial class HomeworkView : UserControl
         _dragging = false;
     }
 
-    /// <summary>按各卡片实际位置（不是等高的假设）算出指针落在第几张卡片上。</summary>
+    /// <summary>
+    /// 按各卡片实际位置算出指针落在哪张卡片上。
+    /// 用矩形命中（X 和 Y 都比）而不是只看 Y——卡片是自适应多列网格，
+    /// 只比 Y 会把不同列的卡片混在一起。都不命中时回退到最近的卡片。
+    /// </summary>
     private int IndexAt(Point p)
     {
         var panel = HomeworkList.ItemsPanelRoot;
         if (panel is null)
             return -1;
         var containers = panel.GetVisualChildren().OfType<Control>().ToList();
+        if (containers.Count == 0)
+            return -1;
+
+        for (var i = 0; i < containers.Count; i++)
+            if (containers[i].Bounds.Contains(p))
+                return i;
+
+        // 落在卡片之间的空隙：取中心点最近的那张
+        var nearest = -1;
+        var bestDistance = double.MaxValue;
         for (var i = 0; i < containers.Count; i++)
         {
-            var bounds = containers[i].Bounds;
-            if (p.Y >= bounds.Top && p.Y <= bounds.Bottom)
-                return i;
+            var c = containers[i].Bounds.Center;
+            var d = (c.X - p.X) * (c.X - p.X) + (c.Y - p.Y) * (c.Y - p.Y);
+            if (d < bestDistance)
+            {
+                bestDistance = d;
+                nearest = i;
+            }
         }
-        return p.Y < 0 ? 0 : Math.Max(0, containers.Count - 1);
+        return nearest;
     }
 }

@@ -1,4 +1,6 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
 using Avalonia.Threading;
 using FluentAvalonia.UI.Controls;
 using SmartClassroom.App.ViewModels;
@@ -23,8 +25,19 @@ public partial class MainWindow : Window
         _refreshTimer = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background,
             (_, _) => RefreshActive());
         _refreshTimer.Start();
-        Closed += (_, _) => _refreshTimer.Stop();
+        Closed += (_, _) =>
+        {
+            _refreshTimer.Stop();
+            UiScaling.Changed -= OnScaleChanged;
+        };
+        UiScaling.Changed += OnScaleChanged;
+        ApplyScale(UiScaling.Scale);
     }
+
+    private void OnScaleChanged(double scale) => ApplyScale(scale);
+
+    private void ApplyScale(double scale)
+        => ContentScaler.LayoutTransform = new ScaleTransform(scale, scale);
 
     private void NavView_SelectionChanged(object? sender, NavigationViewSelectionChangedEventArgs e)
     {

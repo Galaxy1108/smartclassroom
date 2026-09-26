@@ -337,7 +337,7 @@ public sealed class HomeworkCard
         Subject = item.Subject;
         Date = item.Date;
         Due = item.Due;
-        Items = item.Items;
+        Items = item.Items.Select((text, i) => new HomeworkLine(i + 1, text)).ToList();
         Sender = item.Sender.TeacherName ?? "未知来源";
         IsManual = item.Sender.UserId == 0;
 
@@ -355,7 +355,7 @@ public sealed class HomeworkCard
     public string Subject { get; }
     public DateOnly Date { get; }
     public string? Due { get; }
-    public IReadOnlyList<string> Items { get; }
+    public IReadOnlyList<HomeworkLine> Items { get; }
     public string Sender { get; }
     public bool IsManual { get; }
     public string RelativeDay { get; }
@@ -375,3 +375,6 @@ public sealed class HomeworkCard
         }
     }
 }
+
+/// <summary>作业条目 + 序号（界面上显示为 1. 2. 3.）。</summary>
+public sealed record HomeworkLine(int Number, string Text);
