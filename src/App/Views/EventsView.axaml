@@ -9,6 +9,10 @@
         <StackPanel Spacing="8" MaxWidth="900" HorizontalAlignment="Stretch">
 
             <!-- ============ 待处理：AI 没处理掉的群消息，这里给出口 ============ -->
+            <local:NoticeBar Severity="Informational" IsVisible="{Binding RequiresPassword}"
+                             Title="需要管理员密码"
+                             Message="已启用管理员密码。重新解析、人工录入、忽略前会要求验证身份。" />
+
             <local:NoticeBar Severity="Warning" IsVisible="{Binding HasPending}"
                              Title="{Binding PendingHeader}" Message="{Binding PendingHint}" />
 

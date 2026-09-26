@@ -33,7 +33,8 @@ public sealed class HomeworkManualAddTests
         var vm = new HomeworkViewModel(store);
         vm.BeginAdd();
         vm.FormSubject = "数学";
-        vm.FormDate = "2026-09-25";
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        vm.FormDate = today.ToString("yyyy-MM-dd");
         vm.FormItems = "练习册P10\n试卷一张";
         vm.FormDue = "明天";
 
@@ -43,10 +44,13 @@ public sealed class HomeworkManualAddTests
         Assert.False(vm.IsEmpty);
         var item = Assert.Single(vm.Items);
         Assert.Equal("数学", item.Subject);
-        Assert.Equal(new DateOnly(2026, 9, 25), item.Date);
+        Assert.Equal(today, item.Date);
         Assert.Equal(2, item.Items.Count);
         Assert.Equal("明天", item.Due);
-        Assert.Equal("手动添加", item.Sender.TeacherName);
+        Assert.Equal(today.ToString("MM-dd"), item.DateLabel);
+        Assert.Equal("手动添加", item.Sender);
+        Assert.True(item.IsManual);
+        Assert.Equal("今天", item.RelativeDay);
     }
 
     [AvaloniaFact]

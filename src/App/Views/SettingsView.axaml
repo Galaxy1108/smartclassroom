@@ -10,19 +10,24 @@
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <!-- 用 Stretch + MaxWidth（而不是 Left）：保证子元素测量时拿到有限宽度，
              否则换行文本会按无限宽度测量、按有限宽度排布，导致高度算错（底边被切）。 -->
-        <StackPanel Spacing="4" Margin="4,4,16,24" MaxWidth="900" HorizontalAlignment="Stretch">
+        <StackPanel Spacing="8" Margin="4,4,16,24" MaxWidth="900" HorizontalAlignment="Stretch">
+
+            <local:NoticeBar Severity="Warning" IsVisible="{Binding IsLocked}"
+                             Title="设置已锁定"
+                             Message="已启用管理员密码。解锁后才能修改设置、切换功能开关。">
+                <local:NoticeBar.ActionContent>
+                    <Button Content="解锁设置" Classes="accent" Click="Unlock_Click" />
+                </local:NoticeBar.ActionContent>
+            </local:NoticeBar>
+
+            <StackPanel Spacing="4" IsEnabled="{Binding !IsLocked}">
 
             <!-- ================= 功能开关（默认全关） ================= -->
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,4">
                 <PathIcon Width="16" Height="16" Data="{StaticResource IconSettings}" VerticalAlignment="Center" />
                 <TextBlock Text="功能开关" Theme="{StaticResource SubtitleTextBlockStyle}" />
             </StackPanel>
-            <local:NoticeBar Severity="Warning" Title="以下增强功能默认全部关闭">
-                <local:NoticeBar.ActionContent>
-                    <TextBlock TextWrapping="Wrap" FontSize="12"
-                               Text="这些功能会读取班级群消息并产生实际影响（发通知、改课表、下载文件），所以默认不启用。开启后会立即保存，重启应用生效。" />
-                </local:NoticeBar.ActionContent>
-            </local:NoticeBar>
+
 
             <fa:SettingsExpander Header="召唤通知"
                                  Description="老师在群里叫「xxx 来一下」时发 ClassIsland 通知；上课中排队、下课再发，带「现在/立刻」则立刻发。">
@@ -365,6 +370,44 @@
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
 
+            <!-- ================= 安全与关闭行为 ================= -->
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">
+                <PathIcon Width="16" Height="16" Data="{StaticResource IconPerson}" VerticalAlignment="Center" />
+                <TextBlock Text="安全与关闭行为" Theme="{StaticResource SubtitleTextBlockStyle}" />
+            </StackPanel>
+
+            <fa:SettingsExpander Header="管理员密码"
+                                 Description="设置后，改设置、切换功能开关、增删作业、处理待确认、以及彻底退出都需要输入密码。留空表示不启用。">
+                <fa:SettingsExpander.IconSource>
+                    <fa:PathIconSource Data="{StaticResource IconWarning}" />
+                </fa:SettingsExpander.IconSource>
+                <fa:SettingsExpander.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox Text="{Binding NewPassword}" PasswordChar="•" Width="130"
+                                 Watermark="{Binding PasswordWatermark}" />
+                        <TextBox Text="{Binding ConfirmPassword}" PasswordChar="•" Width="130"
+                                 Watermark="再次输入" />
+                        <Button Content="应用" Classes="accent" Click="ApplyPassword_Click" />
+                    </StackPanel>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <TextBlock Text="{Binding PasswordResult}" FontSize="12" Opacity="0.8"
+                       TextWrapping="Wrap" Margin="2,0,0,0" />
+
+            <fa:SettingsExpander Header="退出应用"
+                                 Description="彻底关闭智慧课堂。已设置管理员密码时需要验证身份。">
+                <fa:SettingsExpander.Footer>
+                    <Button Content="退出应用" Click="QuitApp_Click" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
+            <fa:SettingsExpander Header="关闭主窗口时收回到托盘"
+                                 Description="{Binding TrayHint}">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding MinimizeToTray}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
             <!-- ================= 日志 ================= -->
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">
                 <PathIcon Width="16" Height="16" Data="{StaticResource IconInfo}" VerticalAlignment="Center" />
@@ -372,6 +415,7 @@
             </StackPanel>
             <TextBox Text="{Binding Log}" IsReadOnly="True" AcceptsReturn="True"
                      Height="170" FontFamily="Monospace" TextWrapping="Wrap" />
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

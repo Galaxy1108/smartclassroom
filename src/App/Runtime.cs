@@ -21,6 +21,9 @@ public static class Runtime
     public static ActivityFeed Feed { get; } = new();
     public static CoursewareService Courseware { get; } = new();
     public static PendingStore Pending { get; } = new();
+
+    /// <summary>管理员认证门；密码哈希随时从当前设置读取（改了密码立即生效）。</summary>
+    public static AuthGate Auth { get; } = new(() => Settings.AdminPasswordHash);
     public static ScheduleGate? Gate { get; private set; }
     public static PipelineService? Pipeline { get; private set; }
 

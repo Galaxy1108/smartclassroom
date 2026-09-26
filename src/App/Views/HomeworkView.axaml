@@ -1,20 +1,21 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:SmartClassroom.App.ViewModels"
-             xmlns:c="using:SmartClassroom.Contracts"
              x:Class="SmartClassroom.App.Views.HomeworkView"
              x:DataType="vm:HomeworkViewModel">
     <Grid RowDefinitions="Auto,Auto,*" MaxWidth="900" HorizontalAlignment="Stretch">
         <!-- 工具栏 -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
             <Button Content="手动添加作业" Classes="accent" Click="BeginAdd_Click" />
+            <TextBlock Text="按住卡片左侧手柄可拖动排序" FontSize="12" Opacity="0.55"
+                       VerticalAlignment="Center" IsVisible="{Binding !IsEmpty}" />
             <TextBlock Text="{Binding AddResult}" VerticalAlignment="Center" FontSize="12"
-                       Opacity="0.85" TextWrapping="Wrap" MaxWidth="520" />
+                       Opacity="0.85" TextWrapping="Wrap" MaxWidth="460" />
         </StackPanel>
 
         <!-- 手动添加表单 -->
         <Border Grid.Row="1" IsVisible="{Binding IsAdding}" Margin="0,0,0,8"
-                Padding="12,10" CornerRadius="6" BorderThickness="1"
+                Padding="14,12" CornerRadius="8" BorderThickness="1"
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                 Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
             <StackPanel Spacing="8">
@@ -25,7 +26,7 @@
                     <TextBlock Text="日期" VerticalAlignment="Center" Width="44" />
                     <TextBox Text="{Binding FormDate}" Width="130" Watermark="yyyy-MM-dd" />
                     <TextBlock Text="截止" VerticalAlignment="Center" Width="44" />
-                    <TextBox Text="{Binding FormDue}" Width="130" Watermark="可空" />
+                    <TextBox Text="{Binding FormDue}" Width="120" Watermark="可空" />
                 </StackPanel>
                 <TextBlock Text="作业条目（一行一条，同科目同日会自动合并去重）" FontSize="12" Opacity="0.7" />
                 <TextBox Text="{Binding FormItems}" AcceptsReturn="True" Height="90"
@@ -37,35 +38,69 @@
             </StackPanel>
         </Border>
 
-        <!-- 列表 -->
+        <!-- 卡片列表（可拖拽重排） -->
         <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Spacing="4">
+            <StackPanel Spacing="6">
                 <TextBlock Text="还没有作业。老师在群里布置后会自动上墙（需开启「作业自动录入」），也可以上面手动添加。"
                            IsVisible="{Binding IsEmpty}" Opacity="0.6" TextWrapping="Wrap" />
-                <ItemsControl ItemsSource="{Binding Items}">
+                <ItemsControl x:Name="HomeworkList" ItemsSource="{Binding Items}">
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="c:HomeworkItem">
-                            <Border Margin="0,2" Padding="12,10" CornerRadius="6"
-                                    BorderThickness="1"
+                        <DataTemplate x:DataType="vm:HomeworkCard">
+                            <!-- WinUI3 卡片：圆角 + 左侧科目色条 + 悬停高亮 -->
+                            <Border Classes="hwcard" Margin="0,0,0,6" CornerRadius="8"
+                                    BorderThickness="1" ClipToBounds="True"
                                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
-                                <StackPanel Spacing="4">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" FontSize="15" />
-                                        <TextBlock Text="{Binding Date}" Opacity="0.6" VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding Due}" Opacity="0.6" FontSize="12"
-                                                   VerticalAlignment="Center" />
-                                        <TextBlock Text="{Binding Sender.TeacherName}" Opacity="0.5" FontSize="11"
-                                                   VerticalAlignment="Center" />
+                                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                    PointerPressed="Card_PointerPressed"
+                                    PointerMoved="Card_PointerMoved"
+                                    PointerReleased="Card_PointerReleased"
+                                    PointerCaptureLost="Card_PointerCaptureLost">
+                                <Grid ColumnDefinitions="6,Auto,*">
+                                    <!-- 科目色条 -->
+                                    <Border Grid.Column="0" Background="{Binding AccentColor}" />
+                                    <!-- 拖拽手柄 -->
+                                    <Border Grid.Column="1" Width="26" Cursor="SizeAll"
+                                            Background="Transparent">
+                                        <PathIcon Width="14" Height="14" Opacity="0.45"
+                                                  VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                  Data="M8,6 H10 V8 H8 Z M14,6 H16 V8 H14 Z M8,11 H10 V13 H8 Z M14,11 H16 V13 H14 Z M8,16 H10 V18 H8 Z M14,16 H16 V18 H14 Z" />
+                                    </Border>
+                                    <StackPanel Grid.Column="2" Margin="4,12,14,12" Spacing="6">
+                                        <!-- 标题行 -->
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" FontSize="16"
+                                                       Foreground="{Binding AccentColor}" VerticalAlignment="Center" />
+                                            <Border CornerRadius="4" Padding="6,1"
+                                                    Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                                <TextBlock Text="{Binding RelativeDay}" FontSize="11" />
+                                            </Border>
+                                            <TextBlock Text="{Binding DateLabel}" FontSize="12" Opacity="0.6"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Due, StringFormat='截止 {0}'}" FontSize="12"
+                                                       Opacity="0.6" VerticalAlignment="Center"
+                                                       IsVisible="{Binding HasDue}" />
+                                        </StackPanel>
+                                        <!-- 条目 -->
+                                        <ItemsControl ItemsSource="{Binding Items}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid ColumnDefinitions="Auto,*" Margin="0,1">
+                                                        <Ellipse Grid.Column="0" Width="4" Height="4"
+                                                                 Fill="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                 VerticalAlignment="Center" Margin="2,0,8,0" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding}"
+                                                                   TextWrapping="Wrap" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <!-- 底部元信息 -->
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="{Binding Sender}" FontSize="11" Opacity="0.55" />
+                                            <TextBlock Text="{Binding ItemCountLabel}" FontSize="11" Opacity="0.55" />
+                                        </StackPanel>
                                     </StackPanel>
-                                    <ItemsControl ItemsSource="{Binding Items}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding StringFormat='• {0}'}" TextWrapping="Wrap" />
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
+                                </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

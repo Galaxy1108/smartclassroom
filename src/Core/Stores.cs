@@ -7,7 +7,22 @@ public sealed class HomeworkStore
 {
     private readonly List<HomeworkItem> _items = new();
 
-    public IReadOnlyList<HomeworkItem> All => _items.OrderByDescending(h => h.Date).ToList();
+    /// <summary>按当前显示顺序返回（新添加的在前，可被手动拖拽重排）。</summary>
+    public IReadOnlyList<HomeworkItem> All => _items.ToList();
+
+    /// <summary>拖拽重排：把 <paramref name="from"/> 位置的条目移动到 <paramref name="to"/>。</summary>
+    public bool Move(int from, int to)
+    {
+        if (from < 0 || from >= _items.Count)
+            return false;
+        to = Math.Clamp(to, 0, _items.Count - 1);
+        if (from == to)
+            return false;
+        var item = _items[from];
+        _items.RemoveAt(from);
+        _items.Insert(to, item);
+        return true;
+    }
 
     /// <summary>整体替换（从磁盘恢复时用）。</summary>
     public void ReplaceAll(IEnumerable<HomeworkItem> items)
@@ -25,7 +40,7 @@ public sealed class HomeworkStore
         var existing = _items.FirstOrDefault(h => h.Subject == item.Subject && h.Date == item.Date);
         if (existing is null)
         {
-            _items.Add(item);
+            _items.Insert(0, item); // 新条目置顶
             return item;
         }
         var merged = existing.Items.Concat(item.Items).Distinct().ToList();

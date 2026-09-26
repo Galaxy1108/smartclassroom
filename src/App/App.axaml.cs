@@ -24,6 +24,7 @@ public partial class App : Application
             };
             desktop.Exit += (_, _) => Runtime.Stop();
             Runtime.Start(vm);
+            AppShell.Setup(desktop);   // 托盘 + 关闭到托盘 + 受密码保护的退出
         }
 
         base.OnFrameworkInitializationCompleted();

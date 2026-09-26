@@ -1,6 +1,6 @@
 # Maintainer: Galaxy1108
 pkgname=smartclassroom
-pkgver=0.12.0
+pkgver=0.13.0
 pkgrel=1
 pkgdesc="智慧课堂——跨平台教室增强应用（课表联动/QQ 消息/AI 整理/课件推送）"
 arch=('x86_64')

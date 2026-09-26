@@ -39,6 +39,14 @@ public sealed class AppSettings
     public bool FeatureFileArchive { get; set; } = false;
     public bool FeatureCoursewarePopup { get; set; } = false;
 
+    // ---- 关闭行为 / 管理员密码 ----
+
+    /// <summary>关闭主窗口时收回到托盘（默认开启）。托盘不可用时自动退化为直接退出。</summary>
+    public bool MinimizeToTray { get; set; } = true;
+
+    /// <summary>管理员密码的 PBKDF2 哈希；为空表示未设置（不拦截任何操作）。</summary>
+    public string AdminPasswordHash { get; set; } = "";
+
     /// <summary>把设置里的开关投影成管线用的 FeatureFlags。</summary>
     public FeatureFlags ToFeatureFlags() => new()
     {

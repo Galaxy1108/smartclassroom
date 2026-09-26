@@ -17,7 +17,7 @@ public sealed class HomeworkViewModel : ViewModelBase
         Refresh();
     }
 
-    public ObservableCollection<HomeworkItem> Items { get; } = new();
+    public ObservableCollection<HomeworkCard> Items { get; } = new();
 
     public bool IsEmpty => Items.Count == 0;
 
@@ -89,11 +89,22 @@ public sealed class HomeworkViewModel : ViewModelBase
         return true;
     }
 
+    /// <summary>拖拽重排：移动后立即刷新（调用方负责落盘）。</summary>
+    public bool MoveItem(int from, int to)
+    {
+        if (!_store.Move(from, to))
+            return false;
+        Refresh();
+        return true;
+    }
+
+    public IReadOnlyList<HomeworkItem> Snapshot() => _store.All;
+
     public void Refresh()
     {
         Items.Clear();
         foreach (var h in _store.All)
-            Items.Add(h);
+            Items.Add(new HomeworkCard(h, DateTime.Now));
         OnPropertyChanged(nameof(IsEmpty));
     }
 
@@ -201,6 +212,9 @@ public sealed class EventsViewModel : ViewModelBase
         OnPropertyChanged(nameof(PendingHint));
     }
 
+    /// <summary>启用了管理员密码时，待处理操作需要先验证。</summary>
+    public bool RequiresPassword => Runtime.Auth.IsEnabled;
+
     public string PendingHint => _pipeline is null
         ? "消息管线未启动（未配置 AI / QQ），暂不能处理。"
         : "AI 没能自动处理的群消息会留在这里，可重新解析或人工录入。";
@@ -303,4 +317,61 @@ public sealed class PendingRow(PendingItem item)
         _ => item.Kind
     };
     public string RetryLabel => item.RetryCount > 0 ? $"已重试 {item.RetryCount} 次" : "";
+}
+
+/// <summary>
+/// 作业卡片视图行：把原始数据整理成卡片要显示的样式信息
+/// （主题色、相对日期、条目列表），避免在 XAML 里做逻辑。
+/// </summary>
+public sealed class HomeworkCard
+{
+    /// <summary>科目配色板：按科目名稳定取色，同一个科目每次颜色一致。</summary>
+    private static readonly string[] Palette =
+    [
+        "#0F6CBD", "#0F7B0F", "#9D5D00", "#B10E1C", "#5C2E91",
+        "#00766C", "#8A3707", "#4F6BED", "#6B4E00", "#7A0E4B"
+    ];
+
+    public HomeworkCard(HomeworkItem item, DateTime now)
+    {
+        Subject = item.Subject;
+        Date = item.Date;
+        Due = item.Due;
+        Items = item.Items;
+        Sender = item.Sender.TeacherName ?? "未知来源";
+        IsManual = item.Sender.UserId == 0;
+
+        var today = DateOnly.FromDateTime(now);
+        RelativeDay = item.Date == today ? "今天"
+            : item.Date == today.AddDays(1) ? "明天"
+            : item.Date == today.AddDays(-1) ? "昨天"
+            : item.Date < today ? "已过期"
+            : "还有 " + (item.Date.DayNumber - today.DayNumber) + " 天";
+
+        AccentColor = Palette[Math.Abs(StableHash(item.Subject)) % Palette.Length];
+        ItemCountLabel = item.Items.Count + " 项";
+    }
+
+    public string Subject { get; }
+    public DateOnly Date { get; }
+    public string? Due { get; }
+    public IReadOnlyList<string> Items { get; }
+    public string Sender { get; }
+    public bool IsManual { get; }
+    public string RelativeDay { get; }
+    public string AccentColor { get; }
+    public string ItemCountLabel { get; }
+    public string DateLabel => Date.ToString("MM-dd");
+    public bool HasDue => !string.IsNullOrWhiteSpace(Due);
+
+    private static int StableHash(string s)
+    {
+        unchecked
+        {
+            var h = 17;
+            foreach (var c in s)
+                h = h * 31 + c;
+            return h;
+        }
+    }
 }

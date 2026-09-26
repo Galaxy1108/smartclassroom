@@ -12,6 +12,18 @@
 
     <Application.Styles>
         <styling:FluentAvaloniaTheme />
+
+        <!-- 作业卡片：悬停时轻微提亮，拖动时给个提示 -->
+        <Style Selector="Border.hwcard">
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.12" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.hwcard:pointerover">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorSecondaryBrush}" />
+        </Style>
     </Application.Styles>
 
     <Application.Resources>

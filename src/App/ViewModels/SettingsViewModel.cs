@@ -29,6 +29,9 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _sidecarInfo = "";
     private string _aiTestResult = "";
     private bool _isNodeReady;
+    private bool _isLocked;
+    private bool _minimizeToTray = true;
+    private string _passwordResult = "";
     private bool _featureSummon;
     private bool _featureHomework;
     private bool _featureExchange;
@@ -56,6 +59,93 @@ public sealed class SettingsViewModel : ViewModelBase
     public string SettingsPath { get; }
 
     private void AppendLog(string line) => Log += line + "\n";
+
+    // ================= 管理员密码 / 关闭行为 =================
+
+    /// <summary>设置了密码且当前会话未认证时，设置内容整体锁定（只读）。</summary>
+    public bool IsLocked { get => _isLocked; private set => Set(ref _isLocked, value); }
+
+    public bool HasPassword => !string.IsNullOrWhiteSpace(_adminHash);
+
+    /// <summary>仅供测试断言落盘的是哈希而非明文。</summary>
+    internal string AdminHashForTest() => _adminHash;
+
+    private string _adminHash = "";
+    private string _newPassword = "";
+    private string _confirmPassword = "";
+
+    public string NewPassword { get => _newPassword; set => Set(ref _newPassword, value); }
+    public string ConfirmPassword { get => _confirmPassword; set => Set(ref _confirmPassword, value); }
+    public string PasswordResult { get => _passwordResult; private set => Set(ref _passwordResult, value); }
+
+    public string PasswordWatermark => HasPassword ? "新密码（留空清除）" : "设置密码";
+
+    /// <summary>关闭主窗口时收回到托盘。</summary>
+    public bool MinimizeToTray
+    {
+        get => _minimizeToTray;
+        set
+        {
+            if (!Set(ref _minimizeToTray, value))
+                return;
+            Runtime.Settings.MinimizeToTray = value;   // AppShell 直接读这个值
+            SaveSettings();
+        }
+    }
+
+    /// <summary>托盘在当前桌面环境是否可用（不可用时关闭窗口即退出）。</summary>
+    public string TrayHint => AppShell.TrayAvailable
+        ? "关闭主窗口会收回到托盘；从托盘菜单可重新打开或退出。"
+        : "当前桌面环境未提供系统托盘，关闭主窗口将直接退出应用。";
+
+    /// <summary>刷新锁定状态（打开设置页 / 认证成功后调用）。</summary>
+    public void RefreshLockState() => IsLocked = Runtime.Auth.IsEnabled && !Runtime.Auth.IsUnlocked;
+
+    /// <summary>设置或清除管理员密码。</summary>
+    public void ApplyPassword()
+    {
+        var NewPasswordSnapshot = NewPassword;   // 仅用于本次会话解锁，不落盘
+        if (NewPassword.Length == 0)
+        {
+            // 空 = 清除密码
+            _adminHash = "";
+            PasswordResult = "已清除管理员密码（不再拦截操作）。";
+        }
+        else if (NewPassword != ConfirmPassword)
+        {
+            PasswordResult = "两次输入的密码不一致。";
+            return;
+        }
+        else if (NewPassword.Length < 4)
+        {
+            PasswordResult = "密码至少 4 位。";
+            return;
+        }
+        else
+        {
+            _adminHash = PasswordHasher.Hash(NewPassword);
+            PasswordResult = "管理员密码已设置。";
+        }
+        NewPassword = "";
+        ConfirmPassword = "";
+        // Runtime.Settings 与设置页是两份实例，必须同步，否则认证门读不到新密码。
+        Runtime.Settings.AdminPasswordHash = _adminHash;
+        Runtime.Settings.MinimizeToTray = MinimizeToTray;
+        if (_adminHash.Length == 0)
+        {
+            Runtime.Auth.Lock();
+        }
+        else
+        {
+            // 刚刚输入过密码，本次会话直接放行，避免设置完立刻被自己锁在外面。
+            Runtime.Auth.Lock();
+            Runtime.Auth.TryUnlock(NewPasswordSnapshot);
+        }
+        SaveSettings();
+        RefreshLockState();
+        OnPropertyChanged(nameof(HasPassword));
+        OnPropertyChanged(nameof(PasswordWatermark));
+    }
 
     // ================= 功能开关（默认全关） =================
     //
@@ -603,6 +693,8 @@ public sealed class SettingsViewModel : ViewModelBase
         PluginToken = s.PluginToken;
         PluginPort = s.PluginPort;
         _riskAccepted = s.RiskAccepted;
+        _adminHash = s.AdminPasswordHash;
+        _minimizeToTray = s.MinimizeToTray;
         _featureSummon = s.FeatureSummon;
         _featureHomework = s.FeatureHomework;
         _featureExchange = s.FeatureExchange;
@@ -643,7 +735,9 @@ public sealed class SettingsViewModel : ViewModelBase
             FeatureHomework = FeatureHomework,
             FeatureExchange = FeatureExchange,
             FeatureFileArchive = FeatureFileArchive,
-            FeatureCoursewarePopup = FeatureCoursewarePopup
+            FeatureCoursewarePopup = FeatureCoursewarePopup,
+            AdminPasswordHash = _adminHash,
+            MinimizeToTray = MinimizeToTray
         }, SettingsPath);
         AppendLog("设置已保存。");
     }
