@@ -63,6 +63,42 @@ public sealed class AppSettings
     /// <summary>管理员密码的 PBKDF2 哈希；为空表示未设置（不拦截任何操作）。</summary>
     public string AdminPasswordHash { get; set; } = "";
 
+    /// <summary>
+    /// 恢复默认值（"清空所有设置"用）。
+    /// 必须连**内存里那份**一起复位：设置页与 Runtime 共用同一个对象，
+    /// 只删文件的话退出时 Runtime 又会把旧值写回去，等于没清。
+    /// </summary>
+    public void ResetToDefaults()
+    {
+        var d = new AppSettings();
+        AiBaseUrl = d.AiBaseUrl;
+        AiApiKey = d.AiApiKey;
+        AiModel = d.AiModel;
+        AiEngine = d.AiEngine;
+        AiProvider = d.AiProvider;
+        AiReasoning = d.AiReasoning;
+        OneBotHttp = d.OneBotHttp;
+        OneBotWs = d.OneBotWs;
+        OneBotToken = d.OneBotToken;
+        GroupIds = [];
+        QqAccount = 0;
+        QqAccounts = [];
+        ArchiveRoot = d.ArchiveRoot;
+        ArchiveDownloadAll = d.ArchiveDownloadAll;
+        PluginToken = d.PluginToken;
+        PluginPort = d.PluginPort;
+        Teachers = [];
+        RiskAccepted = d.RiskAccepted;
+        FeatureSummon = d.FeatureSummon;
+        FeatureHomework = d.FeatureHomework;
+        FeatureExchange = d.FeatureExchange;
+        FeatureFileArchive = d.FeatureFileArchive;
+        FeatureCoursewarePopup = d.FeatureCoursewarePopup;
+        MinimizeToTray = d.MinimizeToTray;
+        UiScale = d.UiScale;
+        AdminPasswordHash = d.AdminPasswordHash;
+    }
+
     /// <summary>把设置里的开关投影成管线用的 FeatureFlags。</summary>
     public FeatureFlags ToFeatureFlags() => new()
     {
@@ -119,6 +155,21 @@ public static class SettingsStore
         var tmp = path + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(settings, Json));
         File.Move(tmp, path, overwrite: true);
+    }
+
+    /// <summary>删除设置文件（"清空所有设置"）。不存在也不报错。</summary>
+    public static void Reset(string? path = null)
+    {
+        path ??= DefaultPath;
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+            var tmp = path + ".tmp";
+            if (File.Exists(tmp))
+                File.Delete(tmp);
+        }
+        catch { /* 删不掉就让 Load 的默认值兜底 */ }
     }
 
     private static void TryBackup(string path)

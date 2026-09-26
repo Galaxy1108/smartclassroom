@@ -218,6 +218,45 @@ public partial class SettingsView : UserControl
         Vm.AppendLogFromView($"已打开课件弹窗：{today:yyyy-MM-dd} 共 {files.Count} 个文件。");
     }
 
+    // ---- 软件更新 ----
+
+    private async void CheckUpdate_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Vm.CheckForUpdatesAsync();
+
+    private async void DownloadUpdate_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Vm.DownloadUpdateAsync();
+
+    /// <summary>打开 Releases 页（Linux 下就是"去下载新包"的正路）。</summary>
+    private void OpenReleasePage_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var url = Vm.ReleasePageUrl;
+        if (url is null)
+            return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Vm.AppendLogFromView($"打开 Releases 页失败：{ex.Message}");
+            Toasts.Error("打开浏览器失败", ex.Message);
+        }
+    }
+
+    // ---- 调试 ----
+
+    /// <summary>清空所有设置：先确认，再复位（设置页与 Runtime 共用对象，一起清）。</summary>
+    private async void ResetSettings_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var ok = await Dialogs.ConfirmAsync("清空所有设置",
+            "会把 AI / QQ / 归档 / 教师映射 / 功能开关 / 管理员密码全部恢复默认值，" +
+            "并删除 settings.json。\n\n作业、待处理与事件时间线不会被清掉。\n\n确定继续吗？",
+            "清空", "取消");
+        if (!ok)
+            return;
+        Vm.ResetAllSettings();
+    }
+
     // ---- 日志 ----
 
     private async void CopyLog_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

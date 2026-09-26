@@ -367,6 +367,41 @@ minimal/low/medium/high）。我们的任务是"把群消息整理成 JSON"，�
   不同天的同名文件会得到 `(1)`、`(2)` 后缀。
 - 同一个 `file_id` 不会重复下载；重名自动加序号。
 
+## 软件更新
+
+设置页「软件更新」会去 GitHub 查最新 tag / Release（`Galaxy1108/smartclassroom`），
+比较当前版本（来自 csproj 的 `<Version>`）后给出**三态徽标**：已是最新（对钩）/
+发现新版本（感叹号）/ 检查失败（叉）。有 Release 时还会显示说明正文与安装包。
+
+**平台差异（重要）**：
+
+| 平台 | 行为 |
+|---|---|
+| Windows | 「下载并安装」可用：下载 `win-x64.zip` → 解压到 `<应用目录>/update/<版本>` → 生成 `apply-update.cmd`。关闭应用后运行它即可覆盖文件并重启（正在运行的 exe 不能被覆盖，所以必须这样绕一下） |
+| Linux | **明确禁用**自动替换。应用装在 `/opt` 并由 pacman 管理，自己换文件会让包数据库和实际文件不一致（下次更新/卸载就乱套）。界面上给出说明，只保留「打开 Releases 页」；更新走包管理器（`sudo pacman -U 新版 .pkg.tar.zst`） |
+
+发版流程（让更新功能真正可用）：
+
+```bash
+# 1. 改版本号（两处要一致）
+#    src/App/SmartClassroom.App.csproj 的 <Version>
+#    pkg/PKGBUILD 的 pkgver
+bash pkg/build-linux.sh && bash pkg/build-windows.sh
+git commit -am "release: v0.23.0" && git tag v0.23.0 && git push --tags
+gh release create v0.23.0 pkg/smartclassroom-0.23.0-*.pkg.tar.zst pkg/smartclassroom-0.23.0-win-x64.zip \
+  --title "v0.23.0" --notes "更新说明…"
+```
+
+Windows 自更新要求 Release 里带上 `…-win-x64.zip` 资产；没有资产时按钮会置灰并说明原因。
+
+## 调试设置
+
+设置页最下方有「调试」区，目前只有一项：
+
+- **清空所有设置**：确认后把 `settings.json` 恢复默认（AI / QQ / 归档 / 教师映射 / 功能开关 /
+  管理员密码），并把**内存里那份也一起复位**——设置页与 Runtime 共用同一个设置对象，
+  只删文件的话退出时又会被写回来。作业、待处理与事件时间线属于数据，不在"设置"范围内，不会被动。
+
 ## License
 
 MIT（见 [LICENSE](LICENSE)）

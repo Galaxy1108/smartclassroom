@@ -4,6 +4,7 @@ using SmartClassroom.Core;
 using SmartClassroom.Core.AI;
 using SmartClassroom.App.Views;
 using SmartClassroom.Core.QQ;
+using SmartClassroom.Core.Updates;
 
 namespace SmartClassroom.App.ViewModels;
 
@@ -23,6 +24,8 @@ public sealed class SettingsViewModel : ViewModelBase
 
     /// <summary>与 Runtime 共用的设置对象（测试里为 null）。见构造函数注释。</summary>
     private readonly AppSettings? _shared;
+
+    private readonly UpdateChecker _updates;
 
     /// <summary>正在从文件/共享对象装载设置：此时不允许任何自动落盘，避免写回半截数据。</summary>
     private bool _loading;
@@ -60,11 +63,13 @@ public sealed class SettingsViewModel : ViewModelBase
     /// 结果每次重启/更新后配置都回到原样（用户看到的就是"key 又没了"）。
     /// 传 null（测试用临时文件）时退化为"自己读自己写"。
     /// </param>
-    public SettingsViewModel(string settingsPath, string? appDir = null, AppSettings? shared = null)
+    public SettingsViewModel(string settingsPath, string? appDir = null, AppSettings? shared = null,
+        UpdateChecker? updates = null)
     {
         SettingsPath = settingsPath;
         _appDir = appDir ?? AppContext.BaseDirectory;
         _shared = shared;
+        _updates = updates ?? new UpdateChecker();
         _manager.OnLog += line => AppendLog(line);
         InstallDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -1303,6 +1308,203 @@ public sealed class SettingsViewModel : ViewModelBase
         SaveSettings();
         AppendLog("已填入默认 OneBot 地址并保存，重启 App 后管线自动连接。");
         Toasts.Success("已填入默认 OneBot 地址", "重启应用后消息管线会自动连接。");
+    }
+
+    // ================= 软件更新 =================
+    //
+    // 只做"查 + 下载"。真正替换文件仅限 Windows（见 UpdateInstaller）；
+    // Linux 的应用由包管理器安装，自己替换 /opt 会和 pacman 数据库不一致，故禁用。
+
+    public string CurrentVersionText => $"当前版本 {AppVersion.Current}";
+
+    private string _latestVersionText = "尚未检查";
+    public string LatestVersionText { get => _latestVersionText; private set => Set(ref _latestVersionText, value); }
+
+    private NoticeSeverity _updateSeverity = NoticeSeverity.Informational;
+    public NoticeSeverity UpdateSeverity { get => _updateSeverity; private set => Set(ref _updateSeverity, value); }
+
+    private string _updateStatusText = "尚未检查更新";
+    public string UpdateStatusText { get => _updateStatusText; private set => Set(ref _updateStatusText, value); }
+
+    private string _updateNotes = "";
+    public string UpdateNotes { get => _updateNotes; private set => Set(ref _updateNotes, value); }
+
+    public bool HasUpdateNotes => UpdateNotes.Length > 0;
+
+    private bool _hasUpdate;
+    public bool HasUpdate
+    {
+        get => _hasUpdate;
+        private set
+        {
+            if (!Set(ref _hasUpdate, value))
+                return;
+            OnPropertyChanged(nameof(CanInstallUpdate));
+        }
+    }
+
+    private bool _isCheckingUpdate;
+    public bool IsCheckingUpdate
+    {
+        get => _isCheckingUpdate;
+        private set
+        {
+            if (Set(ref _isCheckingUpdate, value))
+                OnPropertyChanged(nameof(CheckUpdateButtonText));
+        }
+    }
+
+    public string CheckUpdateButtonText => IsCheckingUpdate ? "检查中…" : "检查更新";
+
+    private bool _isDownloadingUpdate;
+    public bool IsDownloadingUpdate
+    {
+        get => _isDownloadingUpdate;
+        private set
+        {
+            if (!Set(ref _isDownloadingUpdate, value))
+                return;
+            OnPropertyChanged(nameof(CanInstallUpdate));
+            OnPropertyChanged(nameof(DownloadUpdateButtonText));
+        }
+    }
+
+    public string DownloadUpdateButtonText => IsDownloadingUpdate ? "下载中…" : "下载并安装";
+
+    private double _updateProgress;
+    public double UpdateProgress { get => _updateProgress; private set => Set(ref _updateProgress, value); }
+
+    private string? _assetUrl;
+    private string? _releaseUrl;
+
+    /// <summary>本平台是否允许应用自己替换文件（Windows 可以，Linux 不行）。</summary>
+    public bool CanSelfUpdate => UpdateInstaller.CanSelfUpdate;
+
+    /// <summary>能点"下载并安装"：有新版本 + 平台允许 + Release 里确实传了安装包。</summary>
+    public bool CanInstallUpdate => HasUpdate && CanSelfUpdate && _assetUrl is not null && !IsDownloadingUpdate;
+
+    /// <summary>Linux 下的说明（为什么按钮是灰的）。</summary>
+    public string UpdatePlatformHint => CanSelfUpdate
+        ? "Windows：可以直接下载并自动替换（关闭应用后由脚本完成覆盖并重启）。"
+        : "Linux：应用由系统包管理器安装，程序不会自行替换 /opt 下的文件。" +
+          "请用包管理器更新（例如 sudo pacman -U 新版 .pkg.tar.zst），或到 Releases 页下载。";
+
+    public bool HasReleasePage => _releaseUrl is not null;
+
+    private string? _pendingUpdateScript;
+    /// <summary>下载完成后生成的"覆盖并重启"脚本路径（视图层负责提示用户运行）。</summary>
+    public string? PendingUpdateScript { get => _pendingUpdateScript; private set => Set(ref _pendingUpdateScript, value); }
+
+    public async Task CheckForUpdatesAsync()
+    {
+        IsCheckingUpdate = true;
+        UpdateSeverity = NoticeSeverity.Informational;
+        UpdateStatusText = "检查中…";
+        try
+        {
+            // 只有 Windows 需要安装包；Linux 由包管理器更新，不必挑资产
+            var pattern = CanSelfUpdate ? "win-x64.zip" : null;
+            var info = await _updates.CheckAsync(AppVersion.Current, assetPattern: pattern);
+            _assetUrl = info.AssetUrl;
+            _releaseUrl = info.ReleaseUrl;
+            UpdateNotes = info.Notes ?? "";
+            OnPropertyChanged(nameof(HasUpdateNotes));
+            OnPropertyChanged(nameof(HasReleasePage));
+
+            if (!info.RemoteReachable)
+            {
+                HasUpdate = false;
+                LatestVersionText = "未获取到";
+                UpdateSeverity = NoticeSeverity.Warning;
+                UpdateStatusText = "检查失败：拿不到远端版本（网络不通或仓库没有 tag/Release）";
+                Toasts.Warn("更新检查失败", "没拿到远端版本信息，稍后再试。");
+            }
+            else if (info.HasUpdate)
+            {
+                HasUpdate = true;
+                LatestVersionText = $"最新版本 {info.LatestVersion}";
+                UpdateSeverity = NoticeSeverity.Warning;
+                UpdateStatusText = $"发现新版本 {info.LatestVersion}（当前 {AppVersion.Current}）";
+                Toasts.Show("发现新版本", $"{AppVersion.Current} → {info.LatestVersion}", NoticeSeverity.Warning);
+            }
+            else
+            {
+                HasUpdate = false;
+                LatestVersionText = $"最新版本 {info.LatestVersion}";
+                UpdateSeverity = NoticeSeverity.Success;
+                UpdateStatusText = "已是最新版本";
+                Toasts.Success("已是最新版本", $"当前 {AppVersion.Current}");
+            }
+            AppendLog($"更新检查：{UpdateStatusText}（来源 {info.Source}）");
+        }
+        catch (Exception ex)
+        {
+            HasUpdate = false;
+            UpdateSeverity = NoticeSeverity.Error;
+            UpdateStatusText = $"检查失败：{ex.Message}";
+            AppendLog($"更新检查失败：{ex.Message}");
+            Toasts.Error("更新检查失败", ex.Message);
+        }
+        finally
+        {
+            IsCheckingUpdate = false;
+            OnPropertyChanged(nameof(CanInstallUpdate));
+        }
+    }
+
+    /// <summary>下载新版本并生成覆盖脚本（仅 Windows 可用）。</summary>
+    public async Task DownloadUpdateAsync()
+    {
+        if (_assetUrl is null)
+        {
+            Toasts.Warn("没有可下载的安装包", "该 Release 里还没有上传 win-x64.zip。");
+            return;
+        }
+        IsDownloadingUpdate = true;
+        UpdateProgress = 0;
+        try
+        {
+            var stage = await UpdateInstaller.StageAsync(_assetUrl, LatestVersionText, _appDir,
+                new Progress<double>(p => UpdateProgress = p));
+            PendingUpdateScript = UpdateInstaller.WriteScript(stage, _appDir);
+            AppendLog($"更新已下载并解压到 {stage}；覆盖脚本：{PendingUpdateScript}");
+            Toasts.Success("更新已下载", "关闭应用后运行 apply-update.cmd 即可覆盖并重启。");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"下载更新失败：{ex.Message}");
+            Toasts.Error("下载更新失败", ex.Message);
+        }
+        finally
+        {
+            IsDownloadingUpdate = false;
+            UpdateProgress = 0;
+        }
+    }
+
+    /// <summary>Release 页面地址（视图层负责用浏览器打开）。</summary>
+    public string? ReleasePageUrl => _releaseUrl;
+
+    // ================= 调试 =================
+
+    /// <summary>配置文件位置（清空前让用户知道动的是哪个文件）。</summary>
+    public string SettingsPathHint => $"配置文件：{SettingsPath}";
+
+    /// <summary>
+    /// 清空所有设置：删掉 settings.json，并把内存里那份一起复位
+    /// （设置页与 Runtime 共用对象，只删文件的话退出时又会被写回来）。
+    /// 作业/待处理/事件时间线属于数据，不在"设置"范围内，不动。
+    /// </summary>
+    public void ResetAllSettings()
+    {
+        SettingsStore.Reset(SettingsPath);
+        _shared?.ResetToDefaults();
+        LoadSettings();               // 回到默认值（有共享对象时读的就是刚复位的那份）
+        RefreshIntegrationState();    // 开关前置条件重新判定
+        RefreshLockState();           // 管理员密码也清了
+        OnPropertyChanged(nameof(FeatureSummary));
+        AppendLog("已清空所有设置（作业/事件等数据未动）。");
+        Toasts.Success("已清空所有设置", "重启应用后完全生效。");
     }
 
     // ================= 持久化 =================
