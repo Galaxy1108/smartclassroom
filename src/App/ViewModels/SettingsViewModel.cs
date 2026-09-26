@@ -2013,16 +2013,6 @@ public sealed class SettingsViewModel : ViewModelBase
         catch { return null; }
     }
 
-    public void AutoConnect()
-    {
-        OneBotHttp = "http://127.0.0.1:3000";
-        OneBotWs = "ws://127.0.0.1:3001";
-        QqDetected = false;
-        SaveSettings();
-        AppendLog("已填入默认 OneBot 地址并保存，重启 App 后管线自动连接。");
-        Toasts.Success("已填入默认 OneBot 地址");
-    }
-
     // ================= 软件更新 =================
     //
     // 只做"查 + 下载"。真正替换文件仅限 Windows（见 UpdateInstaller）；

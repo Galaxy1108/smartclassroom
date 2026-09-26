@@ -434,14 +434,6 @@
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
 
-            <local:NoticeBar Severity="Success" IsVisible="{Binding QqDetected}"
-                             Title="检测到 QQ，是否自动连接？"
-                             Message="将填入默认 OneBot 地址并保存。">
-                <local:NoticeBar.ActionContent>
-                    <Button Content="自动连接" Classes="accent" Click="AutoConnect_Click" />
-                </local:NoticeBar.ActionContent>
-            </local:NoticeBar>
-
             <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasWebUiPassword}"
                         Margin="2,2,0,0">
                 <TextBlock Text="{Binding WebUiLoginHint}" FontSize="12" Opacity="0.75"

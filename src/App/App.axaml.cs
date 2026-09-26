@@ -65,15 +65,39 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             if (e.ExceptionObject is Exception ex)
-                Runtime.Feed.Append("crash", "未处理异常", Describe(ex), ActivitySeverity.Error);
+                Report("未处理异常", ex);
         };
 
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
-            Runtime.Feed.Append("crash", "后台任务异常", Describe(e.Exception), ActivitySeverity.Error);
+            Report("后台任务异常", e.Exception);
             e.SetObserved();
         };
     }
+
+    /// <summary>
+    /// 记一条异常。**环境噪音不算崩溃**：例如 Linux 上 Avalonia 找输入法（Fcitx/IBus）
+    /// 的 DBus 服务找不到时会抛 DBusException —— 无害，但记成"错误/crash"只会吓人。
+    /// 这类只记一条说明性提示。
+    /// </summary>
+    private static void Report(string title, Exception ex)
+    {
+        var text = Describe(ex);
+        if (IsEnvironmentNoise(text))
+        {
+            Runtime.Feed.Append("env", $"{title}（环境噪音，无害）",
+                "输入法（Fcitx/IBus）的 DBus 服务不可用，Avalonia 找不到它就报这个；不影响功能。",
+                ActivitySeverity.Info);
+            return;
+        }
+        Runtime.Feed.Append("crash", title, text, ActivitySeverity.Error);
+    }
+
+    private static bool IsEnvironmentNoise(string text)
+        => text.Contains("Tmds.DBus", StringComparison.Ordinal)
+           || text.Contains("org.freedesktop.DBus", StringComparison.Ordinal)
+           || text.Contains("DBusException", StringComparison.Ordinal)
+           || text.Contains("GetNameOwnerAsync", StringComparison.Ordinal);
 
     /// <summary>
     /// 把异常压成可读文本。

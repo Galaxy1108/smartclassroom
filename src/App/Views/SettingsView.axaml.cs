@@ -286,9 +286,6 @@ public partial class SettingsView : UserControl
         }
     }
 
-    private void AutoConnect_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => Vm.AutoConnect();
-
     // ---- 上课课件弹窗：手动测试 ----
 
     /// <summary>
