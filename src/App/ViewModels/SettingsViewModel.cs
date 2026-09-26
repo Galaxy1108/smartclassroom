@@ -263,7 +263,8 @@ public sealed class SettingsViewModel : ViewModelBase
 
     // ---------- 各开关的前置条件 ----------
 
-    private List<string> MissingFor(bool needQq, bool needAi, bool needClassIsland)
+    private List<string> MissingFor(bool needQq, bool needAi, bool needClassIsland,
+        bool needsClassIslandForTrigger = false)
     {
         var missing = new List<string>();
         if (needQq)
@@ -277,7 +278,11 @@ public sealed class SettingsViewModel : ViewModelBase
         if (needAi && !AiReady)
             missing.Add("AI");
         if (needClassIsland && !ClassIslandReady)
-            missing.Add("ClassIsland 集成");
+        {
+            // 召唤有"应用内横幅 + 系统通知"兜底，课件弹窗没有：上课事件只能由 ClassIsland 提供
+            missing.Add(needsClassIslandForTrigger ? "ClassIsland 集成（上课事件只能由它提供）"
+                                                   : "ClassIsland 集成");
+        }
         return missing;
     }
 
@@ -309,7 +314,7 @@ public sealed class SettingsViewModel : ViewModelBase
         HomeworkGateHint = GateHint(MissingFor(needQq: true, needAi: true, needClassIsland: false));
         ExchangeGateHint = GateHint(MissingFor(needQq: true, needAi: true, needClassIsland: true));
         ArchiveGateHint = GateHint(MissingFor(needQq: true, needAi: false, needClassIsland: false));
-        CoursewareGateHint = GateHint(MissingFor(needQq: false, needAi: false, needClassIsland: true));
+        CoursewareGateHint = GateHint(MissingFor(needQq: false, needAi: false, needClassIsland: true, needsClassIslandForTrigger: true));
 
         OnPropertyChanged(nameof(CanEnableSummon));
         OnPropertyChanged(nameof(CanEnableHomework));
@@ -476,6 +481,15 @@ public sealed class SettingsViewModel : ViewModelBase
     public ObservableCollection<SidecarProvider> PiProviders { get; } = new();
     public ObservableCollection<SidecarModel> PiModels { get; } = new();
 
+    /// <summary>
+    /// 下拉在"还没点载入目录"时是空的，用户会以为配置丢了。
+    /// 用已保存的值做占位文本，等载入目录后再自动选中同名条目。
+    /// </summary>
+    public string ProviderPlaceholder => AiModelProviderHint.Length > 0 ? AiModelProviderHint : "未选择";
+
+    /// <summary>同上：模型下拉的占位文本显示已保存的模型。</summary>
+    public string ModelPlaceholder => AiModel.Length > 0 ? AiModel : "未选择";
+
     private SidecarProvider? _selectedProvider;
     public SidecarProvider? SelectedProvider
     {
@@ -487,6 +501,7 @@ public sealed class SettingsViewModel : ViewModelBase
             if (value is not null)
             {
                 AiModelProviderHint = value.Id;
+                OnPropertyChanged(nameof(ProviderPlaceholder));
                 SaveSettings();
             }
             _ = LoadModelsAsync();
@@ -502,6 +517,7 @@ public sealed class SettingsViewModel : ViewModelBase
             if (!Set(ref _selectedModel, value) || value is null)
                 return;
             AiModel = value.Id;
+            OnPropertyChanged(nameof(ModelPlaceholder));
             SaveSettings();
         }
     }
@@ -1142,6 +1158,22 @@ public sealed class SettingsViewModel : ViewModelBase
                 : $"已选 {ids.Count} 个群：{string.Join("、", ids)}";
         }
     }
+
+    /// <summary>
+    /// 也处理老师私聊（默认关闭）。只认老师映射里的 QQ，陌生人私聊忽略。
+    /// </summary>
+    public bool ListenTeacherPrivate
+    {
+        get => _listenTeacherPrivate;
+        set
+        {
+            if (!Set(ref _listenTeacherPrivate, value))
+                return;
+            SaveSettings();
+        }
+    }
+
+    private bool _listenTeacherPrivate;
 
     /// <summary>true = 监听该账号所在的全部群（默认关闭，避免在无关群里触发）。</summary>
     public bool ListenAllGroups
@@ -2107,6 +2139,7 @@ public sealed class SettingsViewModel : ViewModelBase
             _webUiPasswordManual = s.SnowLumaWebUiPassword.Length > 0;
             WebUiPassword = s.SnowLumaWebUiPassword;
             _listenAllGroups = s.ListenAllGroups;
+            _listenTeacherPrivate = s.ListenTeacherPrivate;
             _qqAccount = s.QqAccount;
             QqCandidates.Clear();
             foreach (var a in s.QqAccounts)
@@ -2156,6 +2189,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.SnowLumaAgreementsVersion = _agreementsVersion;
         s.SnowLumaWebUiPassword = _webUiPasswordManual ? WebUiPassword : "";
         s.ListenAllGroups = ListenAllGroups;
+        s.ListenTeacherPrivate = ListenTeacherPrivate;
         s.QqAccount = QqAccount;
         s.QqAccounts = QqCandidates.ToList();
         s.Teachers = Teachers.Select(t => new Teacher

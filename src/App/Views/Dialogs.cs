@@ -247,7 +247,9 @@ public static class Dialogs
     }
 
     /// <summary>
-    /// 从群列表里多选要监听的群（省得手打群号）。返回 null = 取消。
+    /// 从群列表里多选要监听的群。用**复选框列表**而不是多选 ListBox ——
+    /// Avalonia 的多选要按 Ctrl 点，用户根本不知道，看起来就像只能单选。
+    /// 返回 null = 取消。
     /// </summary>
     public static async Task<IReadOnlyList<long>?> PickGroupsAsync(
         IReadOnlyList<GroupInfoData> groups, IReadOnlyCollection<long> selected)
@@ -256,20 +258,17 @@ public static class Dialogs
         if (owner is null)
             return null;
 
-        var labels = groups
-            .Select(g => $"{g.GroupName}（{g.GroupId}）· {g.MemberCount} 人")
-            .ToList();
-        var list = new ListBox
+        var boxes = new List<(long Uin, CheckBox Box)>();
+        var list = new StackPanel { Spacing = 2 };
+        foreach (var g in groups)
         {
-            ItemsSource = labels,
-            SelectionMode = SelectionMode.Multiple,
-            MaxHeight = 320,
-            MinWidth = 420
-        };
-        for (var i = 0; i < groups.Count; i++)
-        {
-            if (selected.Contains(groups[i].GroupId))
-                list.SelectedItems!.Add(labels[i]);
+            var box = new CheckBox
+            {
+                Content = $"{g.GroupName}（{g.GroupId}）· {g.MemberCount} 人",
+                IsChecked = selected.Contains(g.GroupId)
+            };
+            boxes.Add((g.GroupId, box));
+            list.Children.Add(box);
         }
 
         var content = new StackPanel
@@ -279,11 +278,11 @@ public static class Dialogs
             {
                 new TextBlock
                 {
-                    Text = "勾选要监听的群（只处理这些群的消息）。班级号所在的群可能很多，"
+                    Text = "勾选要监听的群（可以多选）。班级号往往在几十个群里，"
                          + "建议只勾班级群，避免在无关群里触发 AI 与通知。",
                     TextWrapping = TextWrapping.Wrap, MaxWidth = 440, Opacity = 0.85
                 },
-                list
+                new ScrollViewer { Content = list, MaxHeight = 320, MinWidth = 420 }
             }
         };
         var dialog = new ContentDialog
@@ -301,14 +300,7 @@ public static class Dialogs
         if (result != ContentDialogResult.Primary)
             return null;
 
-        var picked = new List<long>();
-        foreach (var item in list.SelectedItems ?? new List<object>())
-        {
-            var idx = labels.IndexOf(item as string ?? "");
-            if (idx >= 0)
-                picked.Add(groups[idx].GroupId);
-        }
-        return picked;
+        return boxes.Where(b => b.Box.IsChecked == true).Select(b => b.Uin).ToList();
     }
 
     private static ScrollViewer WrapText(string message) => new()

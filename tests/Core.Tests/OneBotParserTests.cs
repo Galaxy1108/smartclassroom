@@ -36,7 +36,26 @@ public sealed class OneBotParserTests
     public void Parse_IrrelevantEvents_ReturnsNull()
     {
         Assert.Null(OneBotParser.Parse("""{"post_type":"meta_event","meta_event_type":"heartbeat"}"""));
-        Assert.Null(OneBotParser.Parse("""{"post_type":"message","message_type":"private","user_id":1}"""));
+        Assert.Null(OneBotParser.Parse("""{"post_type":"message","message_type":"discuss","user_id":1}"""));
+    }
+
+    [Fact]
+    public void Parse_PrivateMessage_ReturnsPrivateEvent()
+    {
+        // 老师私聊也可能发"来一下"或作业，所以要认出来（GroupId 固定 0）
+        var json = """
+            {"post_type":"message","message_type":"private","sub_type":"friend","time":1,"self_id":2,
+             "user_id":10001,"message_id":99,"raw_message":"张老师 来一下","message":"张老师 来一下",
+             "sender":{"nickname":"张三"}}
+            """;
+
+        var ev = Assert.IsType<PrivateMessageEvent>(OneBotParser.Parse(json));
+
+        Assert.Equal(10001L, ev.UserId);
+        Assert.Equal(99L, ev.MessageId);
+        Assert.Equal(0L, ev.GroupId);            // 私聊没有群号
+        Assert.Equal("张老师 来一下", ev.Text);
+        Assert.Equal("张三", ev.Nickname);
     }
 
     [Fact]

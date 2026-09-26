@@ -26,8 +26,20 @@ public class OneBotEvent
     public long SelfId { get; set; }
 }
 
+/// <summary>
+/// 群消息与私聊消息的共同部分，让处理管线（召唤/作业/换课）两种来源共用一套逻辑。
+/// 私聊时 <see cref="GroupId"/> 为 0。
+/// </summary>
+public interface IIncomingMessage
+{
+    long UserId { get; }
+    long GroupId { get; }
+    long MessageId { get; }
+    string Text { get; }
+}
+
 /// <summary>群消息事件（message.group）。message 可能是 string 或段数组，本类只保留解析后的纯文本。</summary>
-public sealed class GroupMessageEvent : OneBotEvent
+public sealed class GroupMessageEvent : OneBotEvent, IIncomingMessage
 {
     public long GroupId { get; set; }
     public long UserId { get; set; }
@@ -35,6 +47,22 @@ public sealed class GroupMessageEvent : OneBotEvent
     public string RawMessage { get; set; } = "";
     public string Text { get; set; } = "";
     public string? Card { get; set; }
+    public string? Nickname { get; set; }
+}
+
+/// <summary>
+/// 私聊消息事件（message.private）。
+/// 老师也可能私聊发"来一下"或作业，所以单独建一个模型（GroupId 为 0）。
+/// </summary>
+public sealed class PrivateMessageEvent : OneBotEvent, IIncomingMessage
+{
+    /// <summary>私聊没有群号，固定 0（消息记录里用 0 表示私聊）。</summary>
+    public long GroupId => 0;
+
+    public long UserId { get; set; }
+    public long MessageId { get; set; }
+    public string RawMessage { get; set; } = "";
+    public string Text { get; set; } = "";
     public string? Nickname { get; set; }
 }
 

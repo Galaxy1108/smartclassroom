@@ -193,6 +193,7 @@
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <ComboBox MinWidth="170" ItemsSource="{Binding PiProviders}"
+                                  PlaceholderText="{Binding ProviderPlaceholder}"
                                   SelectedItem="{Binding SelectedProvider}">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate x:DataType="ai:SidecarProvider">
@@ -206,6 +207,7 @@
                             </ComboBox.SelectionBoxItemTemplate>
                         </ComboBox>
                         <ComboBox MinWidth="200" ItemsSource="{Binding PiModels}"
+                                  PlaceholderText="{Binding ModelPlaceholder}"
                                   SelectedItem="{Binding SelectedModel}">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate x:DataType="ai:SidecarModel">
@@ -497,6 +499,13 @@
             </fa:SettingsExpander>
             <TextBlock Text="{Binding GroupSummary}" FontSize="12" Opacity="0.7"
                        TextWrapping="Wrap" Margin="2,0,0,0" />
+
+            <fa:SettingsExpander Header="监听老师私聊"
+                                 Description="老师私聊发的「来一下」/作业也处理；只认老师映射里的 QQ，陌生人私聊忽略">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding ListenTeacherPrivate}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
 
             <fa:SettingsExpander Header="监听全部群"
                                  Description="开启后该账号所在的每个群都会被处理（班级号往往在几十个群里，容易误触发）">

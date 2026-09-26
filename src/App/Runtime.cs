@@ -234,6 +234,9 @@ public static class Runtime
                         case GroupUploadEvent u when wanted || groups.Contains(u.GroupId):
                             await pipeline.OnGroupUploadAsync(u, ct);
                             break;
+                        case PrivateMessageEvent p when Settings.ListenTeacherPrivate:
+                            await pipeline.OnPrivateMessageAsync(p, ct);
+                            break;
                     }
                 }, cancel);
                 Dispatcher.UIThread.Post(() => status.StatusText = "QQ 已连接");

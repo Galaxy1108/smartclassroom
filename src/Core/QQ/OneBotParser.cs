@@ -22,7 +22,10 @@ public static class OneBotParser
 
     private static OneBotEvent? ParseMessage(JsonElement root)
     {
-        if (root.GetPropertyOrNull("message_type") != "group")
+        var messageType = root.GetPropertyOrNull("message_type");
+        if (messageType == "private")
+            return ParsePrivateMessage(root);
+        if (messageType != "group")
             return null;
         var ev = new GroupMessageEvent
         {
@@ -39,6 +42,23 @@ public static class OneBotParser
             ev.Card = sender.GetStringOrNull("card");
             ev.Nickname = sender.GetStringOrNull("nickname");
         }
+        (ev.RawMessage, ev.Text) = ExtractText(root);
+        return ev;
+    }
+
+    private static OneBotEvent? ParsePrivateMessage(JsonElement root)
+    {
+        var ev = new PrivateMessageEvent
+        {
+            PostType = "message",
+            MessageType = "private",
+            Time = root.GetInt64OrZero("time"),
+            SelfId = root.GetInt64OrZero("self_id"),
+            UserId = root.GetInt64OrZero("user_id"),
+            MessageId = root.GetInt64OrZero("message_id"),
+        };
+        if (root.TryGetProperty("sender", out var sender))
+            ev.Nickname = sender.GetStringOrNull("nickname");
         (ev.RawMessage, ev.Text) = ExtractText(root);
         return ev;
     }

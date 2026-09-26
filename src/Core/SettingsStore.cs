@@ -36,6 +36,12 @@ public sealed class AppSettings
     /// </summary>
     public string SnowLumaAgreementsVersion { get; set; } = "";
 
+    /// <summary>
+    /// true = 也处理**老师私聊**（默认 false）。只认老师映射里的 QQ，
+    /// 陌生人私聊一律忽略（名单为空时不做过滤）。
+    /// </summary>
+    public bool ListenTeacherPrivate { get; set; } = false;
+
     /// <summary>true = 监听该账号所在的**全部群**（默认 false：只监听 GroupIds 里列的群）。</summary>
     public bool ListenAllGroups { get; set; } = false;
 
@@ -99,6 +105,7 @@ public sealed class AppSettings
         OneBotToken = d.OneBotToken;
         GroupIds = [];
         ListenAllGroups = false;
+        ListenTeacherPrivate = false;
         QqAccount = 0;
         QqAccounts = [];
         SnowLumaAgreementsVersion = "";

@@ -71,6 +71,39 @@ public sealed class PipelineTests
             new CoursewareService(), new HomeworkStore(), new ActivityFeed(), new PendingStore(), TestFlags.AllOn);
     }
 
+    // ================= 老师私聊 =================
+    //
+    // 老师也可能私聊发"来一下"或作业，所以私聊走同一套判定；
+    // 但只认老师映射里的 QQ —— 不然谁私聊都触发。
+
+    [Fact]
+    public async Task PrivateMessage_FromMappedTeacher_IsHandled()
+    {
+        var p = Build("""{"is_summon":true,"target":"小明","urgent":true,"confidence":0.9}""", inClass: true);
+
+        await p.OnPrivateMessageAsync(new PrivateMessageEvent
+        {
+            UserId = 10001, MessageId = 5, RawMessage = "小明现在来一下", Text = "小明现在来一下",
+            Nickname = "张数学"
+        });
+
+        Assert.Single(_sent);
+        Assert.Equal("summon", _sent[0].Channel);
+    }
+
+    [Fact]
+    public async Task PrivateMessage_FromStranger_IsIgnored()
+    {
+        var p = Build("""{"is_summon":true,"target":"小明","urgent":true,"confidence":0.9}""", inClass: true);
+
+        await p.OnPrivateMessageAsync(new PrivateMessageEvent
+        {
+            UserId = 99999, MessageId = 6, RawMessage = "小明现在来一下", Text = "小明现在来一下"
+        });
+
+        Assert.Empty(_sent);   // 陌生人私聊不处理
+    }
+
     [Fact]
     public async Task SummonUrgent_InClass_SendsNow()
     {

@@ -62,6 +62,39 @@ public sealed class PipelineService(
     }
 
     /// <summary>
+    /// 私聊入口：老师私聊也可能发"来一下"或作业，所以走同一套判定。
+    /// 只认老师名单里的人 —— 陌生人私聊一律忽略（不然谁发都触发）。
+    /// </summary>
+    public async Task OnPrivateMessageAsync(PrivateMessageEvent ev, CancellationToken cancel = default)
+    {
+        if (teachers.Count > 0 && !teachers.IsKnown(ev.UserId))
+        {
+            feed.Append("private", $"忽略陌生人私聊 {ev.UserId}", "不在老师名单里（设置 → 老师映射）",
+                ActivitySeverity.Info);
+            return;
+        }
+        var sender = teachers.ToSender(ev.UserId, null, ev.Nickname);
+        var kind = RuleEngine.ClassifyLocal(ev.Text);
+        if (kind == RuleEngine.Kind.None)
+            return;
+
+        if (kind.HasFlag(RuleEngine.Kind.Summon) && flags.Summon)
+            await HandleSummonAsync(ev, sender, cancel).ConfigureAwait(false);
+        else if (kind.HasFlag(RuleEngine.Kind.Summon))
+            NoteDisabled("summon", "召唤通知");
+
+        if (kind.HasFlag(RuleEngine.Kind.Homework) && flags.Homework)
+            await HandleHomeworkAsync(ev, sender, cancel).ConfigureAwait(false);
+        else if (kind.HasFlag(RuleEngine.Kind.Homework))
+            NoteDisabled("homework", "作业自动录入");
+
+        if (kind.HasFlag(RuleEngine.Kind.Exchange) && flags.Exchange)
+            await HandleExchangeAsync(ev, sender, cancel).ConfigureAwait(false);
+        else if (kind.HasFlag(RuleEngine.Kind.Exchange))
+            NoteDisabled("exchange", "换课自动处理");
+    }
+
+    /// <summary>
     /// 功能未开启时，每类只提示一次（避免每条命中关键词的消息都刷屏）。
     /// 这样"老师说了话但没反应"在事件页里能直接看出原因。
     /// </summary>
@@ -324,7 +357,7 @@ public sealed class PipelineService(
     // ================= 各类消息处理 =================
 
     private async Task HandleSummonAsync(
-        GroupMessageEvent ev, SenderInfo sender, CancellationToken cancel,
+        IIncomingMessage ev, SenderInfo sender, CancellationToken cancel,
         bool keepOnFailure = false, string? resolvePendingId = null)
     {
         SummonDraft d;
@@ -378,7 +411,7 @@ public sealed class PipelineService(
     }
 
     private async Task HandleHomeworkAsync(
-        GroupMessageEvent ev, SenderInfo sender, CancellationToken cancel,
+        IIncomingMessage ev, SenderInfo sender, CancellationToken cancel,
         bool keepOnFailure = false, string? resolvePendingId = null)
     {
         HomeworkDraft d;
@@ -415,7 +448,7 @@ public sealed class PipelineService(
     }
 
     private async Task HandleExchangeAsync(
-        GroupMessageEvent ev, SenderInfo sender, CancellationToken cancel,
+        IIncomingMessage ev, SenderInfo sender, CancellationToken cancel,
         bool keepOnFailure = false, string? resolvePendingId = null)
     {
         ExchangeDraft d;

@@ -33,6 +33,12 @@ public sealed class TeacherMap
         return null;
     }
 
+    /// <summary>这个 QQ 是否在老师名单里（私聊只认名单里的人，陌生人一律忽略）。</summary>
+    public bool IsKnown(long qq) => _byQq.ContainsKey(qq);
+
+    /// <summary>名单人数（为 0 时不做陌生人过滤，避免用户没配名单就什么都不处理）。</summary>
+    public int Count => _byQq.Count;
+
     public SenderInfo ToSender(long qq, string? card, string? nickname)
     {
         var teacher = Resolve(qq, card, nickname);
