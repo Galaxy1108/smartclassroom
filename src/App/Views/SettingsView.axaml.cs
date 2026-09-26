@@ -197,6 +197,10 @@ public partial class SettingsView : UserControl
     private async void Stop_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => await Vm.StopAsync();
 
+    /// <summary>打开 SnowLuma 的日志目录（注入失败的原因只写在那里）。</summary>
+    private void OpenQqLog_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => OpenFolder(System.IO.Path.Combine(Vm.InstallDir, "logs"));
+
     /// <summary>打开 SnowLuma 的 WebUI（首次设置、看日志都在那里）。</summary>
     private void OpenWebUi_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {

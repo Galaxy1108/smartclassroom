@@ -70,7 +70,6 @@ public sealed class SettingsViewModel : ViewModelBase
         _appDir = appDir ?? AppContext.BaseDirectory;
         _shared = shared;
         _updates = updates ?? new UpdateChecker();
-        _manager.OnLog += line => AppendLog(line);
         InstallDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "SmartClassroom", "snowluma");
@@ -1044,7 +1043,36 @@ public sealed class SettingsViewModel : ViewModelBase
         return null;
     }
 
-    /// <summary>检测不到账号时，说清楚卡在哪一步（否则用户只知道"检测不到"）。</summary>
+    private string _injectionHint = "";
+    /// <summary>注入失败的可行原因（直接显示在运行状态下面）。</summary>
+    public string InjectionHint
+    {
+        get => _injectionHint;
+        private set { if (Set(ref _injectionHint, value)) OnPropertyChanged(nameof(HasInjectionHint)); }
+    }
+
+    public bool HasInjectionHint => InjectionHint.Length > 0;
+
+    /// <summary>
+    /// 解释"SnowLuma 起来了但没注入"。
+    /// 读它自己的日志找注入失败行；Linux 上再结合 ptrace 限制给出具体做法。
+    /// </summary>
+    private string ExplainInjectionFailure()
+    {
+        var failure = SnowlumaManager.LastHookFailure(InstallDir);
+        var ptrace = SnowlumaManager.ReadPtraceScope();
+        if (failure is not null && ptrace == 1)
+            return "注入失败：Linux 的 ptrace 限制（kernel.yama.ptrace_scope=1 只允许跟踪子进程）。"
+                 + "执行 sudo sysctl kernel.yama.ptrace_scope=0 后重试，或从 SnowLuma 的 WebUI 里启动 QQ。";
+        if (failure is not null)
+            return $"注入失败：{Trim(failure)}（详见 SnowLuma 的日志目录）";
+        if (ptrace == 1)
+            return "还没注入成功。Linux 上注入需要 ptrace 权限（当前 kernel.yama.ptrace_scope=1），"
+                 + "可执行 sudo sysctl kernel.yama.ptrace_scope=0 后重试。";
+        return "";
+    }
+
+    /// <summary>检测不到账号时，说清楚卡在哪一步（否则用户只知道"检测不到"）。
     private string ExplainDetectionFailure(Exception ex)
     {
         if (NeedsWebUiSetup)
@@ -1055,7 +1083,9 @@ public sealed class SettingsViewModel : ViewModelBase
             NoticeSeverity.Error when QqStatusText.Contains("QQ 未运行") => "QQ 未运行，先启动并登录班级 QQ。",
             NoticeSeverity.Informational => $"SnowLuma 未启动，先点「启动」（{ex.Message}）。",
             NoticeSeverity.Warning when QqStatusText.Contains("未注入") =>
-                $"SnowLuma 已启动但没有注入成功，可打开 WebUI（{WebUiUrl}）查看原因。",
+                InjectionHint.Length > 0
+                    ? InjectionHint
+                    : $"SnowLuma 已启动但没有注入成功，可打开 WebUI（{WebUiUrl}）查看原因。",
             _ => $"OneBot HTTP 未响应：确认端口与 Token 和 OneBot 端一致（{ex.Message}）。"
         };
     }
@@ -1371,8 +1401,10 @@ public sealed class SettingsViewModel : ViewModelBase
             Status = QqStatusText;
             QqDetected = s is SnowlumaStatus.Online or SnowlumaStatus.InjectedNotLoggedIn;
 
-            NeedsWebUiSetup = s is SnowlumaStatus.StartedNotInjected or SnowlumaStatus.NotRunning
-                              && _manager.NeedsWebUiSetup;
+            // 注入是在 SnowLuma 里做的，失败只写它自己的日志 → 读出来告诉用户卡在哪
+            InjectionHint = s is SnowlumaStatus.StartedNotInjected
+                ? ExplainInjectionFailure()
+                : "";
             switch (s)
             {
                 case SnowlumaStatus.Online:

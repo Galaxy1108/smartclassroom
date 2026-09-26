@@ -419,6 +419,7 @@
                         </Button>
                         <Button Content="打开 WebUI" Click="OpenWebUi_Click"
                                 IsVisible="{Binding NeedsWebUiSetup}" />
+                        <Button Content="打开日志" Click="OpenQqLog_Click" />
                         <local:StatusBadge Severity="{Binding QqStatusSeverity}"
                                            Text="{Binding QqStatusText}" MaxWidth="360" />
                     </StackPanel>
@@ -432,6 +433,10 @@
                     <Button Content="自动连接" Classes="accent" Click="AutoConnect_Click" />
                 </local:NoticeBar.ActionContent>
             </local:NoticeBar>
+
+            <TextBlock Text="{Binding InjectionHint}" IsVisible="{Binding HasInjectionHint}"
+                       FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
+                       TextWrapping="Wrap" Margin="2,2,0,0" />
 
             <fa:SettingsExpander Header="班级 QQ 账号"
                                  Description="多账号时指定要注入的 QQ">

@@ -32,15 +32,17 @@ public static class SingleInstance
         }
     }
 
-    /// <summary>提示"已经在运行"。</summary>
-    public static void ShowAlreadyRunningNotice()
-    {
-        var window = new Window
+    /// <summary>
+    /// 提示"已经在运行"。**不进任务栏**：否则用户看到任务栏多一个图标，
+    /// 会以为"多开没被拦住"。
+    /// </summary>
+    public static Window CreateAlreadyRunningNotice() => new Window
         {
-            Title = "智慧课堂",
+            Title = "智慧课堂已在运行",
             Width = 380,
             Height = 170,
             CanResize = false,
+            ShowInTaskbar = false,
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
             Content = new StackPanel
             {
@@ -69,6 +71,9 @@ public static class SingleInstance
                 }
             }
         };
+    public static void ShowAlreadyRunningNotice()
+    {
+        var window = CreateAlreadyRunningNotice();
         if (window.Content is StackPanel panel && panel.Children[^1] is Button button)
             button.Click += (_, _) => window.Close();
         window.Show();

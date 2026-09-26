@@ -118,6 +118,53 @@ public sealed class SnowlumaManagerTests : IDisposable
         Assert.Equal("{ 这不是 json", File.ReadAllText(Path.Combine(dir, "config", "runtime.json")));
     }
 
+    // ================= 注入失败的原因（只在它自己的日志里） =================
+
+    [Fact]
+    public void LastHookFailure_ReadsNewestLogTail()
+    {
+        var dir = InstallDir();
+        var logDir = Path.Combine(dir, "logs");
+        Directory.CreateDirectory(logDir);
+        File.WriteAllText(Path.Combine(logDir, "old.log"),
+            "10:00:00 ERROR [Hook] load failed: PID=1 err=old");
+        File.WriteAllText(Path.Combine(logDir, "new.log"),
+            "18:47:51 INFO  [App] hook auto-load enabled\n" +
+            "18:47:51 ERROR [Hook] load failed: PID=7303 err=component loading failed [COMPONENT_LOAD_FAILED]\n" +
+            "18:47:52 INFO  [App] something else\n");
+        File.SetLastWriteTimeUtc(Path.Combine(logDir, "new.log"), DateTime.UtcNow);
+
+        var failure = SnowlumaManager.LastHookFailure(dir);
+
+        Assert.NotNull(failure);
+        Assert.Contains("7303", failure);                       // 取最新那份日志里的失败行
+        Assert.DoesNotContain("old", failure!);
+    }
+
+    [Fact]
+    public void LastHookFailure_NoLogsOrNoFailure_ReturnsNull()
+    {
+        Assert.Null(SnowlumaManager.LastHookFailure(InstallDir()));      // 没有 logs 目录
+
+        var dir = InstallDir();
+        Directory.CreateDirectory(Path.Combine(dir, "logs"));
+        File.WriteAllText(Path.Combine(dir, "logs", "a.log"), "18:00:00 INFO [App] all good\n");
+        Assert.Null(SnowlumaManager.LastHookFailure(dir));               // 有日志但没失败
+    }
+
+    [Fact]
+    public void ReadPtraceScope_OnLinux_ReturnsValue()
+    {
+        var scope = SnowlumaManager.ReadPtraceScope();
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Null(scope);
+            return;
+        }
+        // Linux 上通常有 yama（0/1/2/3）；没有这个文件时返回 null 也算正常
+        Assert.True(scope is null or >= 0);
+    }
+
     // ================= 已在运行的实例：接管，不要重复开 =================
     //
     // 真实问题：上次应用启动的 SnowLuma 还在跑（pid 文件还在），新一次启动又开一个，
@@ -157,13 +204,11 @@ public sealed class SnowlumaManagerTests : IDisposable
         File.WriteAllText(Path.Combine(dir, SnowlumaManager.PidFileName),
             Environment.ProcessId.ToString());
         using var manager = new SnowlumaManager();
-        var logs = new List<string>();
-        manager.OnLog += logs.Add;
 
         await manager.StartAsync(dir);
 
-        Assert.Contains(logs, l => l.Contains("接管现有实例"));
         Assert.False(manager.StartedByThisApp);                   // 没有新起进程
+        Assert.Equal(Environment.ProcessId, manager.FindRunningPid(dir));   // 认的是已在跑的那个
     }
 
     [Fact]

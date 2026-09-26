@@ -51,11 +51,6 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     /// <summary>接管来的实例 pid（不是本进程启动的，但「停止」要能停掉它）。</summary>
     private int? _adoptedPid;
 
-    /// <summary>最近若干行输出（用于识别"等待 WebUI 首次设置"这类状态）。</summary>
-    private readonly Queue<string> _recentOutput = new();
-
-    public event Action<string>? OnLog;
-
     /// <summary>pid 文件名（记录本应用启动的 SnowLuma，重启后也能判断它还在不在）。</summary>
     public const string PidFileName = ".smartclassroom.pid";
 
@@ -89,15 +84,6 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
             return pid;
         return RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? FindIndexProcessPid(installDir) : null;
     }
-
-    /// <summary>
-    /// SnowLuma 是否卡在"等待 WebUI 首次设置"。
-    /// 实测：它启动后要先在 WebUI 里同意 EULA/隐私政策才会注入，
-    /// 在此之前 OneBot 的 HTTP 服务根本不会起来——不告诉用户，就只会看到"检测不到账号"。
-    /// </summary>
-    public bool NeedsWebUiSetup => _recentOutput.Any(l =>
-        l.Contains("awaiting EULA", StringComparison.OrdinalIgnoreCase)
-        || l.Contains("EULA/PRIVACY consent", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// 读 SnowLuma 的"发现 QQ 进程就自动注入"开关（config/runtime.json 的 hookAutoLoad）。
@@ -150,6 +136,61 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
 
     private static string RuntimeConfigPath(string installDir)
         => Path.Combine(installDir, "config", "runtime.json");
+
+    /// <summary>
+    /// 从 SnowLuma 自己的日志里找最近一次注入失败的原因。
+    /// 注入是在它进程里做的，失败只写日志（"已启动但未注入"就是这么来的）：
+    /// 实测 Linux 上常见的是 `[Hook] load failed ... COMPONENT_LOAD_FAILED`。
+    /// </summary>
+    public static string? LastHookFailure(string installDir)
+    {
+        try
+        {
+            var logDir = Path.Combine(installDir, "logs");
+            if (!Directory.Exists(logDir))
+                return null;
+            var newest = new DirectoryInfo(logDir).GetFiles("*.log")
+                .OrderByDescending(f => f.LastWriteTimeUtc)
+                .FirstOrDefault();
+            if (newest is null)
+                return null;
+
+            // 只读尾部：日志可能很大
+            const int tailBytes = 64 * 1024;
+            using var fs = new FileStream(newest.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            var start = Math.Max(0, fs.Length - tailBytes);
+            fs.Seek(start, SeekOrigin.Begin);
+            using var reader = new StreamReader(fs);
+            var text = reader.ReadToEnd();
+
+            string? last = null;
+            foreach (var line in text.Split('\n'))
+            {
+                if (line.Contains("[Hook] load failed", StringComparison.OrdinalIgnoreCase)
+                    || line.Contains("COMPONENT_LOAD_FAILED", StringComparison.OrdinalIgnoreCase))
+                    last = line.Trim();
+            }
+            return last;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Linux 的 ptrace 限制（/proc/sys/kernel/yama/ptrace_scope）。
+    /// 值为 1 时只允许跟踪自己的子进程，而注入 QQ 是"跟踪一个已经在跑的进程" →
+    /// 必然失败（日志里就是 COMPONENT_LOAD_FAILED）。返回 null = 非 Linux / 读不到。
+    /// </summary>
+    public static int? ReadPtraceScope()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            return null;
+        try
+        {
+            var path = "/proc/sys/kernel/yama/ptrace_scope";
+            return File.Exists(path) && int.TryParse(File.ReadAllText(path).Trim(), out var v) ? v : null;
+        }
+        catch { return null; }
+    }
 
     /// <summary>WebUI 地址（端口读 config/runtime.json，读不到按默认 5099）。</summary>
     public static string WebUiUrl(string installDir)
@@ -270,26 +311,23 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
         if (_process is { HasExited: false })
             return Task.CompletedTask;
 
-        // 只看这一次启动的输出（否则上一次"等待同意"的日志会让状态一直错）
-        _recentOutput.Clear();
-
         // 已经在跑（上次应用启动的 / 用户自己启动的）就接管，别再开一个：
         // 两个实例会抢同一个 WebUI 端口，而且「停止」按钮会停不掉真正在跑的那个。
         if (FindRunningPid(installDir) is { } runningPid)
         {
             _adoptedPid = runningPid;
-            OnLog?.Invoke($"SnowLuma 已在运行（pid {runningPid}），接管现有实例");
             return Task.CompletedTask;
         }
         var entry = Path.Combine(installDir, "index.mjs");
         if (!File.Exists(entry))
             throw new FileNotFoundException($"SnowLuma 未安装或目录不对：{entry}");
         var node = FindNode(installDir);
+        // 不重定向 stdout/stderr：一旦父进程退出，管道就断了，
+        // SnowLuma 会陷入 "write EPIPE → 记日志 → 又写管道" 的死循环
+        //（实测把它自己的日志刷到 128MB）。要看它的输出请读它的 logs 目录。
         var startInfo = new ProcessStartInfo(node, $"\"{entry}\"")
         {
             WorkingDirectory = installDir,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
@@ -304,11 +342,7 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
             StartInfo = startInfo,
             EnableRaisingEvents = true
         };
-        _process.OutputDataReceived += (_, e) => Note(e.Data);
-        _process.ErrorDataReceived += (_, e) => Note(e.Data);
         _process.Start();
-        _process.BeginOutputReadLine();
-        _process.BeginErrorReadLine();
         WritePid(installDir, _process.Id);
         return Task.CompletedTask;
     }
@@ -336,17 +370,6 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
 
     /// <summary>本进程启动的那个 SnowLuma 是否还活着（判断"在不在跑"请用 IsRunning(installDir)）。</summary>
     public bool StartedByThisApp => _process is { HasExited: false };
-
-    /// <summary>记一行输出（顺便保留最近 40 行用于状态判断）。</summary>
-    private void Note(string? line)
-    {
-        if (line is null)
-            return;
-        _recentOutput.Enqueue(line);
-        while (_recentOutput.Count > 40)
-            _recentOutput.Dequeue();
-        OnLog?.Invoke(line);
-    }
 
     private static void WritePid(string installDir, int pid)
     {

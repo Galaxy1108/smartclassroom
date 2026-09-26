@@ -264,6 +264,15 @@ public sealed class ToastAndStatusTests : IDisposable
     // ================= 单实例 =================
 
     [AvaloniaFact]
+    public void AlreadyRunningNotice_DoesNotShowInTaskbar()
+    {
+        // 进任务栏的话，用户会看到第二个图标，以为"多开没被拦住"
+        var notice = SingleInstance.CreateAlreadyRunningNotice();
+        Assert.False(notice.ShowInTaskbar);
+        Assert.Contains("已在运行", notice.Title);
+    }
+
+    [AvaloniaFact]
     public void SingleInstance_SecondAcquireFails()
     {
         // 多开会抢同一个 SnowLuma 进程、同一个桥接端口、同一份 state.json
