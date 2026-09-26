@@ -13,10 +13,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.3.22" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+    <PackageReference Include="Avalonia" Version="11.3.17" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.17" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.17" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.17" />
+    <!-- WinUI3 外观：FluentAvaloniaUI（MIT），与 ClassIsland 同款控件库 -->
+    <PackageReference Include="FluentAvaloniaUI" Version="2.4.1" />
   </ItemGroup>
 
   <ItemGroup>

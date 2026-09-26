@@ -2,14 +2,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="SmartClassroom.App.App"
              xmlns:local="using:SmartClassroom.App"
+             xmlns:styling="clr-namespace:FluentAvalonia.Styling;assembly=FluentAvalonia"
              RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+             <!-- WinUI3 外观：FluentAvalonia 主题（与 ClassIsland 同款），跟随系统浅色/深色 -->
 
     <Application.DataTemplates>
         <local:ViewLocator />
     </Application.DataTemplates>
 
     <Application.Styles>
-        <FluentTheme />
+        <styling:FluentAvaloniaTheme />
     </Application.Styles>
 </Application>

@@ -21,6 +21,7 @@ public sealed class FeedViewsTests
     [AvaloniaFact]
     public void HomeworkView_RendersItems()
     {
+        TestSetup.EnsureApp();
         var store = new HomeworkStore();
         store.AddOrMerge(Hw());
         var view = new HomeworkView { DataContext = new HomeworkViewModel(store) };
@@ -34,6 +35,7 @@ public sealed class FeedViewsTests
     [AvaloniaFact]
     public void EventsView_RendersEntries()
     {
+        TestSetup.EnsureApp();
         var feed = new ActivityFeed();
         feed.Append("summon", "请小明过去", "张老师：来一下");
         var view = new EventsView { DataContext = new EventsViewModel(feed) };

@@ -11,10 +11,13 @@ public sealed class ShellSmokeTests
     [AvaloniaFact]
     public void MainWindow_OpensWithTitle()
     {
+        TestSetup.EnsureApp();
         var window = new MainWindow { DataContext = new MainViewModel() };
         window.Show();
         Assert.Equal("智慧课堂", window.Title);
         Assert.Equal("智慧课堂", ((MainViewModel)window.DataContext).Title);
+        window.Navigate("events");
+        window.Navigate("settings");
         window.Close();
     }
 }

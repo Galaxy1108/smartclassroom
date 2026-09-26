@@ -34,14 +34,14 @@
                     <DataTemplate x:DataType="vm:CoursewareItem">
                         <Border Width="150" Margin="4" Padding="8" CornerRadius="8"
                                 BorderThickness="1"
-                                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
-                                Background="{DynamicResource SystemControlBackgroundAltMediumLowBrush}"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
                                 DoubleTapped="Card_DoubleTapped" Cursor="Hand">
                             <StackPanel Spacing="4">
                                 <Image Source="{Binding Thumbnail}" Width="120" Height="80"
                                        Stretch="Uniform" IsVisible="{Binding IsImage}" />
                                 <Border Height="80" CornerRadius="4" IsVisible="{Binding !IsImage}"
-                                        Background="{DynamicResource SystemAccentColor}">
+                                        Background="{DynamicResource AccentFillColorDefaultBrush}">
                                     <TextBlock Text="{Binding TypeLabel}" FontSize="22" FontWeight="Bold"
                                                Foreground="White"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
