@@ -351,6 +351,21 @@ SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD=你的密码 ./launcher.sh   # 或者自己指
 rm config/webui.json && ./launcher.sh            # 或者删掉配置，让它重新生成一个
 ```
 
+### OneBot 要带 token（应用会自动读）
+
+SnowLuma 的 OneBot HTTP/WS **默认要求鉴权**：不带 token 的请求一律
+`{"status":"failed","retcode":1401,"wording":"unauthorized"}` ——
+表现就是应用"检测不到账号 / 看不到在线"。
+
+token 就写在它的配置里：`config/onebot_<uin>.json` → `networks.httpServers[0].accessToken`
+（43 位随机串，每个账号一份）。应用会**自己读出来**（地址、端口、token 一起），
+并逐个账号试到能应答为止——**3000/3001 归哪个账号取决于 SnowLuma 启动时谁先登录**，
+所以不能假定是哪一个，也不能让用户手抄 token。
+
+> 另外踩过一个坑：动作调用（`get_login_info` 等）走的是反序列化，而 OneBot 返回的是
+> snake_case 的 `user_id`；模型里少写 `JsonPropertyName` 就会永远读到 0，
+> 于是"明明在线却检测不到账号"。事件那条路是 `OneBotParser` 手写读取，不受影响。
+
 ### 多账号：3000/3001 只能给一个号
 
 SnowLuma 会给**每个登录的 QQ** 都开一套 OneBot 适配器，而默认端口都是 3000/3001。

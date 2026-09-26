@@ -180,6 +180,57 @@ public sealed class SnowlumaManagerTests : IDisposable
         Assert.Null(SnowlumaManager.LastPortConflict(InstallDir()));
     }
 
+    // ================= OneBot 连接信息（含 access token） =================
+    //
+    // 实测：SnowLuma 的 OneBot HTTP 默认要求鉴权，不带 token 一律 1401 unauthorized ——
+    // 应用表现就是"检测不到账号 / 看不到在线"。token 就写在 config/onebot_<uin>.json 里。
+
+    [Fact]
+    public void ReadOneBotEndpoint_PullsAddressAndToken()
+    {
+        var dir = InstallDir();
+        Directory.CreateDirectory(Path.Combine(dir, "config"));
+        File.WriteAllText(Path.Combine(dir, "config", "onebot_100000001.json"),
+            """
+            {"networks":{"httpServers":[{"host":"127.0.0.1","port":3000,"accessToken":"http-tok"}],
+                         "wsServers":[{"host":"127.0.0.1","port":3001,"accessToken":"ws-tok"}]}}
+            """);
+
+        var ep = SnowlumaManager.ReadOneBotEndpoint(dir, 100000001);
+
+        Assert.NotNull(ep);
+        Assert.Equal("http://127.0.0.1:3000", ep!.Http);
+        Assert.Equal("ws://127.0.0.1:3001", ep.Ws);
+        Assert.Equal("http-tok", ep.Token);
+        Assert.Equal(100000001, ep.Uin);
+        Assert.Null(SnowlumaManager.ReadOneBotEndpoint(dir, 999));       // 没有这个账号的配置
+    }
+
+    [Fact]
+    public void ReadOneBotAccounts_ListsConfiguredUins()
+    {
+        var dir = InstallDir();
+        Directory.CreateDirectory(Path.Combine(dir, "config"));
+        File.WriteAllText(Path.Combine(dir, "config", "onebot_100000001.json"), "{}");
+        File.WriteAllText(Path.Combine(dir, "config", "onebot_100000002.json"), "{}");
+
+        Assert.Equal([100000001L, 100000002L], SnowlumaManager.ReadOneBotAccounts(dir));
+        Assert.Empty(SnowlumaManager.ReadOneBotAccounts(InstallDir()));
+    }
+
+    [Fact]
+    public void ReadAccountNicknames_FromLog()
+    {
+        var dir = WithLog(
+            "19:18:08 DEBUG [Bridge] self info: UIN=100000001 uid=u_x nickname=测试昵称A\n" +
+            "19:18:23 DEBUG [Bridge] self info: UIN=100000002 uid=u_y nickname=测试昵称B\n");
+
+        var map = SnowlumaManager.ReadAccountNicknames(dir);
+
+        Assert.Equal("测试昵称A", map[100000001]);
+        Assert.Equal("Galaxy1108", map[100000002]);
+    }
+
     // ================= 注入失败的原因（只在它自己的日志里） =================
 
     [Fact]

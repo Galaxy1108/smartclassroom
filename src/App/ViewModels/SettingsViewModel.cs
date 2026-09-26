@@ -925,9 +925,18 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public bool HasWebUiPassword => WebUiPassword.Length > 0;
 
-    public string WebUiLoginHint => HasWebUiPassword
-        ? $"登录 WebUI：用户名 admin，初始密码 {WebUiPassword}（登录后请自行修改）"
-        : "";
+    public string WebUiLoginHint
+    {
+        get
+        {
+            if (!HasWebUiPassword)
+                return "";
+            var head = $"登录 WebUI：用户名 admin，密码 {WebUiPassword}";
+            return WebUiPasswordApplied
+                ? head + "（登录后请自行修改）"
+                : head + " —— 尚未生效：当前运行的 SnowLuma 是之前启动的，点「停止」再「启动」才会用这个密码";
+        }
+    }
 
     /// <summary>密码是用户自己定的（否则就是应用自动生成的）。</summary>
     public bool WebUiPasswordIsManual => _webUiPasswordManual;
@@ -969,6 +978,22 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>仅供界面显示"来自设置"。</summary>
     public bool WebUiPasswordIsSetFromSettings { get; private set; }
 
+    private bool _webUiPasswordApplied;
+    /// <summary>
+    /// 这个密码是否已经生效。**只有我们自己带密码启动过 SnowLuma 才算**：
+    /// 如果它是"之前就在跑"的实例（我们只是接管），那它用的还是启动时随机生成、
+    /// 只打在 stdout 的那个密码 —— 拿我们新生成的密码去登录当然是"密码错误"。
+    /// </summary>
+    public bool WebUiPasswordApplied
+    {
+        get => _webUiPasswordApplied;
+        private set
+        {
+            if (Set(ref _webUiPasswordApplied, value))
+                OnPropertyChanged(nameof(WebUiLoginHint));
+        }
+    }
+
     // ---------- 多账号：SnowLuma 给每个登录账号都开一套 OneBot，端口只有一个 ----------
 
     private string _multiAccountHint = "";
@@ -981,12 +1006,69 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public bool HasMultiAccountHint => MultiAccountHint.Length > 0;
 
+    /// <summary>
+    /// 从 SnowLuma 的配置里把 OneBot 地址与 access token 读过来。
+    /// 它默认要求鉴权：不带 token 的请求一律 1401 unauthorized，
+    /// 表现就是"检测不到账号 / 看不到在线"——所以必须自动读，别让用户手抄 43 位 token。
+    /// </summary>
+    public async Task<bool> TryAdoptOneBotEndpointAsync()
+    {
+        var accounts = SnowlumaManager.ReadOneBotAccounts(InstallDir);
+        if (accounts.Count == 0)
+            return false;
+
+        // 3000/3001 归哪个账号，取决于 SnowLuma 启动时谁先登录 —— 所以逐个试，
+        // 用第一个能应答的（选中的账号优先）。
+        var order = accounts.Contains(QqAccount)
+            ? new[] { QqAccount }.Concat(accounts.Where(a => a != QqAccount))
+            : accounts.AsEnumerable();
+
+        foreach (var uin in order)
+        {
+            var endpoint = SnowlumaManager.ReadOneBotEndpoint(InstallDir, uin);
+            if (endpoint is null || !await OneBotRespondsAsync(endpoint))
+                continue;
+
+            var changed = OneBotHttp != endpoint.Http || OneBotWs != endpoint.Ws || OneBotToken != endpoint.Token;
+            OneBotHttp = endpoint.Http;
+            OneBotWs = endpoint.Ws;
+            OneBotToken = endpoint.Token;
+            if (QqAccount <= 0)
+            {
+                QqAccount = endpoint.Uin;   // 没选过就选上这个真能连的
+                OnPropertyChanged(nameof(QqAccountLabel));
+            }
+            if (changed)
+            {
+                SaveSettings();
+                AppendLog($"已从 SnowLuma 读取 OneBot 连接信息（UIN={uin}，含 access token）");
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>这个账号的 OneBot 是否应答（它要求鉴权，token 不对就是 401）。</summary>
+    private static async Task<bool> OneBotRespondsAsync(OneBotEndpoint endpoint)
+    {
+        try
+        {
+            await using var client = new OneBotClient(endpoint.Http, endpoint.Ws,
+                endpoint.Token.Length > 0 ? endpoint.Token : null);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+            await client.GetLoginInfoAsync(cts.Token);
+            return true;
+        }
+        catch { return false; }
+    }
+
     /// <summary>从 SnowLuma 日志刷新"登录了哪些号"与端口冲突提示。</summary>
     public void RefreshLoggedInAccounts()
     {
         var uins = SnowlumaManager.ReadLoggedInUins(InstallDir);
+        var nicknames = SnowlumaManager.ReadAccountNicknames(InstallDir);
         foreach (var uin in uins)
-            MergeCandidate(new QqAccount { Uin = uin, Nickname = "" });
+            MergeCandidate(new QqAccount { Uin = uin, Nickname = nicknames.GetValueOrDefault(uin, "") });
 
         var conflict = SnowlumaManager.LastPortConflict(InstallDir);
         MultiAccountHint = uins.Count <= 1
@@ -1123,6 +1205,7 @@ public sealed class SettingsViewModel : ViewModelBase
             {
                 var found = new QqAccount { Uin = info.UserId, Nickname = info.Nickname };
                 MergeCandidate(found);
+                RefreshLoggedInAccounts();   // 用日志里的昵称补全其它账号
                 OnlineQqText = string.IsNullOrWhiteSpace(found.Nickname)
                     ? found.Uin.ToString()
                     : $"{found.Uin}（{found.Nickname}）";
@@ -1345,11 +1428,13 @@ public sealed class SettingsViewModel : ViewModelBase
             EnsureAutoInjectEnabled();
 
             RefreshLoggedInAccounts();
+            await TryAdoptOneBotEndpointAsync();
             var webUiPassword = EnsureWebUiPassword();
             await _manager.StartAsync(InstallDir, acceptAgreements: true, webUiPassword: webUiPassword);
             NeedsWebUiSetup = false;   // 同意是我们带过去的，不该再显示"卡在等同意"
             if (webUiPassword is not null)
             {
+                WebUiPasswordApplied = _manager.StartedByThisApp;
                 AppendLog($"已为 SnowLuma WebUI 指定初始密码（登录后请修改）");
                 Toasts.Show("WebUI 初始密码已设置", $"用户名 admin，密码 {webUiPassword}（设置页可复制）",
                     NoticeSeverity.Success);
@@ -1517,6 +1602,8 @@ public sealed class SettingsViewModel : ViewModelBase
             QqDetected = s is SnowlumaStatus.Online or SnowlumaStatus.InjectedNotLoggedIn;
             if (s is SnowlumaStatus.Online)
                 RefreshLoggedInAccounts();
+            if (s is SnowlumaStatus.StartedNotInjected or SnowlumaStatus.NotRunning)
+                await TryAdoptOneBotEndpointAsync();   // 状态不对时也顺手把连接信息读对
 
             // 注入是在 SnowLuma 里做的，失败只写它自己的日志 → 读出来告诉用户卡在哪
             InjectionHint = s is SnowlumaStatus.StartedNotInjected

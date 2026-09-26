@@ -36,6 +36,9 @@ public enum SnowlumaStatus
     Online
 }
 
+/// <summary>SnowLuma 给某个账号开的 OneBot 接入点（地址 + access token）。</summary>
+public sealed record OneBotEndpoint(string Http, string Ws, string Token, long Uin);
+
 /// <summary>
 /// SnowLuma 管理器：版本查询（SnowLuma/SnowLuma releases）→ 下载解压 →
 /// 启停子进程 → 注入状态。应用不随包附带 SnowLuma，全部走设置页下载器。
@@ -188,6 +191,94 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
         }
         return uins;
     }
+
+    /// <summary>
+    /// 从日志里读出账号昵称（`self info: UIN=x nickname=y`）——账号列表里显示昵称更认得出。
+    /// </summary>
+    public static IReadOnlyDictionary<long, string> ReadAccountNicknames(string installDir)
+    {
+        var map = new Dictionary<long, string>();
+        var text = ReadNewestLogTail(installDir);
+        if (text is null)
+            return map;
+        foreach (var line in text.Split('\n'))
+        {
+            var idx = line.IndexOf("self info: UIN=", StringComparison.Ordinal);
+            if (idx < 0)
+                continue;
+            var rest = line[(idx + "self info: UIN=".Length)..];
+            var digits = new string(rest.TakeWhile(char.IsDigit).ToArray());
+            var nickIdx = rest.IndexOf("nickname=", StringComparison.Ordinal);
+            if (digits.Length == 0 || nickIdx < 0)
+                continue;
+            var nick = rest[(nickIdx + "nickname=".Length)..].Trim();
+            if (nick.Length > 0 && long.TryParse(digits, out var uin))
+                map[uin] = nick;
+        }
+        return map;
+    }
+
+    /// <summary>
+    /// SnowLuma 为每个账号写下的 OneBot 连接信息（config/onebot_&lt;uin&gt;.json）：
+    /// 地址 + **access token**。它默认要求鉴权（不带 token 一律 1401 unauthorized），
+    /// 所以应用必须自己把它读出来，否则"检测不到账号 / 看不到在线"。
+    /// </summary>
+    public static OneBotEndpoint? ReadOneBotEndpoint(string installDir, long uin)
+    {
+        try
+        {
+            var path = Path.Combine(installDir, "config", $"onebot_{uin}.json");
+            if (!File.Exists(path))
+                return null;
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            if (!doc.RootElement.TryGetProperty("networks", out var networks))
+                return null;
+
+            var http = FirstOf(networks, "httpServers");
+            var ws = FirstOf(networks, "wsServers");
+            if (http is null)
+                return null;
+
+            var host = Str(http.Value, "host") ?? "127.0.0.1";
+            var httpPort = Int(http.Value, "port") ?? 3000;
+            var wsPort = ws is null ? 3001 : Int(ws.Value, "port") ?? 3001;
+            return new OneBotEndpoint(
+                $"http://{host}:{httpPort}",
+                $"ws://{host}:{wsPort}",
+                Str(http.Value, "accessToken") ?? "",
+                uin);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>有 OneBot 配置的账号（config/onebot_*.json）。</summary>
+    public static IReadOnlyList<long> ReadOneBotAccounts(string installDir)
+    {
+        try
+        {
+            var dir = Path.Combine(installDir, "config");
+            if (!Directory.Exists(dir))
+                return [];
+            return Directory.EnumerateFiles(dir, "onebot_*.json")
+                .Select(f => Path.GetFileNameWithoutExtension(f)["onebot_".Length..])
+                .Select(s => long.TryParse(s, out var uin) ? uin : 0)
+                .Where(u => u > 0)
+                .OrderBy(u => u)
+                .ToList();
+        }
+        catch { return []; }
+    }
+
+    private static JsonElement? FirstOf(JsonElement obj, string name)
+        => obj.TryGetProperty(name, out var arr) && arr.ValueKind == JsonValueKind.Array && arr.GetArrayLength() > 0
+            ? arr[0]
+            : null;
+
+    private static string? Str(JsonElement el, string name)
+        => el.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+    private static int? Int(JsonElement el, string name)
+        => el.TryGetProperty(name, out var v) && v.TryGetInt32(out var n) ? n : null;
 
     /// <summary>日志里最近一次端口冲突（多账号共用 3000/3001 时会出现）。</summary>
     public static string? LastPortConflict(string installDir)

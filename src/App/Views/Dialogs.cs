@@ -75,7 +75,11 @@ public static class Dialogs
         var hint = onlineUin is > 0
             ? $"当前注入实例登录的是 {onlineUin}（{onlineNickname ?? "未知昵称"}）。" +
               "如果你有多个 QQ 号，请选这个班用的那个。"
-            : "没有检测到在线的 QQ 实例。可以从用过的账号里选，或手动输入 QQ 号。";
+            : candidates.Count > 0
+                // 有候选就别说"没检测到"——这些就是从 SnowLuma 日志里读出来的登录账号
+                ? $"OneBot 暂时没应答，但从 SnowLuma 的日志里读到了这些登录过的账号" +
+                  "（当前在线的那个可能还没起来）。选一个，或手动输入。"
+                : "没有检测到在线的 QQ 实例。可以手动输入 QQ 号。";
 
         var labels = candidates
             .Select(a => $"{a.Uin}（{a.Nickname}）{(a.Uin == onlineUin ? "  · 当前在线" : "")}")

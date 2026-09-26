@@ -45,3 +45,35 @@ public sealed class OneBotParserTests
         Assert.Equal("你好", OneBotParser.StripCq("[CQ:at,qq=1]你好[CQ:face,id=2]"));
     }
 }
+
+/// <summary>
+/// 动作调用走的是反序列化（事件那条路是 OneBotParser 手写读 snake_case），
+/// 所以动作模型里的 snake_case 字段必须有 JsonPropertyName 映射。
+/// 踩过的坑：LoginInfoData.UserId 少了映射 → 永远读到 0 → "检测不到 QQ 账号"。
+/// </summary>
+public sealed class OneBotActionModelTests
+{
+    [Fact]
+    public void LoginInfo_MapsSnakeCaseUserId()
+    {
+        // SnowLuma 的真实返回
+        var json = """{"status":"ok","retcode":0,"data":{"user_id":100000002,"nickname":"测试昵称B"}}""";
+
+        var envelope = System.Text.Json.JsonSerializer.Deserialize<OneBotResponse<LoginInfoData>>(
+            json, OneBotJson.Options);
+
+        Assert.NotNull(envelope);
+        Assert.True(envelope!.Ok);
+        Assert.Equal(100000002, envelope.Data!.UserId);
+        Assert.Equal("测试昵称B", envelope.Data.Nickname);
+    }
+
+    [Fact]
+    public void FileUrl_MapsUrl()
+    {
+        var json = """{"status":"ok","retcode":0,"data":{"url":"http://x/f"}}""";
+        var envelope = System.Text.Json.JsonSerializer.Deserialize<OneBotResponse<FileUrlData>>(
+            json, OneBotJson.Options);
+        Assert.Equal("http://x/f", envelope!.Data!.Url);
+    }
+}

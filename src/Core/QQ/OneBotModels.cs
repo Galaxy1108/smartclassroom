@@ -75,6 +75,14 @@ public sealed class FileUrlData
 /// <summary>get_login_info 的结果：当前注入实例登录的 QQ。</summary>
 public sealed class LoginInfoData
 {
+    /// <summary>
+    /// 注意：OneBot 返回的是 snake_case 的 <c>user_id</c>，而动作调用走的是反序列化
+    /// （事件那条路是 OneBotParser 手写读取，不受影响）。
+    /// 少了这个映射就会永远读到 0 —— 表现就是"检测不到 QQ 账号"。
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("user_id")]
     public long UserId { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("nickname")]
     public string Nickname { get; set; } = "";
 }
