@@ -98,6 +98,13 @@ public sealed class PendingActionTests : IDisposable
 
     // ---------- AI 失败 → 进待确认 ----------
 
+
+    /// <summary>作业 JSON，日期用"今天"——写死日期会在跨零点后失效
+    ///（RuleEngine.CoerceHomeworkDate 会把过期日期纠偏成今天，断言就找不到）。</summary>
+    private static string HomeworkJson()
+        => "{\"is_homework\":true,\"subject\":\"数学\",\"date\":\"" + DateTime.Now.ToString("yyyy-MM-dd")
+           + "\",\"items\":[\"练习册P10\"],\"due\":\"\",\"confidence\":0.9}";
+
     [Fact]
     public async Task HomeworkAiFailure_CreatesPendingItemWithRawText()
     {
@@ -150,13 +157,13 @@ public sealed class PendingActionTests : IDisposable
 
         // AI 恢复
         h.AiFails = false;
-        h.AiReplies.Enqueue("""{"is_homework":true,"subject":"数学","date":"2026-09-25","items":["练习册P10"],"due":"","confidence":0.9}""");
+        h.AiReplies.Enqueue(HomeworkJson());
 
         var message = await pipe.RetryPendingAsync(id);
 
         Assert.Contains("成功", message);
         Assert.Empty(h.Pending.All);
-        Assert.Single(h.Homework.ForDate(new DateOnly(2026, 9, 25)));
+        Assert.Single(h.Homework.ForDate(DateOnly.FromDateTime(DateTime.Now)));
     }
 
     [Fact]
@@ -184,11 +191,13 @@ public sealed class PendingActionTests : IDisposable
         await pipe.OnGroupMessageAsync(Msg("今天数学作业：练习册P10"));
         var id = Assert.Single(h.Pending.All).Id;
 
-        var message = pipe.ResolveHomeworkAsync(id, "数学", ["练习册P10", "试卷一张"], new DateOnly(2026, 9, 25));
+        // 人工补录的日期也用"今天"（写死日期跨零点后会与 ForDate(今天) 对不上）
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var message = pipe.ResolveHomeworkAsync(id, "数学", ["练习册P10", "试卷一张"], today);
 
         Assert.Contains("上墙", message);
         Assert.Empty(h.Pending.All);
-        var saved = Assert.Single(h.Homework.ForDate(new DateOnly(2026, 9, 25)));
+        var saved = Assert.Single(h.Homework.ForDate(today));
         Assert.Equal(2, saved.Items.Count);
     }
 
@@ -289,7 +298,7 @@ public sealed class PendingActionTests : IDisposable
     public async Task HappyPath_NoPendingCreated()
     {
         var h = new Harness();
-        h.AiReplies.Enqueue("""{"is_homework":true,"subject":"数学","date":"2026-09-25","items":["练习册P10"],"due":"","confidence":0.9}""");
+        h.AiReplies.Enqueue(HomeworkJson());
         var pipe = h.Build(_dir);
 
         await pipe.OnGroupMessageAsync(Msg("今天数学作业：练习册P10"));

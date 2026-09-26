@@ -49,7 +49,9 @@ public sealed class FileArchive(ArchiveOptions options, HttpClient? http = null)
         // 去重：扫描该科目目录下的 meta，同 file_id 且本地文件仍在 → 已归档。
         if (Directory.Exists(dir))
         {
-            foreach (var metaFile in Directory.EnumerateFiles(dir, "*.meta.json"))
+            // 新位置：<Root>/.smartclassroom-meta/**/*.json；旧位置：科目目录里的 *.meta.json（兼容）
+            foreach (var metaFile in Directory.EnumerateFiles(MetaDir(options.Root), "*.json", SearchOption.AllDirectories)
+                         .Concat(Directory.EnumerateFiles(dir, "*.meta.json", SearchOption.AllDirectories)))
             {
                 try
                 {
@@ -99,9 +101,31 @@ public sealed class FileArchive(ArchiveOptions options, HttpClient? http = null)
             Time = DateTimeOffset.Now,
             LocalPath = localPath
         };
-        await File.WriteAllTextAsync(localPath + ".meta.json",
-            System.Text.Json.JsonSerializer.Serialize(record), cancel).ConfigureAwait(false);
+        await WriteMetaAsync(options.Root, record, cancel).ConfigureAwait(false);
         return new ArchiveOutcome(ArchiveResult.Downloaded, localPath);
+    }
+
+    /// <summary>
+    /// 元数据目录（<c>&lt;Root&gt;/.smartclassroom-meta/&lt;科目&gt;/</c>）。
+    /// 以前写成"同名 .meta.json"放在科目文件夹里，用户会以为归档了一堆垃圾文件；
+    /// 现在统一收到隐藏目录里，科目文件夹里只有真正的文件。
+    /// </summary>
+    internal static string MetaDir(string root) => Path.Combine(root, ".smartclassroom-meta");
+
+    private static async Task WriteMetaAsync(string root, ArchiveMeta record, CancellationToken cancel)
+    {
+        try
+        {
+            var dir = Path.Combine(MetaDir(root), Sanitize(record.Subject.Length > 0 ? record.Subject : "未分类"));
+            Directory.CreateDirectory(dir);
+            var name = Sanitize(Path.GetFileName(record.LocalPath)) + ".json";
+            await File.WriteAllTextAsync(Path.Combine(dir, name),
+                System.Text.Json.JsonSerializer.Serialize(record), cancel).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // 元数据写不进去不影响文件已经归档这件事
+        }
     }
 
     internal static string UniquePath(string dir, string fileName)

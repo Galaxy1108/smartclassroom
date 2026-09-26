@@ -238,7 +238,9 @@ public sealed class PipelineTests
         // 非urgent → 保守排队，不立即发送
         Assert.Empty(_sent);
         await p.OnClassEndedAsync();
-        Assert.Single(_sent);
+        // 下课时发：召唤（保守排队）+ 一条"需要人工介入"（AI 失败转人工）
+        Assert.Contains(_sent, s => s.Channel == "summon");
+        Assert.Contains(_sent, s => s.Channel == "manual");
     }
 
     /// <summary>
@@ -299,9 +301,12 @@ public sealed class PipelineTests
         HomeworkStore? store = null;
         // 用可观察的 store 重建管线
         var gate = new ScheduleGate(new FakeStatus(false));
+        // 日期用"今天"：写死日期会在跨零点后失效（RuleEngine.CoerceHomeworkDate 只接受
+        // [今天-1, 今天+14]，过期日期会被纠偏成今天，断言就找不到了 —— 实测踩到）。
+        var today = DateOnly.FromDateTime(DateTime.Now);
         var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
             new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
-            { Content = new StringContent(ChatReply("""{"is_homework":true,"subject":"数学","date":"2026-09-25","items":["练习册P10"],"due":"","confidence":0.9}""")) })));
+            { Content = new StringContent(ChatReply($$"""{"is_homework":true,"subject":"数学","date":"{{today:yyyy-MM-dd}}","items":["练习册P10"],"due":"","confidence":0.9}""")) })));
         store = new HomeworkStore();
         var plugin = new PluginLink("http://p", "t", new HttpClient(new StubHandler(_ => Json(new { }))));
         var oneBot = new OneBotClient("http://q", "ws://q");
@@ -309,7 +314,7 @@ public sealed class PipelineTests
             new FileArchive(new ArchiveOptions { Root = Path.GetTempPath() }),
             new CoursewareService(), store, new ActivityFeed(), new PendingStore(), TestFlags.AllOn);
         await pipe.OnGroupMessageAsync(Msg("今天数学作业：练习册P10"));
-        Assert.Single(store.ForDate(new DateOnly(2026, 9, 25)));
+        Assert.Single(store.ForDate(today));
     }
 
     [Fact]

@@ -39,6 +39,16 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceInclude Source="/Assets/Icons.axaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- WinUI 3 的标准强调色 #0078D4 及其明暗梯度。
+                 FAUI 的按钮/开关/选中态都读这些键，不设的话会落到它自带的紫色。 -->
+            <Color x:Key="SystemAccentColor">#0078D4</Color>
+            <Color x:Key="SystemAccentColorLight1">#1A86D9</Color>
+            <Color x:Key="SystemAccentColorLight2">#3FA0E1</Color>
+            <Color x:Key="SystemAccentColorLight3">#66B5E8</Color>
+            <Color x:Key="SystemAccentColorDark1">#0069BC</Color>
+            <Color x:Key="SystemAccentColorDark2">#005CA5</Color>
+            <Color x:Key="SystemAccentColorDark3">#004F8D</Color>
             <!-- 严重级别配色（浅色/深色各一套）：时间线条目、功能开关的前置条件提示等共用。
                  取色与 NoticeBar 的 WinUI InfoBar 配色一致：信息=蓝、成功=绿、警告=橙、错误=红。 -->
             <ResourceDictionary.ThemeDictionaries>

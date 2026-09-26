@@ -85,10 +85,26 @@ public sealed class CoursewareViewModel : ViewModelBase
     public string EmptyHint => "还没有归档到课件。老师往群里发文件后，"
                              + "开启「群文件自动归档」即可在这里看到。";
 
-    /// <summary>按科目分组：<科目> → 该科目的文件（按时间倒序）。</summary>
+    private string _signature = "";
+
+    /// <summary>
+    /// 按科目分组：&lt;科目&gt; → 该科目的文件（按时间倒序）。
+    ///
+    /// **必须保住用户当前所在的科目**：这个方法会被定时刷新反复调用，
+    /// 以前每次都会把 SelectedSubject 置空 —— 用户点进某个科目的时间轴后立刻被踢回列表
+    ///（用户反馈："课件点进去具体科目以后又给我自动返回"）。
+    /// 顺带做了指纹比较：内容没变就直接返回，避免每次刷新都重建列表（闪烁）。
+    /// </summary>
     public void GroupBySubject(IEnumerable<(string Subject, string FileName, string LocalPath, long Size, DateTimeOffset? At)> files)
     {
         var all = files.ToList();
+        var signature = string.Join('\u0002', all
+            .Select(f => $"{f.Subject}|{f.FileName}|{f.LocalPath}|{f.Size}|{f.At?.UtcTicks}"));
+        if (signature == _signature && Subjects.Count > 0)
+            return;                       // 没变化：别动界面（也保住当前科目）
+        _signature = signature;
+
+        var previous = SelectedSubject;    // 刷新前用户在看哪个科目
         Subjects.Clear();
         foreach (var group in all
                      .GroupBy(f => string.IsNullOrWhiteSpace(f.Subject) ? "未分类" : f.Subject.Trim())
@@ -107,6 +123,10 @@ public sealed class CoursewareViewModel : ViewModelBase
         Timeline.Clear();
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(EmptyHint));
+
+        // 还在原来那个科目里就继续待着（数据变了也要留在原地）
+        if (previous is not null && _bySubject.ContainsKey(previous))
+            OpenSubject(previous);
     }
 
     private Dictionary<string, List<(string Subject, string FileName, string LocalPath, long Size, DateTimeOffset? At)>> _bySubject = new();

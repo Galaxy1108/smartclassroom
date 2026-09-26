@@ -139,3 +139,41 @@ public sealed class CoursewareTimelineTests
         Assert.Empty(vm.Subjects);
     }
 }
+
+/// <summary>
+/// 定时刷新不能把用户从科目时间轴里踢回科目列表 ——
+/// 实测 bug：GroupBySubject 每次刷新都置空 SelectedSubject，
+/// 用户"点进去具体科目以后又给我自动返回"。
+/// </summary>
+public sealed class CoursewareNavigationTests
+{
+    private static (string Subject, string FileName, string LocalPath, long Size, DateTimeOffset? At) F(
+        string subject, string name, int day)
+        => (subject, name, "/tmp/" + name, 1024, new DateTimeOffset(2026, 9, day, 10, 0, 0, TimeSpan.FromHours(8)));
+
+    [AvaloniaFact]
+    public void Refresh_KeepsUserInsideSubjectTimeline()
+    {
+        var vm = new CoursewareViewModel();
+        vm.GroupBySubject([F("数学", "a.pptx", 20), F("语文", "b.docx", 21)]);
+
+        vm.OpenSubject("数学");
+        Assert.True(vm.IsTimeline);
+        Assert.Single(vm.Timeline);
+
+        // 定时刷新（同样的数据）→ 必须还在数学里
+        vm.GroupBySubject([F("数学", "a.pptx", 20), F("语文", "b.docx", 21)]);
+        Assert.True(vm.IsTimeline);
+        Assert.Equal("数学", vm.SubjectTitle);
+
+        // 数据变了（新增文件）→ 也还在数学里，并且时间轴更新了
+        vm.GroupBySubject([F("数学", "a.pptx", 20), F("数学", "c.pdf", 22), F("语文", "b.docx", 21)]);
+        Assert.True(vm.IsTimeline);
+        Assert.Equal("数学", vm.SubjectTitle);
+        Assert.Equal(2, vm.Timeline.Sum(g => g.Rows.Count));
+
+        // 科目没了（文件被删/移走）→ 退回列表，不能卡在空时间轴
+        vm.GroupBySubject([F("语文", "b.docx", 21)]);
+        Assert.True(vm.IsSubjectList);
+    }
+}

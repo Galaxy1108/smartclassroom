@@ -219,12 +219,10 @@ public sealed class PipelineService(
             _ => "召唤"
         };
         var who = sender.Card ?? sender.Nickname ?? $"QQ{sender.UserId}";
-        feed.Append("auth", $"忽略{what}请求：{who} 不在老师名单里",
-            "设置 → 老师映射 里加上他，或关掉「只处理老师名单里的消息」",
-            ActivitySeverity.Warning);
+        // 结果行由调用方写成"已忽略（发送者不在老师名单里）"，这里只负责进待处理 + 下课通知
         AddPending("auth", $"{what}请求来自名单外的人（{who}），需人工确认", ev.Text,
-            "发送者不在老师名单里", sender,
-            new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
+            $"发送者不在老师名单里（设置 → 老师映射 里加上 QQ {sender.UserId}，或关掉「只处理老师名单里的消息」）",
+            sender, new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: null);
         return false;
     }
 
@@ -482,7 +480,13 @@ public sealed class PipelineService(
         Nickname = item.Sender.Nickname
     };
 
-    private PendingItem AddPending(string kind, string title, string rawText, string reason, SenderInfo sender, MessageRef source)
+    /// <summary>
+    /// 转人工：进待处理列表 + **下课时通过 ClassIsland 通知**（用户要求：
+    /// "记得在下课时通过 classisland 发送通知"），并把它作为那条消息的结果（需要人工介入），
+    /// 而不是另起一条"待确认"的时间线记录。
+    /// </summary>
+    private PendingItem AddPending(string kind, string title, string rawText, string reason,
+        SenderInfo sender, MessageRef source, Guid? rowId = null)
     {
         var item = pending.Add(new PendingItem
         {
@@ -495,7 +499,10 @@ public sealed class PipelineService(
             Source = source,
             CreatedAt = DateTimeOffset.Now
         });
-        feed.Append(kind, $"待确认：{title}", $"原因：{reason}", ActivitySeverity.Warning);
+        Finish(rowId, $"需要人工介入：{title}", $"原因：{reason} · {Trim(rawText)}",
+            ActivitySeverity.Warning);
+        // 上课时排队、下课时发 —— 与召唤通知同一套调度门
+        gate.EnqueueManual($"需要人工介入：{title}", reason);
         return item;
     }
 
@@ -523,7 +530,7 @@ public sealed class PipelineService(
         {
             if (!keepOnFailure)
                 AddPending("summon", "召唤解析失败，需人工确认被叫的人", ev.Text, ex.Message, sender,
-                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
+                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
             // 保守降级：仍按紧急词排队/直发，不阻塞（通知里标"有人"，人工补录可纠正）
             var urgent = SummonGate.IsUrgent(ev.Text);
             var fallback = new SummonEvent
@@ -587,7 +594,7 @@ public sealed class PipelineService(
         {
             if (!keepOnFailure)
                 AddPending("homework", "作业解析失败，需人工补录", ev.Text, ex.Message, sender,
-                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
+                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
             return;
         }
         if (!d.IsHomework)
@@ -627,7 +634,7 @@ public sealed class PipelineService(
         {
             if (!keepOnFailure)
                 AddPending("exchange", "换课解析失败，需人工补录", ev.Text, ex.Message, sender,
-                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
+                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
             return;
         }
         if (!d.IsExchange)
@@ -640,7 +647,7 @@ public sealed class PipelineService(
         {
             if (!keepOnFailure)
                 AddPending("exchange", $"换课类型未知（{d.Kind}），需人工补录", ev.Text, "AI 返回的类型无法识别", sender,
-                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
+                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
             return;
         }
         // 节次缺失（模型没给 / 给了非数字）就转人工，别拿 0 去查课表
@@ -649,7 +656,7 @@ public sealed class PipelineService(
         {
             if (!keepOnFailure)
                 AddPending("exchange", "换课缺少节次，需人工补录", ev.Text, "AI 没给出具体第几节", sender,
-                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
+                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
             return;
         }
         var req = new ExchangeRequest
@@ -672,7 +679,7 @@ public sealed class PipelineService(
         {
             if (!keepOnFailure)
                 AddPending("exchange", "换课请求发送失败，需人工确认", ev.Text, ex.Message, sender,
-                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
+                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
             return;
         }
         if (resolvePendingId is not null)

@@ -31,6 +31,16 @@ public sealed class FileArchiveTests : IDisposable
         => new(new ArchiveOptions { Root = _root, DownloadAll = downloadAll },
             http ?? new HttpClient(new StubHandler([1, 2, 3])));
 
+
+    /// <summary>元数据现在写在 &lt;Root&gt;/.smartclassroom-meta/&lt;科目&gt;/&lt;文件&gt;.json，
+    /// 科目文件夹里只留真正的文件（用户反馈过"你还归档了一个 .meta.json"）。</summary>
+    private static string MetaOf(string root, string localPath)
+    {
+        var name = Path.GetFileName(localPath) + ".json";
+        return Directory.EnumerateFiles(Path.Combine(root, ".smartclassroom-meta"), name,
+            SearchOption.AllDirectories).First();
+    }
+
     [Fact]
     public async Task TeacherFile_GoesIntoSubjectFolder()
     {
@@ -40,7 +50,7 @@ public sealed class FileArchiveTests : IDisposable
         // 结构：<根>/<科目名>/<文件名>（不再按日期分层）
         Assert.Equal(Path.Combine(_root, "数学", "课件.pptx"), o.LocalPath);
         Assert.True(File.Exists(o.LocalPath));
-        Assert.True(File.Exists(o.LocalPath + ".meta.json"));   // 发送时间等仍在 meta 里
+        Assert.True(File.Exists(MetaOf(_root, o.LocalPath!)));   // 发送时间等仍在 meta 里（隐藏目录）
     }
 
     [Fact]
@@ -49,7 +59,7 @@ public sealed class FileArchiveTests : IDisposable
         var o = await Archive().HandleAsync(Ev(), Teacher(), (_, _) => Task.FromResult<string?>("http://x/f"));
 
         var meta = System.Text.Json.JsonSerializer.Deserialize<ArchiveMeta>(
-            await File.ReadAllTextAsync(o.LocalPath! + ".meta.json"));
+            await File.ReadAllTextAsync(MetaOf(_root, o.LocalPath!)));
 
         Assert.NotNull(meta);
         Assert.Equal("数学", meta!.Subject);       // 上课弹窗靠它判断"当科"
@@ -64,7 +74,7 @@ public sealed class FileArchiveTests : IDisposable
             .HandleAsync(Ev(), Stranger(), (_, _) => Task.FromResult<string?>("http://x/f"));
 
         var meta = System.Text.Json.JsonSerializer.Deserialize<ArchiveMeta>(
-            await File.ReadAllTextAsync(o.LocalPath! + ".meta.json"));
+            await File.ReadAllTextAsync(MetaOf(_root, o.LocalPath!)));
         Assert.Equal("", meta!.Subject);           // 认不出科目就不能瞎猜
     }
 
