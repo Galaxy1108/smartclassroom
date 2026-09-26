@@ -16,8 +16,9 @@ public sealed class OneBotClient : IAsyncDisposable
 
     public OneBotClient(string httpBase, string wsUrl, string? accessToken = null, HttpClient? http = null)
     {
-        _http = http ?? new HttpClient { BaseAddress = new Uri(httpBase.TrimEnd('/') + "/") };
-        if (accessToken is not null && http is null)
+        _http = http ?? new HttpClient();
+        _http.BaseAddress ??= new Uri(httpBase.TrimEnd('/') + "/");
+        if (accessToken is not null && _http.DefaultRequestHeaders.Authorization is null)
             _http.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
         _wsUri = new Uri(wsUrl);

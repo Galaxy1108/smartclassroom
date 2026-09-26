@@ -40,4 +40,21 @@ public sealed class ClassIslandStatusProvider : IClassStatusProvider
             return Task.FromResult(false);
         }
     }
+
+    public Task<CurrentLesson?> GetCurrentLessonAsync(CancellationToken cancel = default)
+    {
+        if (_lessons is null)
+            return Task.FromResult<CurrentLesson?>(null);
+        try
+        {
+            if (!_lessons.IsClassPlanLoaded || _lessons.CurrentState != TimeState.OnClass)
+                return Task.FromResult<CurrentLesson?>(null);
+            var s = _lessons.CurrentSubject;
+            return Task.FromResult(s is null ? null : new CurrentLesson(s.Name, null));
+        }
+        catch
+        {
+            return Task.FromResult<CurrentLesson?>(null);
+        }
+    }
 }
