@@ -374,7 +374,7 @@ public sealed class PipelineService(
         var item = pending.Get(id);
         if (item is null || !pending.Remove(id))
             return false;
-        feed.Append(item.Kind, $"已忽略：{item.Title}", item.RawText, ActivitySeverity.Warning);
+        feed.Append(item.Kind, $"已忽略：{item.Title}", item.RawText, ActivitySeverity.Muted);
         return true;
     }
 
