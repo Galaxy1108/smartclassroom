@@ -2,25 +2,140 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:SmartClassroom.App.ViewModels"
              xmlns:fa="using:FluentAvalonia.UI.Controls"
+             xmlns:qq="using:SmartClassroom.Core.QQ"
              x:Class="SmartClassroom.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
     <ScrollViewer>
-        <StackPanel Spacing="4" Margin="4" MaxWidth="860" HorizontalAlignment="Left">
+        <StackPanel Spacing="4" Margin="4" MaxWidth="880" HorizontalAlignment="Left">
             <TextBlock Text="AI" Theme="{StaticResource SubtitleTextBlockStyle}" Margin="0,4" />
+            <fa:SettingsExpander Header="服务商"
+                                 Description="选预设自动填地址，选自定义后手动填。直调 chat/completions，不绑定厂商。">
+                <fa:SettingsExpander.Footer>
+                    <ComboBox MinWidth="220" ItemsSource="{Binding AiProviders}"
+                              SelectedItem="{Binding AiProvider}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:AiProviderPreset">
+                                <TextBlock Text="{Binding Name}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                        <ComboBox.SelectionBoxItemTemplate>
+                            <DataTemplate x:DataType="vm:AiProviderPreset">
+                                <TextBlock Text="{Binding Name}" />
+                            </DataTemplate>
+                        </ComboBox.SelectionBoxItemTemplate>
+                    </ComboBox>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
             <fa:SettingsExpander Header="服务地址"
-                                 Description="OpenAI-compatible 接口，如 https://api.example.com/v1">
+                                 Description="OpenAI-compatible 接口地址">
                 <fa:SettingsExpander.Footer>
                     <TextBox Text="{Binding AiBaseUrl}" MinWidth="280" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
-            <fa:SettingsExpander Header="模型"
-                                 Description="如 gpt-4o-mini">
+            <fa:SettingsExpander Header="API Key"
+                                 Description="只存本机 settings.json，不上传任何地方">
                 <fa:SettingsExpander.Footer>
-                    <TextBox Text="{Binding AiModel}" MinWidth="280" />
+                    <TextBox Text="{Binding AiApiKey}" MinWidth="280" PasswordChar="•" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="模型"
+                                 Description="可从预设选，也可直接输入">
+                <fa:SettingsExpander.Footer>
+                    <ComboBox MinWidth="220" ItemsSource="{Binding ModelPresets}"
+                              SelectedItem="{Binding AiModel, Mode=TwoWay}"
+                              IsEditable="True" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
 
+            <TextBlock Text="教师映射" Theme="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,4" />
+            <fa:SettingsExpander Header="任课老师"
+                                 Description="QQ 号（可空）/ 群名片或姓名 / 科目。QQ 消息按 QQ 号→名片→昵称匹配。">
+                <fa:SettingsExpander.Footer>
+                    <Button Content="保存设置" Click="Save_Click" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <ItemsControl ItemsSource="{Binding Teachers}" Margin="0,4">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TeacherRow">
+                        <Border Margin="0,2" Padding="8" CornerRadius="6"
+                                BorderThickness="1"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{Binding Qq}" Width="110" Opacity="0.7" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Name}" Width="110" FontWeight="Bold" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Subject}" Width="110" VerticalAlignment="Center" />
+                                <Button Content="删除" Click="RemoveTeacher_Click" Tag="{Binding}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4">
+                <TextBox Watermark="QQ 号" Text="{Binding NewTeacherQq}" Width="120" />
+                <TextBox Watermark="姓名/名片" Text="{Binding NewTeacherName}" Width="130" />
+                <TextBox Watermark="科目" Text="{Binding NewTeacherSubject}" Width="120" />
+                <Button Content="添加" Classes="accent" Click="AddTeacher_Click" />
+            </StackPanel>
+
             <TextBlock Text="QQ 连接" Theme="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,4" />
+            <fa:InfoBar Severity="Informational" IsOpen="{Binding !IsInstalled}"
+                       Title="您还没有下载 SnowLuma 注入层"
+                       Message="下载后即可注入已登录的班级 QQ，无需单独 QQ 实例；也可以直接填写下方已有 OneBot v11 地址。" />
+            <fa:SettingsExpander Header="SnowLuma 下载器"
+                                 Description="不随应用附带。完整版内置 Node，精简版需自装 Node ≥ 22。"
+                                 IsVisible="{Binding !IsInstalled}">
+                <fa:SettingsExpander.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ComboBox MinWidth="150" ItemsSource="{Binding Releases}"
+                                  SelectedItem="{Binding SelectedRelease}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="qq:SnowlumaRelease">
+                                    <TextBlock Text="{Binding Tag}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                            <ComboBox.SelectionBoxItemTemplate>
+                                <DataTemplate x:DataType="qq:SnowlumaRelease">
+                                    <TextBlock Text="{Binding Tag}" />
+                                </DataTemplate>
+                            </ComboBox.SelectionBoxItemTemplate>
+                        </ComboBox>
+                        <Button Content="刷新" Click="Refresh_Click" />
+                        <Button Content="下载并安装" Classes="accent" Click="Download_Click" />
+                    </StackPanel>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="6"
+                         IsVisible="{Binding Busy}" Margin="0,4" />
+            <fa:InfoBar Severity="Error" IsOpen="{Binding IsInstalled}"
+                       Title="风险警告"
+                       Message="QQ 官方可能检测第三方登录并封号。建议不要使用全新 QQ 号操作，班级号请确认可接受风险后再启动。" />
+            <fa:SettingsExpander Header="我已知晓风险"
+                                 Description="勾选后才能启动注入。"
+                                 IsVisible="{Binding IsInstalled}">
+                <fa:SettingsExpander.Footer>
+                    <CheckBox IsChecked="{Binding RiskAccepted}" Content="已知晓" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="运行状态"
+                                 Description="注入三态：QQ 未运行 / 已注入未登录 / 在线"
+                                 IsVisible="{Binding IsInstalled}">
+                <fa:SettingsExpander.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="启动" Click="Start_Click" IsEnabled="{Binding RiskAccepted}" />
+                        <Button Content="停止" Click="Stop_Click" />
+                        <Button Content="探测" Click="Probe_Click" />
+                        <TextBlock Text="{Binding Status}" VerticalAlignment="Center" FontWeight="Bold" />
+                    </StackPanel>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:InfoBar Severity="Success" IsOpen="{Binding QqDetected}"
+                       Title="检测到 QQ，是否自动连接？"
+                       Message="将填入默认 OneBot 地址并保存，重启 App 后管线自动连接。">
+                <fa:InfoBar.ActionButton>
+                    <Button Content="自动连接" Click="AutoConnect_Click" />
+                </fa:InfoBar.ActionButton>
+            </fa:InfoBar>
             <fa:SettingsExpander Header="OneBot HTTP"
                                  Description="SnowLuma 默认 http://127.0.0.1:3000">
                 <fa:SettingsExpander.Footer>
@@ -33,37 +148,16 @@
                     <TextBox Text="{Binding OneBotWs}" MinWidth="280" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
-
-            <TextBlock Text="SnowLuma 下载器" Theme="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,4" />
-            <TextBlock Text="{Binding InstallDir}" Opacity="0.6" FontSize="12" Margin="0,0,0,4" />
-            <fa:SettingsExpander Header="版本"
-                                 Description="不随应用附带，在此下载。完整版内置 Node，精简版需自装 Node ≥ 22。">
+            <fa:SettingsExpander Header="监听群号"
+                                 Description="英文逗号分隔，只处理这些群的消息">
                 <fa:SettingsExpander.Footer>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <ComboBox MinWidth="150" ItemsSource="{Binding Releases}"
-                                  SelectedItem="{Binding SelectedRelease}">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:SettingsViewModel">
-                                    <TextBlock Text="{Binding Tag}" />
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                        <Button Content="刷新" Click="Refresh_Click" />
-                        <Button Content="下载并安装" Classes="accent" Click="Download_Click" />
-                    </StackPanel>
+                    <TextBox Text="{Binding GroupIdsText}" MinWidth="280" Watermark="如 123456,789012" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
-            <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="6"
-                         IsVisible="{Binding Busy}" Margin="0,4" />
-            <fa:SettingsExpander Header="运行状态"
-                                 Description="注入三态：QQ 未运行 / 已注入未登录 / 在线">
+            <fa:SettingsExpander Header="开机自启 SnowLuma"
+                                 Description="Windows 写 Startup 文件夹，Linux 写 autostart。">
                 <fa:SettingsExpander.Footer>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="启动" Click="Start_Click" />
-                        <Button Content="停止" Click="Stop_Click" />
-                        <Button Content="探测" Click="Probe_Click" />
-                        <TextBlock Text="{Binding Status}" VerticalAlignment="Center" FontWeight="Bold" />
-                    </StackPanel>
+                    <ToggleSwitch IsChecked="{Binding AutostartEnabled}" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
 

@@ -16,6 +16,7 @@ public sealed class AppSettings
     public string ArchiveRoot { get; set; } = "";
     public string PluginToken { get; set; } = "";
     public List<Teacher> Teachers { get; set; } = [];
+    public bool RiskAccepted { get; set; } = false;
 }
 
 public static class SettingsStore

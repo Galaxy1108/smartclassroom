@@ -62,4 +62,15 @@ public sealed class CoursewareServiceTests : IDisposable
         Assert.False(svc.TryMarkShown(today, "数学"));
         Assert.True(svc.TryMarkShown(today, "语文"));
     }
+
+    [Fact]
+    public void Query_NullFilters_ReturnsAllOfDay()
+    {
+        var svc = new CoursewareService();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        svc.Register(MakeFile("a", "张老师", today, Touch("a.pptx")));
+        svc.Register(MakeFile("b", "李老师", today, Touch("b.pptx")));
+        svc.Register(MakeFile("c", "张老师", today.AddDays(-1), Touch("c.pptx")));
+        Assert.Equal(2, svc.Query(today, null).Count);
+    }
 }

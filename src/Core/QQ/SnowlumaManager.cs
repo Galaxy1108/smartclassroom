@@ -168,7 +168,7 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
         catch { return false; }
     }
 
-    internal static string FindNode(string installDir)
+    public static string FindNode(string installDir)
     {
         var exe = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "node.exe" : "node";
         foreach (var c in new[] { Path.Combine(installDir, exe), Path.Combine(installDir, "node", exe) })
