@@ -11,6 +11,8 @@ public partial class SettingsView : UserControl
     {
         InitializeComponent();
         DataContext ??= new SettingsViewModel();
+        // SnowLuma 的协议同意弹窗（视图模型不直接碰 UI）
+        Vm.ConsentPrompt = async docs => await Dialogs.ConsentAsync(docs);
     }
 
     private SettingsViewModel Vm => (SettingsViewModel)DataContext!;
@@ -196,8 +198,22 @@ public partial class SettingsView : UserControl
     private async void Stop_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => await Vm.StopAsync();
 
-    private async void Probe_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => await Vm.ProbeAsync();
+    /// <summary>打开 SnowLuma 的 WebUI（首次设置、看日志都在那里）。</summary>
+    private void OpenWebUi_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Vm.WebUiUrl)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Vm.AppendLogFromView($"打开 WebUI 失败：{ex.Message}");
+            Toasts.Error("打开 WebUI 失败", ex.Message);
+        }
+    }
 
     private void AutoConnect_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => Vm.AutoConnect();

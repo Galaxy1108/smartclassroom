@@ -895,6 +895,19 @@ public sealed class SettingsViewModel : ViewModelBase
         private set => Set(ref _aiTestSeverity, value);
     }
 
+    /// <summary>
+    /// 展示协议并征得同意的回调（由视图注入；测试/无窗口时为 null，此时不弹窗）。
+    /// 和密码弹窗一样，视图模型不直接碰 UI。
+    /// </summary>
+    public Func<IReadOnlyList<SnowlumaAgreement>, Task<bool>>? ConsentPrompt { get; set; }
+
+    /// <summary>SnowLuma 卡在"等待同意协议"（不同意就不会注入）。</summary>
+    private bool _needsWebUiSetup;
+    public bool NeedsWebUiSetup { get => _needsWebUiSetup; private set => Set(ref _needsWebUiSetup, value); }
+
+    /// <summary>SnowLuma 的 WebUI 地址（首次设置、看日志都在这里）。</summary>
+    public string WebUiUrl => SnowlumaManager.WebUiUrl(InstallDir);
+
     /// <summary>启动/停止/探测期间为 true —— 按钮要转圈，否则用户以为点了没反应。</summary>
     public bool IsQqBusy => IsStarting || IsStopping || IsProbing;
 
@@ -972,6 +985,9 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>候选账号（检测到的 + 以前选过的）。</summary>
     public ObservableCollection<QqAccount> QqCandidates { get; } = new();
 
+    /// <summary>已同意的 SnowLuma 协议指纹（空 = 没同意过）。</summary>
+    private string _agreementsFingerprint = "";
+
     private long _qqAccount;
     public long QqAccount
     {
@@ -993,9 +1009,26 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _onlineQqText = "未检测";
     public string OnlineQqText { get => _onlineQqText; private set => Set(ref _onlineQqText, value); }
 
+    private string _detectionHint = "";
+    /// <summary>检测不到账号时的原因（直接显示在账号行下面）。</summary>
+    public string DetectionHint
+    {
+        get => _detectionHint;
+        private set { if (Set(ref _detectionHint, value)) OnPropertyChanged(nameof(HasDetectionHint)); }
+    }
+
+    public bool HasDetectionHint => DetectionHint.Length > 0;
+
     /// <summary>探测当前注入实例登录的 QQ，并把它并入候选列表。返回检测到的账号（可能为 null）。</summary>
+    /// <summary>
+    /// 检测当前在线的 QQ 账号。
+    /// 顺带把运行状态刷一遍——"能不能检测到账号"和"OneBot 通不通"本来就是同一件事，
+    /// 所以不需要单独的「探测」按钮。
+    /// </summary>
     public async Task<QqAccount?> DetectOnlineQqAsync()
     {
+        DetectionHint = "";
+        await ProbeAsync();
         IsProbing = true;
         try
         {
@@ -1012,15 +1045,34 @@ public sealed class SettingsViewModel : ViewModelBase
                     : $"{found.Uin}（{found.Nickname}）";
                 return found;
             }
+            DetectionHint = "OneBot 没有返回账号信息。";
         }
         catch (Exception ex)
         {
             AppendLog($"检测 QQ 账号失败：{ex.Message}");
+            DetectionHint = ExplainDetectionFailure(ex);
         }
         finally { IsProbing = false; }
 
-        OnlineQqText = "未检测到（OneBot 未连接或未登录）";
+        OnlineQqText = "未检测到";
+        Toasts.Warn("没检测到 QQ 账号", DetectionHint);
         return null;
+    }
+
+    /// <summary>检测不到账号时，说清楚卡在哪一步（否则用户只知道"检测不到"）。</summary>
+    private string ExplainDetectionFailure(Exception ex)
+    {
+        if (NeedsWebUiSetup)
+            return $"SnowLuma 还没同意用户协议/隐私政策（点「启动」会弹窗，也可打开 {WebUiUrl}），在此之前它不会注入。";
+        return QqStatusSeverity switch
+        {
+            NoticeSeverity.Error when QqStatusText.Contains("未安装") => "尚未安装 SnowLuma。",
+            NoticeSeverity.Error when QqStatusText.Contains("QQ 未运行") => "QQ 未运行，先启动并登录班级 QQ。",
+            NoticeSeverity.Informational => $"SnowLuma 未启动，先点「启动」（{ex.Message}）。",
+            NoticeSeverity.Warning when QqStatusText.Contains("未注入") =>
+                $"SnowLuma 已启动但没有注入成功，可打开 WebUI（{WebUiUrl}）查看原因。",
+            _ => $"OneBot HTTP 未响应：确认端口与 Token 和 OneBot 端一致（{ex.Message}）。"
+        };
     }
 
     /// <summary>记住一个候选账号（同号更新昵称）。</summary>
@@ -1160,7 +1212,13 @@ public sealed class SettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(StartButtonText));
         try
         {
-            await _manager.StartAsync(InstallDir);
+            if (!await EnsureAgreementsAcceptedAsync())
+            {
+                QqStatusText = "未同意协议";
+                QqStatusSeverity = NoticeSeverity.Warning;
+                return;   // 不同意协议 → 不启动（启动了它也不会注入）
+            }
+            await _manager.StartAsync(InstallDir, acceptAgreements: true);
             AppendLog("SnowLuma 已启动，5 秒后自动检测 QQ…");
             await Task.Delay(5000);
             await ProbeAsync();     // 探测结果自己会弹通知
@@ -1186,7 +1244,7 @@ public sealed class SettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(StopButtonText));
         try
         {
-            await Task.Run(() => _manager.Stop());
+            await Task.Run(() => _manager.Stop(InstallDir));
             QqDetected = false;
             QqStatusText = "已停止";
             QqStatusSeverity = NoticeSeverity.Informational;
@@ -1208,7 +1266,48 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// 探测注入三态。
+    /// 启动前确认 SnowLuma 的协议：读它安装目录里的 EULA.md / PRIVACY.md，
+    /// 没同意过（或协议文本变了）就弹窗；同意后由 <see cref="SnowlumaManager.StartAsync"/>
+    /// 用它的官方环境变量开关带过去。返回是否可以继续启动。
+    /// </summary>
+    public async Task<bool> EnsureAgreementsAcceptedAsync()
+    {
+        var docs = SnowlumaAgreements.ReadFrom(InstallDir);
+        if (docs.Count == 0)
+        {
+            AppendLog("找不到 SnowLuma 的协议文件（EULA.md / PRIVACY.md），无法在应用内征得同意");
+            NeedsWebUiSetup = true;
+            return false;
+        }
+
+        var fingerprint = SnowlumaAgreements.Fingerprint(docs);
+        if (fingerprint == _agreementsFingerprint)
+        {
+            NeedsWebUiSetup = false;
+            return true;   // 这个版本已经同意过
+        }
+
+        NeedsWebUiSetup = true;
+        if (ConsentPrompt is null)
+            return false;   // 没有界面（测试/无主窗口）
+
+        if (!await ConsentPrompt(docs))
+        {
+            AppendLog("未同意 SnowLuma 用户协议/隐私政策，注入不会开始");
+            Toasts.Warn("未同意协议", "不同意协议时 SnowLuma 不会注入。");
+            return false;
+        }
+
+        _agreementsFingerprint = fingerprint;
+        SaveSettings();
+        NeedsWebUiSetup = false;
+        AppendLog("已同意 SnowLuma 用户协议/隐私政策");
+        Toasts.Success("已同意 SnowLuma 协议");
+        return true;
+    }
+
+    /// <summary>
+    /// 探测注入状态。
     /// 文案必须能一眼看出"成功没有"：在线=成功(对钩)、已注入但服务未就绪=警告(感叹号)、
     /// 其余=失败(叉)。原来的「已注入 / 服务未就绪」看不出是哪种。
     /// </summary>
@@ -1226,23 +1325,38 @@ public sealed class SettingsViewModel : ViewModelBase
             var s = await _manager.ProbeAsync(InstallDir, oneBot);
             (QqStatusSeverity, QqStatusText) = s switch
             {
-                SnowlumaStatus.Online => (NoticeSeverity.Success, "在线（注入正常）"),
+                SnowlumaStatus.Online => (NoticeSeverity.Success, "已注入，在线"),
                 SnowlumaStatus.InjectedNotLoggedIn =>
-                    (NoticeSeverity.Warning, "已注入，但服务未就绪（通常是还没登录完成）"),
-                SnowlumaStatus.QqNotFound => (NoticeSeverity.Error, "QQ 未运行（请先启动并登录班级 QQ）"),
+                    (NoticeSeverity.Warning, "已注入，但 QQ 未登录"),
+                SnowlumaStatus.StartedNotInjected =>
+                    (NoticeSeverity.Warning, "已启动，未注入"),
+                SnowlumaStatus.NotRunning => (NoticeSeverity.Informational, "未启动（未注入）"),
+                SnowlumaStatus.QqNotFound => (NoticeSeverity.Error, "QQ 未运行"),
                 SnowlumaStatus.NotInstalled => (NoticeSeverity.Error, "未安装 SnowLuma"),
                 _ => (NoticeSeverity.Error, s.ToString())
             };
             Status = QqStatusText;
             QqDetected = s is SnowlumaStatus.Online or SnowlumaStatus.InjectedNotLoggedIn;
 
+            NeedsWebUiSetup = s is SnowlumaStatus.StartedNotInjected or SnowlumaStatus.NotRunning
+                              && _manager.NeedsWebUiSetup;
             switch (s)
             {
                 case SnowlumaStatus.Online:
                     Toasts.Success("QQ 在线");
                     break;
                 case SnowlumaStatus.InjectedNotLoggedIn:
-                    Toasts.Warn("已注入，服务未就绪", "可稍后再探测一次。");
+                    Toasts.Warn("已注入，QQ 未登录", "在 QQ 里登录班级号后重试。");
+                    break;
+                case SnowlumaStatus.StartedNotInjected when NeedsWebUiSetup:
+                    Toasts.Warn("SnowLuma 需要先同意用户协议/隐私政策",
+                        $"打开 {WebUiUrl} 同意 EULA/隐私政策并修改密码后才会注入。");
+                    break;
+                case SnowlumaStatus.StartedNotInjected:
+                    Toasts.Warn("SnowLuma 已启动，但未注入", "确认 QQ 已登录；必要时打开 WebUI 查看原因。");
+                    break;
+                case SnowlumaStatus.NotRunning:
+                    Toasts.Show("未启动（未注入）", "点「启动」开始注入。", NoticeSeverity.Informational);
                     break;
                 case SnowlumaStatus.QqNotFound:
                     Toasts.Error("QQ 未运行");
@@ -1528,6 +1642,7 @@ public sealed class SettingsViewModel : ViewModelBase
             OneBotToken = s.OneBotToken;
             PluginToken = s.PluginToken;
             PluginPort = s.PluginPort;
+            _agreementsFingerprint = s.SnowLumaAgreementsFingerprint;
             _qqAccount = s.QqAccount;
             QqCandidates.Clear();
             foreach (var a in s.QqAccounts)
@@ -1574,6 +1689,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.OneBotToken = OneBotToken;
         s.PluginToken = PluginToken;
         s.PluginPort = PluginPort;
+        s.SnowLumaAgreementsFingerprint = _agreementsFingerprint;
         s.QqAccount = QqAccount;
         s.QqAccounts = QqCandidates.ToList();
         s.Teachers = Teachers.Select(t => new Teacher

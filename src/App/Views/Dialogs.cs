@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using FluentAvalonia.UI.Controls;
 using SmartClassroom.Core;
+using SmartClassroom.Core.QQ;
 
 namespace SmartClassroom.App.Views;
 
@@ -125,6 +126,76 @@ public static class Dialogs
         if (list.SelectedIndex >= 0 && list.SelectedIndex < candidates.Count)
             return candidates[list.SelectedIndex];
         return null;
+    }
+
+    /// <summary>
+    /// 展示 SnowLuma 的用户协议 / 隐私政策并征得同意。
+    /// 正文来自 SnowLuma 自己的 /api/agreements（不是我们转述），同意后由它自己记录。
+    /// </summary>
+    public static async Task<bool> ConsentAsync(IReadOnlyList<SnowlumaAgreement> documents)
+    {
+        var owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (owner is null)
+            return false;
+
+        var selector = new ComboBox
+        {
+            ItemsSource = documents.Select(d => d.Title.Length > 0 ? d.Title : d.Id).ToList(),
+            SelectedIndex = 0,
+            MinWidth = 200,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        var body = new SelectableTextBlock
+        {
+            Text = documents.FirstOrDefault()?.Text ?? "",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12,
+            Opacity = 0.9
+        };
+        selector.SelectionChanged += (_, _) =>
+        {
+            var idx = selector.SelectedIndex;
+            if (idx >= 0 && idx < documents.Count)
+                body.Text = documents[idx].Text;
+        };
+
+        var content = new StackPanel
+        {
+            Spacing = 8,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "SnowLuma 需要先同意以下协议才会注入 QQ。请阅读后选择。",
+                    TextWrapping = TextWrapping.Wrap, MaxWidth = 520, Opacity = 0.85
+                },
+                selector,
+                new ScrollViewer
+                {
+                    Height = 300,
+                    MinWidth = 520,
+                    Content = body,
+                    Background = Brushes.Transparent
+                }
+            }
+        };
+
+        var dialog = new ContentDialog
+        {
+            Title = "SnowLuma 用户协议与隐私政策",
+            Content = content,
+            PrimaryButtonText = "同意并继续",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary
+        };
+        try
+        {
+            return await dialog.ShowAsync(owner) == ContentDialogResult.Primary;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static ScrollViewer WrapText(string message) => new()

@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using SmartClassroom.App.ViewModels;
 using SmartClassroom.App.Views;
 using SmartClassroom.Core;
+using SmartClassroom.Core.QQ;
 using Xunit;
 
 namespace SmartClassroom.App.Tests;
@@ -151,6 +152,101 @@ public sealed class ToastAndStatusTests : IDisposable
         var vm = new SettingsViewModel(_path);
         Assert.Equal(0, vm.QqAccount);
         Assert.Equal("未选择", vm.QqAccountLabel);
+    }
+
+    // ================= SnowLuma 协议同意 =================
+    //
+    // SnowLuma 停在"等待同意"时不会注入，OneBot 也不会起来 —— 用户只会看到"检测不到账号"。
+    // 所以启动前必须把协议正文给用户看并征得同意。
+
+    private void WriteSnowLumaDocs(string installDir, string eula = "# 用户协议\n\n第一条。")
+    {
+        Directory.CreateDirectory(installDir);
+        File.WriteAllText(Path.Combine(installDir, "EULA.md"), eula);
+        File.WriteAllText(Path.Combine(installDir, "PRIVACY.md"), "# 隐私政策\n\n只在本机处理。");
+    }
+
+    [AvaloniaFact]
+    public async Task Agreements_PromptsOnce_ThenRemembers()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "sc-agree-" + Guid.NewGuid().ToString("N"));
+        WriteSnowLumaDocs(dir);
+        try
+        {
+            var vm = new SettingsViewModel(_path) { InstallDir = dir };
+            var prompted = 0;
+            IReadOnlyList<SnowlumaAgreement>? shown = null;
+            vm.ConsentPrompt = docs => { prompted++; shown = docs; return Task.FromResult(true); };
+
+            Assert.True(await vm.EnsureAgreementsAcceptedAsync());
+            Assert.Equal(1, prompted);
+            Assert.Equal(2, shown!.Count);                       // 用户协议 + 隐私政策都给了
+            Assert.False(vm.NeedsWebUiSetup);
+
+            // 同一个版本再启动：不再弹
+            var again = new SettingsViewModel(_path) { InstallDir = dir };
+            var second = 0;
+            again.ConsentPrompt = _ => { second++; return Task.FromResult(true); };
+            Assert.True(await again.EnsureAgreementsAcceptedAsync());
+            Assert.Equal(0, second);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [AvaloniaFact]
+    public async Task Agreements_Declined_BlocksStart()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "sc-agree-no-" + Guid.NewGuid().ToString("N"));
+        WriteSnowLumaDocs(dir);
+        try
+        {
+            var vm = new SettingsViewModel(_path) { InstallDir = dir };
+            vm.ConsentPrompt = _ => Task.FromResult(false);
+
+            Assert.False(await vm.EnsureAgreementsAcceptedAsync());
+            Assert.True(vm.NeedsWebUiSetup);                     // 界面提示"需要同意协议"
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [AvaloniaFact]
+    public async Task Agreements_TextChanged_AsksAgain()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "sc-agree-chg-" + Guid.NewGuid().ToString("N"));
+        WriteSnowLumaDocs(dir);
+        try
+        {
+            var vm = new SettingsViewModel(_path) { InstallDir = dir };
+            vm.ConsentPrompt = _ => Task.FromResult(true);
+            Assert.True(await vm.EnsureAgreementsAcceptedAsync());
+
+            // SnowLuma 更新了条款 → 指纹变 → 必须重新征得同意
+            WriteSnowLumaDocs(dir, eula: "# 用户协议\n\n第一条。新增：第二条。");
+            var after = new SettingsViewModel(_path) { InstallDir = dir };
+            var prompted = 0;
+            after.ConsentPrompt = _ => { prompted++; return Task.FromResult(true); };
+            Assert.True(await after.EnsureAgreementsAcceptedAsync());
+            Assert.Equal(1, prompted);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [AvaloniaFact]
+    public async Task Agreements_MissingFiles_DoesNotPretendAccepted()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "sc-agree-none-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var vm = new SettingsViewModel(_path) { InstallDir = dir };
+            var prompted = 0;
+            vm.ConsentPrompt = _ => { prompted++; return Task.FromResult(true); };
+
+            Assert.False(await vm.EnsureAgreementsAcceptedAsync());   // 读不到协议就不启动
+            Assert.Equal(0, prompted);
+            Assert.True(vm.NeedsWebUiSetup);
+        }
+        finally { Directory.Delete(dir, true); }
     }
 
     // ================= OneBot Token 也要能填 =================

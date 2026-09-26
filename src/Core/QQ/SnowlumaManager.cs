@@ -10,12 +10,28 @@ namespace SmartClassroom.Core.QQ;
 public sealed record SnowlumaRelease(string Tag, IReadOnlyList<SnowlumaAsset> Assets);
 public sealed record SnowlumaAsset(string Name, string DownloadUrl, long Size);
 
-/// <summary>注入状态三态。</summary>
+/// <summary>
+/// 注入状态。原来只有"三态"，把"没注入"和"注入了但服务没起来"混成一个，
+/// 结果停止之后还显示"已注入"——没登录/没注入怎么可能已注入。
+/// </summary>
 public enum SnowlumaStatus
 {
+    /// <summary>没装 SnowLuma。</summary>
     NotInstalled,
+
+    /// <summary>QQ 没运行。</summary>
     QqNotFound,
+
+    /// <summary>SnowLuma 没在跑 → 未注入。</summary>
+    NotRunning,
+
+    /// <summary>SnowLuma 在跑，但注入没生效（未登录 / 还没完成首次设置）。</summary>
+    StartedNotInjected,
+
+    /// <summary>已注入，但 QQ 未登录（OneBot 能应答且 online=false）。</summary>
     InjectedNotLoggedIn,
+
+    /// <summary>已注入且在线。</summary>
     Online
 }
 
@@ -31,7 +47,13 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     private readonly HttpClient _http = http ?? new HttpClient();
     private Process? _process;
 
+    /// <summary>最近若干行输出（用于识别"等待 WebUI 首次设置"这类状态）。</summary>
+    private readonly Queue<string> _recentOutput = new();
+
     public event Action<string>? OnLog;
+
+    /// <summary>pid 文件名（记录本应用启动的 SnowLuma，重启后也能判断它还在不在）。</summary>
+    public const string PidFileName = ".smartclassroom.pid";
 
     /// <summary>按当前平台挑包：win-x64→zip，linux→tar.gz；full 优先（内置 Node）。</summary>
     public static SnowlumaAsset? PickAsset(SnowlumaRelease release, string rid, bool preferFull = true)
@@ -48,6 +70,89 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return "win-x64";
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return "osx-arm64";
         return RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
+    }
+
+    /// <summary>SnowLuma 是否在跑：本进程启动的 / pid 文件记录的 / Linux 上扫 /proc 认出来的。</summary>
+    public bool IsRunning(string installDir)
+    {
+        if (_process is { HasExited: false })
+            return true;
+        var pid = ReadPid(installDir);
+        if (pid is > 0 && IsProcessAlive(pid.Value))
+            return true;
+        // 用户自己启动的（或上一次应用启动的）：Linux 上扫 /proc 就能认出来
+        return RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && HasIndexProcess(installDir);
+    }
+
+    /// <summary>
+    /// SnowLuma 是否卡在"等待 WebUI 首次设置"。
+    /// 实测：它启动后要先在 WebUI 里同意 EULA/隐私政策才会注入，
+    /// 在此之前 OneBot 的 HTTP 服务根本不会起来——不告诉用户，就只会看到"检测不到账号"。
+    /// </summary>
+    public bool NeedsWebUiSetup => _recentOutput.Any(l =>
+        l.Contains("awaiting EULA", StringComparison.OrdinalIgnoreCase)
+        || l.Contains("EULA/PRIVACY consent", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>WebUI 地址（端口读 config/runtime.json，读不到按默认 5099）。</summary>
+    public static string WebUiUrl(string installDir)
+    {
+        var port = 5099;
+        try
+        {
+            var path = Path.Combine(installDir, "config", "runtime.json");
+            if (File.Exists(path))
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(path));
+                if (doc.RootElement.TryGetProperty("webuiPort", out var p) && p.TryGetInt32(out var v) && v > 0)
+                    port = v;
+            }
+        }
+        catch { /* 读不到就用默认端口 */ }
+        return $"http://127.0.0.1:{port}";
+    }
+
+    private static int? ReadPid(string installDir)
+    {
+        try
+        {
+            var path = Path.Combine(installDir, PidFileName);
+            return File.Exists(path) && int.TryParse(File.ReadAllText(path).Trim(), out var pid) ? pid : null;
+        }
+        catch { return null; }
+    }
+
+    private static bool IsProcessAlive(int pid)
+    {
+        try
+        {
+            using var p = Process.GetProcessById(pid);
+            return !p.HasExited;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>Linux：扫 /proc/*/cmdline 找 index.mjs（用户手动启动也能认出来）。</summary>
+    private static bool HasIndexProcess(string installDir)
+    {
+        try
+        {
+            foreach (var dir in Directory.EnumerateDirectories("/proc"))
+            {
+                var name = Path.GetFileName(dir);
+                if (!int.TryParse(name, out _))
+                    continue;
+                var cmdline = Path.Combine(dir, "cmdline");
+                if (!File.Exists(cmdline))
+                    continue;
+                string text;
+                try { text = File.ReadAllText(cmdline).Replace('\0', ' '); }
+                catch { continue; }   // 别的用户的进程读不到
+                if (text.Contains("index.mjs") && text.Contains(installDir))
+                    return true;
+            }
+        }
+        catch { /* 扫不了就算了 */ }
+        return false;
     }
 
     public async Task<IReadOnlyList<SnowlumaRelease>> ListReleasesAsync(CancellationToken cancel = default)
@@ -102,7 +207,7 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     }
 
     /// <summary>启动 SnowLuma（installDir 下 index.mjs）。node 解析顺序：内置 → PATH(≥22)。</summary>
-    public Task StartAsync(string installDir, CancellationToken cancel = default)
+    public Task StartAsync(string installDir, bool acceptAgreements = false, CancellationToken cancel = default)
     {
         if (_process is { HasExited: false })
             return Task.CompletedTask;
@@ -110,34 +215,73 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
         if (!File.Exists(entry))
             throw new FileNotFoundException($"SnowLuma 未安装或目录不对：{entry}");
         var node = FindNode(installDir);
+        var startInfo = new ProcessStartInfo(node, $"\"{entry}\"")
+        {
+            WorkingDirectory = installDir,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        // 用户已经同意协议：用 SnowLuma 的官方开关带过去，否则它会一直停在"等待同意"而不注入
+        if (acceptAgreements)
+        {
+            foreach (var (key, value) in SnowlumaAgreements.AcceptanceEnvironment())
+                startInfo.Environment[key] = value;
+        }
         _process = new Process
         {
-            StartInfo = new ProcessStartInfo(node, $"\"{entry}\"")
-            {
-                WorkingDirectory = installDir,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            },
+            StartInfo = startInfo,
             EnableRaisingEvents = true
         };
-        _process.OutputDataReceived += (_, e) => { if (e.Data is not null) OnLog?.Invoke(e.Data); };
-        _process.ErrorDataReceived += (_, e) => { if (e.Data is not null) OnLog?.Invoke(e.Data); };
+        _process.OutputDataReceived += (_, e) => Note(e.Data);
+        _process.ErrorDataReceived += (_, e) => Note(e.Data);
         _process.Start();
         _process.BeginOutputReadLine();
         _process.BeginErrorReadLine();
+        WritePid(installDir, _process.Id);
         return Task.CompletedTask;
     }
 
-    public void Stop()
+    public void Stop(string? installDir = null)
     {
         try { _process?.Kill(entireProcessTree: true); } catch { /* 已退出则忽略 */ }
         _process?.Dispose();
         _process = null;
+        if (installDir is not null)
+            DeletePid(installDir);
     }
 
-    public bool IsRunning => _process is { HasExited: false };
+    /// <summary>本进程启动的那个 SnowLuma 是否还活着（判断"在不在跑"请用 IsRunning(installDir)）。</summary>
+    public bool StartedByThisApp => _process is { HasExited: false };
+
+    /// <summary>记一行输出（顺便保留最近 40 行用于状态判断）。</summary>
+    private void Note(string? line)
+    {
+        if (line is null)
+            return;
+        _recentOutput.Enqueue(line);
+        while (_recentOutput.Count > 40)
+            _recentOutput.Dequeue();
+        OnLog?.Invoke(line);
+    }
+
+    private static void WritePid(string installDir, int pid)
+    {
+        try { File.WriteAllText(Path.Combine(installDir, PidFileName), pid.ToString()); }
+        catch { /* 写不了就算了，只是重启后判断不出"在跑" */ }
+    }
+
+    private static void DeletePid(string installDir)
+    {
+        try
+        {
+            var path = Path.Combine(installDir, PidFileName);
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch { /* 忽略 */ }
+    }
 
     /// <summary>综合状态：安装 → QQ 进程 → OneBot get_status。</summary>
     public async Task<SnowlumaStatus> ProbeAsync(string installDir, OneBotClient oneBot, CancellationToken cancel = default)
@@ -146,15 +290,19 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
             return SnowlumaStatus.NotInstalled;
         if (!IsQqRunning())
             return SnowlumaStatus.QqNotFound;
+
+        // OneBot 能应答 = 注入成功；再看 QQ 是否已登录
         try
         {
             var data = await oneBot.InvokeAsync<JsonElement>("get_status", new { }, cancel).ConfigureAwait(false);
             if (data.ValueKind == JsonValueKind.Object
-                && data.TryGetProperty("online", out var on) && on.GetBoolean())
-                return SnowlumaStatus.Online;
+                && data.TryGetProperty("online", out var on))
+                return on.GetBoolean() ? SnowlumaStatus.Online : SnowlumaStatus.InjectedNotLoggedIn;
         }
-        catch { /* OneBot 不通：已注入但未登录或服务未起 */ }
-        return SnowlumaStatus.InjectedNotLoggedIn;
+        catch { /* OneBot 不通：还没注入，或注入后服务没起来 */ }
+
+        // 没应答：区分"根本没启动"和"启动了但没注入"
+        return IsRunning(installDir) ? SnowlumaStatus.StartedNotInjected : SnowlumaStatus.NotRunning;
     }
 
     internal static bool IsQqRunning()
