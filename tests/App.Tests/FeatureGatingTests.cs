@@ -32,12 +32,40 @@ public sealed class FeatureGatingTests : IDisposable
         Assert.False(vm.CanEnableFileArchive);
         Assert.False(vm.CanEnableCoursewarePopup);
 
-        // 提示要精确到"缺哪一项"，而不是笼统的"QQ 连接"
-        Assert.Contains("监听群号", vm.SummonGateHint);
+        Assert.Contains("QQ 连接", vm.SummonGateHint);
         Assert.Contains("AI", vm.HomeworkGateHint);
         Assert.Contains("ClassIsland", vm.ExchangeGateHint);
-        Assert.Contains("监听群号", vm.ArchiveGateHint);
+        Assert.Contains("QQ 连接", vm.ArchiveGateHint);
         Assert.Contains("ClassIsland", vm.CoursewareGateHint);
+    }
+
+    /// <summary>
+    /// 只差"监听群号"时，不该只是把开关变灰干等着 —— 直接把选群弹窗推给用户，
+    /// 选完自动把刚才想开的开关打开（"在线了却开不了"最让人困惑）。
+    /// </summary>
+    [AvaloniaFact]
+    public async Task EnablingFeature_WithoutGroups_AsksForGroups_ThenTurnsOn()
+    {
+        var vm = new SettingsViewModel(_path)
+        {
+            OneBotHttp = "http://127.0.0.1:3000",   // 在线信息有了，只差群
+            AiBaseUrl = "u",
+            AiModel = "m"
+        };
+        var asked = 0;
+        vm.GroupPicker = () =>
+        {
+            asked++;
+            vm.ApplyGroups([1077826412]);          // 用户选了班级群
+            return Task.FromResult(true);
+        };
+
+        vm.FeatureSummon = true;                   // 界面上这个开关本来是灰的
+        await Task.Delay(50);                      // 让注入的异步回调跑完
+
+        Assert.Equal(1, asked);
+        Assert.Equal("1077826412", vm.GroupIdsText);
+        Assert.True(vm.FeatureSummon);             // 选完群后自动打开
     }
 
     [AvaloniaFact]

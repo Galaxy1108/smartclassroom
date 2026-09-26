@@ -26,7 +26,24 @@ public partial class SettingsView : UserControl
     {
         base.OnDataContextChanged(e);
         if (DataContext is SettingsViewModel vm)
+        {
             vm.ConsentPrompt = async docs => await Dialogs.ConsentAsync(docs);
+            // 缺群号时由视图弹窗选群（在线了却开不了开关最让人困惑）
+            vm.GroupPicker = async () =>
+            {
+                var groups = await vm.LoadGroupsAsync();
+                if (groups.Count == 0)
+                {
+                    Toasts.Warn("没读到群列表", "确认 OneBot 已在线（可先点「检测并选择账号」）。");
+                    return false;
+                }
+                var picked = await Dialogs.PickGroupsAsync(groups, vm.ParseGroupIds());
+                if (picked is null)
+                    return false;
+                vm.ApplyGroups(picked);
+                return true;
+            };
+        }
     }
 
     protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

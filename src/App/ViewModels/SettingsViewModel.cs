@@ -266,14 +266,8 @@ public sealed class SettingsViewModel : ViewModelBase
     private List<string> MissingFor(bool needQq, bool needAi, bool needClassIsland)
     {
         var missing = new List<string>();
-        if (needQq)
-        {
-            // 精确到缺哪一项：只写"QQ 连接"会让配好了地址、没选群的人一头雾水
-            if (ParseGroupIds().Count == 0 && !ListenAllGroups)
-                missing.Add("监听群号");
-            if (OneBotHttp.Trim().Length == 0 && OneBotWs.Trim().Length == 0)
-                missing.Add("OneBot 地址");
-        }
+        if (needQq && !QqReady)
+            missing.Add("QQ 连接");
         if (needAi && !AiReady)
             missing.Add("AI");
         if (needClassIsland && !ClassIslandReady)
@@ -381,11 +375,28 @@ public sealed class SettingsViewModel : ViewModelBase
         set => SetFeature(ref _featureCoursewarePopup, value, CanEnableCoursewarePopup, "上课课件弹窗");
     }
 
+    /// <summary>
+    /// 缺"监听群号"时，由视图弹窗让用户选群（在线了却开不了开关最让人困惑）。
+    /// 视图注入；测试/无窗口时为 null。
+    /// </summary>
+    public Func<Task<bool>>? GroupPicker { get; set; }
+
+    /// <summary>用户想开、但还差群号的那个开关（选完群后自动打开）。</summary>
+    private string? _pendingEnable;
+
     /// <summary>开启前统一检查前置条件；不允许就直接拒绝并写日志（界面上开关本来就是禁用的）。</summary>
     private void SetFeature(ref bool field, bool value, bool allowed, string name)
     {
         if (value && !allowed)
         {
+            // 只差监听群号 → 直接把选群弹窗推给用户，选完自动打开这个开关
+            if (ParseGroupIds().Count == 0 && !ListenAllGroups && QqReady == false
+                && OneBotHttp.Trim().Length > 0 && GroupPicker is not null)
+            {
+                _pendingEnable = name;
+                _ = GroupPicker();
+                return;
+            }
             AppendLog($"「{name}」的前置集成还没配好，无法开启。");
             OnPropertyChanged(nameof(FeatureSummon));
             OnPropertyChanged(nameof(FeatureHomework));
@@ -1194,6 +1205,25 @@ public sealed class SettingsViewModel : ViewModelBase
         SaveSettings();
         AppendLog($"已选择监听 {ids.Count} 个群");
         Toasts.Success("已更新监听群", ids.Count == 0 ? "当前不会处理任何群" : $"共 {ids.Count} 个群");
+        EnablePendingFeature();
+    }
+
+    /// <summary>选完群后，把用户刚才想开的那个开关打开。</summary>
+    private void EnablePendingFeature()
+    {
+        if (_pendingEnable is null || ParseGroupIds().Count == 0)
+            return;
+        var name = _pendingEnable;
+        _pendingEnable = null;
+        switch (name)
+        {
+            case "召唤通知": FeatureSummon = true; break;
+            case "作业自动录入": FeatureHomework = true; break;
+            case "换课自动处理": FeatureExchange = true; break;
+            case "群文件自动归档": FeatureFileArchive = true; break;
+            case "上课课件弹窗": FeatureCoursewarePopup = true; break;
+        }
+        AppendLog($"已开启「{name}」");
     }
 
     /// <summary>从 SnowLuma 日志刷新"登录了哪些号"与端口冲突提示。</summary>
@@ -1591,9 +1621,10 @@ public sealed class SettingsViewModel : ViewModelBase
             {
                 WebUiPasswordApplied = _manager.StartedByThisApp
                                        || SnowlumaManager.WebUiCredentialsSeededFromEnv(InstallDir);
-                AppendLog($"已为 SnowLuma WebUI 指定初始密码（登录后请修改）");
-                Toasts.Show("WebUI 初始密码已设置", $"用户名 admin，密码 {webUiPassword}（设置页可复制）",
-                    NoticeSeverity.Success);
+                AppendLog("已为 SnowLuma WebUI 指定密码");
+                // 用户自己设的密码不回显（那不是临时密码）；自动生成的才需要告诉他
+                Toasts.Success(_webUiPasswordManual ? "WebUI 密码已生效" : "WebUI 初始密码已设置",
+                    _webUiPasswordManual ? "" : $"用户名 admin，密码 {webUiPassword}（设置页可复制）");
             }
             AppendLog("SnowLuma 已启动，5 秒后自动检测 QQ…");
             await Task.Delay(5000);
