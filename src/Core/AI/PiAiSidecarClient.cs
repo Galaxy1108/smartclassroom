@@ -196,7 +196,9 @@ public sealed class PiAiSidecarClient : IAiClient, IAsyncDisposable
         if (!File.Exists(script))
             throw new AiException($"找不到边车脚本：{script}");
 
-        var node = _options.NodeExecutable ?? NodeRuntime.FindNode();
+        var node = _options.NodeExecutable
+                   ?? NodeRuntime.FindNode()
+                   ?? NodeRuntime.NodeExeName;   // 双保险：FindNode 理论上总会给个名字
         var psi = new ProcessStartInfo(node, $"\"{script}\"")
         {
             WorkingDirectory = _options.SidecarDir,

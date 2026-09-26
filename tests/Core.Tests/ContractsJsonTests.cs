@@ -43,10 +43,11 @@ public sealed class ContractsJsonTests
     {
         var original = Sample();
         var json = JsonSerializer.Serialize(original, ContractsJson.Options);
-        var back = JsonSerializer.Deserialize<ExchangeRequest>(json, ContractsJson.Options);
-        Assert.Equal(original.Kind, back!.Kind);
+        ExchangeRequest back = JsonSerializer.Deserialize<ExchangeRequest>(json, ContractsJson.Options)
+            ?? throw new InvalidOperationException("反序列化返回 null");
+        Assert.Equal(original.Kind, back.Kind);
         Assert.Equal(original.From.PeriodIndex, back.From.PeriodIndex);
-        Assert.Equal(original.To!.PeriodIndex, back.To.PeriodIndex);
+        Assert.Equal(original.To!.PeriodIndex, back.To!.PeriodIndex);
         Assert.Equal(original.Sender.TeacherName, back.Sender.TeacherName);
         Assert.Equal(original.Confidence, back.Confidence);
     }
@@ -61,7 +62,8 @@ public sealed class ContractsJsonTests
         """;
         var back = JsonSerializer.Deserialize<ExchangeRequest>(legacy, ContractsJson.Options);
         Assert.NotNull(back);
-        Assert.Equal(ExchangeKind.CrossDay, back!.Kind);
+        Assert.NotNull(back);
+        Assert.Equal(ExchangeKind.CrossDay, back.Kind);
         Assert.Equal(1, back.From.PeriodIndex);
     }
 

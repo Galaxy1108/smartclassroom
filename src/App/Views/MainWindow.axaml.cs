@@ -1,5 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
 using FluentAvalonia.UI.Controls;
@@ -32,9 +34,14 @@ public partial class MainWindow : Window
         };
         UiScaling.Changed += OnScaleChanged;
         ApplyScale(UiScaling.Scale);
+
+        // Ctrl+滚轮缩放（隧道阶段先拿到，避免被内层 ScrollViewer 吃掉）
+        AddHandler(PointerWheelChangedEvent, OnWheelZoom, RoutingStrategies.Tunnel);
     }
 
     private void OnScaleChanged(double scale) => ApplyScale(scale);
+
+    private void OnWheelZoom(object? sender, PointerWheelEventArgs e) => UiScaleGesture.Handle(e);
 
     private void ApplyScale(double scale)
         => ContentScaler.LayoutTransform = new ScaleTransform(scale, scale);

@@ -55,6 +55,8 @@ public sealed class SettingsViewModel : ViewModelBase
         RefreshSidecarInfo();
         RefreshNodeStatus();
         OnPropertyChanged(nameof(FeatureSummary));
+        // 用 Ctrl+滚轮改了缩放时，设置页滑块要跟着动（不再反向触发保存）
+        UiScaling.Changed += OnExternalScaleChanged;
     }
 
     public string SettingsPath { get; }
@@ -110,6 +112,15 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     public string UiScaleLabel => UiScaling.Describe(_uiScale);
+
+    private void OnExternalScaleChanged(double scale)
+    {
+        if (Math.Abs(scale - _uiScale) < 0.001)
+            return;
+        _uiScale = scale;
+        OnPropertyChanged(nameof(UiScale));
+        OnPropertyChanged(nameof(UiScaleLabel));
+    }
 
     /// <summary>托盘在当前桌面环境是否可用（不可用时关闭窗口即退出）。</summary>
     public string TrayHint => AppShell.TrayAvailable

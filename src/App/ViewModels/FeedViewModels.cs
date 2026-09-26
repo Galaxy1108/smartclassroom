@@ -89,19 +89,32 @@ public sealed class HomeworkViewModel : ViewModelBase
         return true;
     }
 
-    /// <summary>拖拽重排：移动后立即刷新（调用方负责落盘）。</summary>
-    public bool MoveItem(int from, int to)
+    /// <summary>
+    /// 拖拽中的实时重排：同时移动存储与 ObservableCollection。
+    /// **不能走 Refresh()**——那会 Clear + 重建整串卡片对象，
+    /// 正在被拖动的那张控件会被从可视树里摘掉，指针捕获随之失效
+    /// （松手事件收不到，就会一直"粘"着鼠标）。
+    /// </summary>
+    public bool MoveItemLive(int from, int to)
     {
+        if (from < 0 || from >= Items.Count || from == to)
+            return false;
+        to = Math.Clamp(to, 0, Items.Count - 1);
         if (!_store.Move(from, to))
             return false;
-        Refresh();
+        Items.Move(from, to);   // 保留现有控件容器，指针捕获不丢
         return true;
     }
+
+    /// <summary>拖拽期间挂起定时刷新，避免刷新重建卡片打断拖拽。</summary>
+    public bool SuspendRefresh { get; set; }
 
     public IReadOnlyList<HomeworkItem> Snapshot() => _store.All;
 
     public void Refresh()
     {
+        if (SuspendRefresh)
+            return;                     // 拖拽中不重建，否则会打断手势
         Items.Clear();
         foreach (var h in _store.All)
             Items.Add(new HomeworkCard(h, DateTime.Now));

@@ -144,4 +144,64 @@ public sealed class HomeworkManualAddTests
         Sender = new SmartClassroom.Contracts.SenderInfo { UserId = 0 },
         Source = new SmartClassroom.Contracts.MessageRef { GroupId = 0, MessageId = 0 }
     };
+
+    [AvaloniaFact]
+    public void MoveItemLive_ReordersWithoutRebuildingCards()
+    {
+        var store = new HomeworkStore();
+        var vm = new HomeworkViewModel(store);
+        foreach (var s in new[] { "数学", "语文", "英语" })
+        {
+            vm.BeginAdd();
+            vm.FormSubject = s;
+            vm.FormItems = "x";
+            vm.SubmitAdd();
+        }
+        // 新条目置顶 → 英语, 语文, 数学
+        var cardToMove = vm.Items[2];              // 数学
+        var firstCard = vm.Items[0];
+
+        Assert.True(vm.MoveItemLive(2, 0));
+
+        Assert.Equal("数学", vm.Items[0].Subject);
+        // 关键：现有卡片对象被复用（不是 Clear + 重建），否则拖拽中的指针捕获会丢
+        Assert.Same(cardToMove, vm.Items[0]);
+        Assert.Same(firstCard, vm.Items[1]);
+    }
+
+    [AvaloniaFact]
+    public void MoveItemLive_IgnoresNoOpAndOutOfRange()
+    {
+        var store = new HomeworkStore();
+        var vm = new HomeworkViewModel(store);
+        vm.BeginAdd();
+        vm.FormSubject = "数学";
+        vm.FormItems = "x";
+        vm.SubmitAdd();
+
+        Assert.False(vm.MoveItemLive(0, 0));
+        Assert.False(vm.MoveItemLive(5, 0));
+        Assert.False(vm.MoveItemLive(-1, 0));
+    }
+
+    [AvaloniaFact]
+    public void SuspendRefresh_PreventsRebuildDuringDrag()
+    {
+        var store = new HomeworkStore();
+        var vm = new HomeworkViewModel(store);
+        vm.BeginAdd();
+        vm.FormSubject = "数学";
+        vm.FormItems = "x";
+        vm.SubmitAdd();
+        var card = vm.Items[0];
+
+        vm.SuspendRefresh = true;
+        vm.Refresh();                              // 拖拽期间定时器触发的刷新
+
+        Assert.Same(card, vm.Items[0]);            // 没有被重建
+
+        vm.SuspendRefresh = false;
+        vm.Refresh();
+        Assert.Equal(1, vm.Items.Count);
+    }
 }

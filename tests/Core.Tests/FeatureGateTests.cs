@@ -78,7 +78,7 @@ public sealed class FeatureGateTests : IDisposable
     { GroupId = 1, UserId = 10001, MessageId = 1, RawMessage = text, Text = text, Card = "张老师" };
 
     [Fact]
-    public async Task DefaultFlags_AllOff()
+    public void DefaultFlags_AllOff()
     {
         var f = FeatureFlags.AllDisabled;
         Assert.False(f.AnyEnabled);

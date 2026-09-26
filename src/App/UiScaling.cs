@@ -39,3 +39,34 @@ public static class UiScaling
     /// <summary>供 XAML 绑定的显示文本。</summary>
     public static string Describe(double scale) => $"{scale * 100:F0}%";
 }
+
+/// <summary>Ctrl+滚轮缩放的支持（View 挂载用，放在这里方便复用与测试）。</summary>
+public static class UiScaleGesture
+{
+    /// <summary>
+    /// 由当前缩放与滚轮方向算出下一档。
+    /// 单独抽出来是为了能测：滚轮事件本身在无头环境不好造。
+    /// </summary>
+    public static double Next(double current, double deltaY)
+    {
+        if (Math.Abs(deltaY) < 0.001)
+            return UiScaling.Clamp(current);
+        var step = deltaY > 0 ? UiScaling.Step : -UiScaling.Step;
+        return UiScaling.Clamp(current + step);
+    }
+
+    /// <summary>给元素挂上 Ctrl+滚轮缩放；不按 Ctrl 时返回 false，交给正常滚动。</summary>
+    public static bool Handle(Avalonia.Input.PointerWheelEventArgs e)
+    {
+        if ((e.KeyModifiers & Avalonia.Input.KeyModifiers.Control) == 0)
+            return false;
+        var next = Next(UiScaling.Scale, e.Delta.Y);
+        if (Math.Abs(next - UiScaling.Scale) > 0.001)
+        {
+            UiScaling.Scale = next;
+            Runtime.PersistUiScale(next);
+        }
+        e.Handled = true;   // 缩放时不要再滚动列表
+        return true;
+    }
+}

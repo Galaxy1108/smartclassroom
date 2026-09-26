@@ -15,6 +15,7 @@ public static class Runtime
 {
     private static CancellationTokenSource? _cts;
     private static System.Timers.Timer? _saveTimer;
+    private static System.Timers.Timer? _scaleSaveTimer;
 
     public static AppSettings Settings { get; private set; } = new();
     public static HomeworkStore Homework { get; } = new();
@@ -104,6 +105,10 @@ public static class Runtime
     public static void Stop()
     {
         SaveState();
+        _scaleSaveTimer?.Stop();
+        _scaleSaveTimer?.Dispose();
+        _scaleSaveTimer = null;
+        try { SettingsStore.Save(Settings); } catch { /* 退出路径不抛 */ }
         _saveTimer?.Stop();
         _saveTimer?.Dispose();
         _saveTimer = null;
@@ -129,6 +134,24 @@ public static class Runtime
         {
             Feed.Append("state", "状态恢复失败", ex.Message);
         }
+    }
+
+    /// <summary>
+    /// 记录界面缩放并防抖落盘。
+    /// Ctrl+滚轮会连续触发，逐个事件写文件既浪费又可能写坏；
+    /// 这里停顿 600ms 后才真正保存。
+    /// </summary>
+    public static void PersistUiScale(double scale)
+    {
+        Settings.UiScale = scale;
+        _scaleSaveTimer?.Stop();
+        _scaleSaveTimer?.Dispose();
+        _scaleSaveTimer = new System.Timers.Timer(600) { AutoReset = false };
+        _scaleSaveTimer.Elapsed += (_, _) =>
+        {
+            try { SettingsStore.Save(Settings); } catch { /* 落盘失败不影响运行 */ }
+        };
+        _scaleSaveTimer.Start();
     }
 
     /// <summary>落盘（原子替换，见 AppStateStore）。</summary>

@@ -13,16 +13,26 @@
     <Application.Styles>
         <styling:FluentAvaloniaTheme />
 
-        <!-- 作业卡片：悬停时轻微提亮，拖动时给个提示 -->
+        <!-- 作业卡片：悬停提亮；长按拖拽时"抬起"（缩放 + 阴影 + 强调边），都带过渡 -->
         <Style Selector="Border.hwcard">
             <Setter Property="Transitions">
                 <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.16" />
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.16" />
                     <BrushTransition Property="Background" Duration="0:0:0.12" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.12" />
+                    <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.16" />
                 </Transitions>
             </Setter>
         </Style>
         <Style Selector="Border.hwcard:pointerover">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorSecondaryBrush}" />
+        </Style>
+        <Style Selector="Border.hwcard.dragging">
+            <Setter Property="RenderTransform" Value="scale(1.04)" />
+            <Setter Property="BoxShadow" Value="0 10 28 0 #48000000" />
+            <Setter Property="Opacity" Value="0.96" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
         </Style>
     </Application.Styles>
 
