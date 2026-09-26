@@ -42,3 +42,4 @@ pkg/win-stage/
 pkg/src/
 pkg/pkg/
 *.pkg.tar.zst
+pkg/*.zip
