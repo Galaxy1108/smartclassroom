@@ -251,6 +251,45 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
         catch { return null; }
     }
 
+    /// <summary>
+    /// 给每个账号分配**互不冲突**的 OneBot 端口（第一个 3000/3001，第二个 3010/3011…）。
+    /// SnowLuma 默认让每个账号都用 3000/3001，于是只有先登录的那个能起来，
+    /// 其余账号 EADDRINUSE 降级 —— 这就是"多账号只有一个能连上"的根因。
+    /// 改写的是它自己的 config/onebot_&lt;uin&gt;.json（保留其它字段，原子替换），改完要重启才生效。
+    /// </summary>
+    public static IReadOnlyList<(long Uin, int Http, int Ws)> AssignDistinctPorts(
+        string installDir, int startHttp = 3000, int step = 10)
+    {
+        var result = new List<(long, int, int)>();
+        var accounts = ReadOneBotAccounts(installDir);
+        for (var i = 0; i < accounts.Count; i++)
+        {
+            var uin = accounts[i];
+            var httpPort = startHttp + i * step;
+            var wsPort = httpPort + 1;
+            try
+            {
+                var path = Path.Combine(installDir, "config", $"onebot_{uin}.json");
+                if (JsonNode.Parse(File.ReadAllText(path)) is not JsonObject root
+                    || root["networks"] is not JsonObject networks)
+                    continue;
+                if (networks["httpServers"] is JsonArray { Count: > 0 } http
+                    && http[0] is JsonObject http0)
+                    http0["port"] = httpPort;
+                if (networks["wsServers"] is JsonArray { Count: > 0 } ws
+                    && ws[0] is JsonObject ws0)
+                    ws0["port"] = wsPort;
+
+                var tmp = path + ".tmp";
+                File.WriteAllText(tmp, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                File.Move(tmp, path, overwrite: true);
+                result.Add((uin, httpPort, wsPort));
+            }
+            catch { /* 单个账号写失败就跳过 */ }
+        }
+        return result;
+    }
+
     /// <summary>有 OneBot 配置的账号（config/onebot_*.json）。</summary>
     public static IReadOnlyList<long> ReadOneBotAccounts(string installDir)
     {
@@ -404,6 +443,33 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
         }
         catch { return null; }
     }
+
+    /// <summary>
+    /// 重置 WebUI 凭据：把 config/webui.json 备份后删掉。
+    ///
+    /// 为什么必须删：SnowLuma 只在**没有这个文件**时才用
+    /// SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD 播种凭据（源码里 envBootstrapPassword 那段），
+    /// 文件已存在时它直接忽略环境变量、沿用旧的哈希 —— 表现就是"重启了密码还是不行"。
+    /// </summary>
+    public static bool ResetWebUiCredentials(string installDir)
+    {
+        try
+        {
+            var path = Path.Combine(installDir, "config", "webui.json");
+            if (!File.Exists(path))
+                return true;   // 本来就没有：下次启动会用环境变量播种
+            var backup = path + ".bak-" + DateTime.Now.ToString("yyyyMMddHHmmss");
+            File.Copy(path, backup, overwrite: true);
+            File.Delete(path);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>日志里有没有"凭据由环境变量播种"的记录（用来确认密码真的生效了）。</summary>
+    public static bool WebUiCredentialsSeededFromEnv(string installDir)
+        => ReadNewestLogTail(installDir)?.Contains("credentials seeded from SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD",
+            StringComparison.OrdinalIgnoreCase) == true;
 
     /// <summary>WebUI 地址（端口读 config/runtime.json，读不到按默认 5099）。</summary>
     public static string WebUiUrl(string installDir)

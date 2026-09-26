@@ -197,6 +197,10 @@ public partial class SettingsView : UserControl
     private async void Stop_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => await Vm.StopAsync();
 
+    /// <summary>给每个账号自动分配互不冲突的 OneBot 端口并重启 SnowLuma。</summary>
+    private async void AutoAssignPorts_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Vm.AutoAssignPortsAsync();
+
     /// <summary>从 OneBot 拉群列表并让用户勾选要监听的群。</summary>
     private async void PickGroups_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {

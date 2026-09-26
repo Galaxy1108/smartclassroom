@@ -228,7 +228,69 @@ public sealed class SnowlumaManagerTests : IDisposable
         var map = SnowlumaManager.ReadAccountNicknames(dir);
 
         Assert.Equal("测试昵称A", map[100000001]);
-        Assert.Equal("Galaxy1108", map[100000002]);
+        Assert.Equal("测试昵称B", map[100000002]);
+    }
+
+    // ================= 自动分配端口 + WebUI 凭据播种 =================
+
+    private string WithOneBotConfig(long uin, int httpPort, int wsPort)
+    {
+        var dir = InstallDir();
+        Directory.CreateDirectory(Path.Combine(dir, "config"));
+        var json = "{\"networks\":{\"httpServers\":[{\"host\":\"127.0.0.1\",\"port\":" + httpPort
+                   + ",\"accessToken\":\"t" + uin + "\"}],\"wsServers\":[{\"host\":\"127.0.0.1\",\"port\":"
+                   + wsPort + ",\"accessToken\":\"w" + uin + "\"}]}}";
+        File.WriteAllText(Path.Combine(dir, "config", "onebot_" + uin + ".json"), json);
+        return dir;
+    }
+
+    [Fact]
+    public void AssignDistinctPorts_GivesEveryAccountItsOwnPair()
+    {
+        var dir = WithOneBotConfig(100000001, 3000, 3001);
+        // 第二个账号的配置放到同一个目录
+        var json2 = "{\"networks\":{\"httpServers\":[{\"host\":\"127.0.0.1\",\"port\":3000,"
+                    + "\"accessToken\":\"t2\"}],\"wsServers\":[{\"host\":\"127.0.0.1\",\"port\":3001,"
+                    + "\"accessToken\":\"w2\"}]}}";
+        File.WriteAllText(Path.Combine(dir, "config", "onebot_100000002.json"), json2);
+
+        var assigned = SnowlumaManager.AssignDistinctPorts(dir);
+
+        Assert.Equal(2, assigned.Count);
+        Assert.Equal(3000, assigned[0].Http);
+        Assert.Equal(3001, assigned[0].Ws);
+        Assert.Equal(3010, assigned[1].Http);      // 第二个账号换一组端口，不再 EADDRINUSE
+        Assert.Equal(3011, assigned[1].Ws);
+
+        var first = SnowlumaManager.ReadOneBotEndpoint(dir, 100000001);
+        Assert.Equal("http://127.0.0.1:3000", first!.Http);
+        Assert.Equal("t100000001", first.Token);   // 其它字段没被写丢
+        Assert.Equal("http://127.0.0.1:3010", SnowlumaManager.ReadOneBotEndpoint(dir, 100000002)!.Http);
+    }
+
+    [Fact]
+    public void ResetWebUiCredentials_BacksUpAndDeletes()
+    {
+        // SnowLuma 只在没有 webui.json 时才认 SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD，
+        // 文件在就直接忽略 —— 所以要让密码生效必须先把它挪走（备份）
+        var dir = InstallDir();
+        Directory.CreateDirectory(Path.Combine(dir, "config"));
+        var path = Path.Combine(dir, "config", "webui.json");
+        File.WriteAllText(path, "{\"passwordHash\":\"x\",\"mustChangePassword\":true}");
+
+        Assert.True(SnowlumaManager.ResetWebUiCredentials(dir));
+
+        Assert.False(File.Exists(path));
+        Assert.Single(Directory.GetFiles(Path.Combine(dir, "config"), "webui.json.bak-*"));
+        Assert.True(SnowlumaManager.ResetWebUiCredentials(dir));   // 幂等
+    }
+
+    [Fact]
+    public void WebUiCredentialsSeededFromEnv_ReadsTheLog()
+    {
+        var seeded = WithLog("18:00:00 INFO [WebUI.Auth] webui credentials seeded from SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD\n");
+        Assert.True(SnowlumaManager.WebUiCredentialsSeededFromEnv(seeded));
+        Assert.False(SnowlumaManager.WebUiCredentialsSeededFromEnv(InstallDir()));
     }
 
     // ================= 注入失败的原因（只在它自己的日志里） =================

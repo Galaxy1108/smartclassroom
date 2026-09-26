@@ -369,8 +369,7 @@ public sealed class ToastAndStatusTests : IDisposable
 
             Assert.True(vm.HasMultiAccountHint);
             Assert.Contains("2 个 QQ 账号", vm.MultiAccountHint);
-            Assert.Contains("EADDRINUSE", vm.MultiAccountHint);
-            Assert.Contains("3000/3001", vm.MultiAccountHint);
+            Assert.Contains("自动分配端口", vm.MultiAccountHint);   // 一句话，给出口而不是长篇解释
             // 候选账号直接来自日志 → 用户能在弹窗里挑（不只是当前占着端口的那个）
             Assert.Equal(2, vm.QqCandidates.Count);
             Assert.Contains(vm.QqCandidates, c => c.Uin == 100000002);

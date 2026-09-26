@@ -99,8 +99,12 @@ public sealed class SettingsViewModel : ViewModelBase
 
     /// <summary>监听群号（设置里是逗号分隔的文本）。</summary>
     internal List<long> ParseGroupIds()
-        => GroupIdsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        => GroupIdsText.Split(Separators,
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(g => long.TryParse(g, out var n) ? n : 0).Where(n => n > 0).ToList();
+
+    /// <summary>群号分隔符：中英文逗号、顿号、分号、空白都认（用户很可能打成中文逗号）。</summary>
+    private static readonly char[] Separators = [',', '，', '、', ';', '；', ' ', '\n', '\t', '\r'];
 
     // ================= 管理员密码 / 关闭行为 =================
 
@@ -262,8 +266,14 @@ public sealed class SettingsViewModel : ViewModelBase
     private List<string> MissingFor(bool needQq, bool needAi, bool needClassIsland)
     {
         var missing = new List<string>();
-        if (needQq && !QqReady)
-            missing.Add("QQ 连接");
+        if (needQq)
+        {
+            // 精确到缺哪一项：只写"QQ 连接"会让配好了地址、没选群的人一头雾水
+            if (ParseGroupIds().Count == 0 && !ListenAllGroups)
+                missing.Add("监听群号");
+            if (OneBotHttp.Trim().Length == 0 && OneBotWs.Trim().Length == 0)
+                missing.Add("OneBot 地址");
+        }
         if (needAi && !AiReady)
             missing.Add("AI");
         if (needClassIsland && !ClassIslandReady)
@@ -931,10 +941,14 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             if (!HasWebUiPassword)
                 return "";
-            var head = $"登录 WebUI：用户名 admin，密码 {WebUiPassword}";
+            // 用户自己设的密码不在这里回显（那不是临时密码）
+            if (_webUiPasswordManual)
+                return WebUiPasswordApplied
+                    ? "WebUI 密码：已使用你设置的密码"
+                    : "WebUI 密码：已使用你设置的密码（下次启动生效）";
             return WebUiPasswordApplied
-                ? head + "（登录后请自行修改）"
-                : head + " —— 尚未生效：当前运行的 SnowLuma 是之前启动的，点「停止」再「启动」才会用这个密码";
+                ? $"登录 WebUI：用户名 admin，密码 {WebUiPassword}"
+                : $"登录 WebUI：用户名 admin，密码 {WebUiPassword}（下次启动生效）";
         }
     }
 
@@ -947,7 +961,14 @@ public sealed class SettingsViewModel : ViewModelBase
     public void SetWebUiPassword(string value)
     {
         var trimmed = value.Trim();
+        if (trimmed.Length > 0 && trimmed.Length < 8)
+        {
+            // SnowLuma 自己会忽略少于 8 位的值（envBootstrapPassword 里写死）
+            Toasts.Error("密码太短", "SnowLuma 要求至少 8 位，否则它会忽略这个密码。");
+            return;
+        }
         _webUiPasswordManual = trimmed.Length > 0;
+        _passwordNeedsSeeding = trimmed.Length > 0;   // 要让它在 SnowLuma 那边真正生效
         WebUiPassword = trimmed;
         SaveSettings();
         AppendLog(_webUiPasswordManual ? "已设置 SnowLuma WebUI 密码（下次启动生效）" : "已改为自动生成 WebUI 密码");
@@ -971,12 +992,41 @@ public sealed class SettingsViewModel : ViewModelBase
         if (SnowlumaManager.ReadWebUiMustChangePassword(InstallDir) != true)
             return null;   // 已经改过密码 / 读不出来：不要覆盖用户的设置
         if (!HasWebUiPassword)
+        {
             WebUiPassword = GeneratePassword();
+            _passwordNeedsSeeding = true;
+            SaveSettings();   // 存下来，避免每次启动换一个密码
+        }
         return WebUiPassword;
     }
 
     /// <summary>仅供界面显示"来自设置"。</summary>
     public bool WebUiPasswordIsSetFromSettings { get; private set; }
+
+    /// <summary>需要让 SnowLuma 用我们指定的密码重新播种凭据（备份并删掉 webui.json）。</summary>
+    private bool _passwordNeedsSeeding;
+
+    /// <summary>
+    /// 让 SnowLuma 用我们的密码重新播种凭据。
+    /// 它只在没有 config/webui.json 时才认 SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD，
+    /// 文件在就直接忽略 —— 这是"重启了密码还是不行"的原因。
+    /// </summary>
+    private void EnsureWebUiCredentials()
+    {
+        var mustChange = SnowlumaManager.ReadWebUiMustChangePassword(InstallDir);
+        if (mustChange != true && !_passwordNeedsSeeding)
+            return;   // 用户已在 WebUI 改过密码，且没要求我们改：不要动它
+        if (SnowlumaManager.ResetWebUiCredentials(InstallDir))
+        {
+            AppendLog("已重置 SnowLuma 的 WebUI 凭据（旧文件已备份为 webui.json.bak-*），"
+                      + "下次启动会用我们指定的密码播种");
+            _passwordNeedsSeeding = false;
+        }
+        else
+        {
+            AppendLog("重置 WebUI 凭据失败，密码可能不生效");
+        }
+    }
 
     private bool _webUiPasswordApplied;
     /// <summary>
@@ -1113,6 +1163,29 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// 给每个账号自动分配互不冲突的 OneBot 端口并重启 SnowLuma。
+    /// 这是"多账号只有一个能连上"的正解：SnowLuma 默认让所有账号都用 3000/3001。
+    /// </summary>
+    public async Task AutoAssignPortsAsync()
+    {
+        var assigned = SnowlumaManager.AssignDistinctPorts(InstallDir);
+        if (assigned.Count == 0)
+        {
+            Toasts.Warn("没有可分配的账号", "先让 SnowLuma 至少登录过一次 QQ。");
+            return;
+        }
+        var summary = string.Join("、", assigned.Select(a => $"{a.Uin}→{a.Http}"));
+        AppendLog($"已为 {assigned.Count} 个账号分配端口：{summary}（需重启生效）");
+        Toasts.Success("已分配端口", $"{summary}；正在重启 SnowLuma");
+
+        if (_manager.FindRunningPid(InstallDir) is not null)
+        {
+            await StopAsync();      // 端口是启动时读的，不重启不生效
+            await StartAsync();
+        }
+    }
+
     /// <summary>应用用户勾选的群。</summary>
     public void ApplyGroups(IReadOnlyList<long> ids)
     {
@@ -1131,14 +1204,10 @@ public sealed class SettingsViewModel : ViewModelBase
         foreach (var uin in uins)
             MergeCandidate(new QqAccount { Uin = uin, Nickname = nicknames.GetValueOrDefault(uin, "") });
 
-        var conflict = SnowlumaManager.LastPortConflict(InstallDir);
         MultiAccountHint = uins.Count <= 1
             ? ""
             : $"检测到 {uins.Count} 个 QQ 账号登录（{string.Join("、", uins)}）。"
-              + "OneBot 的 3000/3001 端口只能给一个账号用，其余账号会 EADDRINUSE 降级"
-              + "（日志里那条 EADDRINUSE 就是这个意思）。"
-              + "建议只保留班级 QQ 登录，或在 SnowLuma 的 WebUI 里给每个账号分配不同端口。"
-              + (conflict is null ? "" : $"最近一次冲突：{Trim(conflict)}");
+              + "建议只保留班级 QQ 登录，或点「自动分配端口」让每个账号各用一组端口。";
     }
 
     /// <summary>随机初始密码：避开容易看错的 0/O/1/l/I。</summary>
@@ -1359,11 +1428,27 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// 按账号填入它的 OneBot 地址与 token（config/onebot_&lt;uin&gt;.json）。
+    /// 选了账号就直接填好，不需要用户再关心"自动填充"，也不需要靠探测猜。
+    /// </summary>
+    private void ApplyEndpointForAccount(long uin)
+    {
+        var endpoint = SnowlumaManager.ReadOneBotEndpoint(InstallDir, uin);
+        if (endpoint is null)
+            return;
+        OneBotHttp = endpoint.Http;
+        OneBotWs = endpoint.Ws;
+        OneBotToken = endpoint.Token;
+        AppendLog($"已按账号 {uin} 填入 OneBot 地址与 token");
+    }
+
     /// <summary>用户选定了账号。</summary>
     public void ApplyQqAccount(QqAccount account)
     {
         MergeCandidate(account);
         QqAccount = account.Uin;
+        ApplyEndpointForAccount(account.Uin);
         OnPropertyChanged(nameof(QqAccountLabel));
         SaveSettings();
         var label = string.IsNullOrWhiteSpace(account.Nickname)
@@ -1498,11 +1583,14 @@ public sealed class SettingsViewModel : ViewModelBase
             RefreshLoggedInAccounts();
             await TryAdoptOneBotEndpointAsync();
             var webUiPassword = EnsureWebUiPassword();
+            if (webUiPassword is not null)
+                EnsureWebUiCredentials();   // 先让凭据能被播种，否则环境变量会被忽略
             await _manager.StartAsync(InstallDir, acceptAgreements: true, webUiPassword: webUiPassword);
             NeedsWebUiSetup = false;   // 同意是我们带过去的，不该再显示"卡在等同意"
             if (webUiPassword is not null)
             {
-                WebUiPasswordApplied = _manager.StartedByThisApp;
+                WebUiPasswordApplied = _manager.StartedByThisApp
+                                       || SnowlumaManager.WebUiCredentialsSeededFromEnv(InstallDir);
                 AppendLog($"已为 SnowLuma WebUI 指定初始密码（登录后请修改）");
                 Toasts.Show("WebUI 初始密码已设置", $"用户名 admin，密码 {webUiPassword}（设置页可复制）",
                     NoticeSeverity.Success);
