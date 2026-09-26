@@ -1,0 +1,13 @@
+{
+  "name": "smartclassroom-ai-sidecar",
+  "version": "0.9.0",
+  "private": true,
+  "type": "module",
+  "description": "智慧课堂 AI 边车：封装 @earendil-works/pi-ai 的统一 provider/model 目录与调用，经 stdio JSONL 供 .NET 主程序使用。",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "^0.87.1"
+  }
+}

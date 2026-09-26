@@ -44,3 +44,8 @@ pkg/pkg/
 *.pkg.tar.zst
 pkg/*.zip
 pkg/*.cipx
+
+# Node 边车依赖（构建时 npm install 生成，不入库）
+tools/ai-sidecar/node_modules/
+tools/ai-sidecar/package-lock.json
+tools/*.hits.log
