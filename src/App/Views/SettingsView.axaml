@@ -237,7 +237,7 @@
             </fa:SettingsExpander>
 
             <fa:SettingsExpander Header="服务地址"
-                                 Description="pi-ai 引擎留空则用所选 provider 官方端点；填了则按自定义 OpenAI 兼容端点处理。">
+                                 Description="pi-ai 引擎留空则用所选 provider 官方端点；填了则按自定义 OpenAI 兼容端点处理。opencode.ai 需要的路由头由程序自动补上。">
                 <fa:SettingsExpander.Footer>
                     <TextBox Text="{Binding AiBaseUrl}" MinWidth="300" />
                 </fa:SettingsExpander.Footer>

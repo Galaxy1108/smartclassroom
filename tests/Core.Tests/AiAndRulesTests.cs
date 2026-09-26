@@ -129,4 +129,79 @@ public sealed class AiGatewayTests
             new HttpClient(new StubHandler(ChatReply("  可用  "))));
         Assert.Equal("可用", await ai.AskAsync("s", "u"));   // 顺带裁剪空白
     }
+
+    // ================= opencode.ai 的路由头 =================
+    //
+    // 真实事故：把服务地址填成 https://opencode.ai/zen/go/v1 后，端点返回
+    // 400 {"type":"MissingSessionID"}，而 pi-ai 只留下一句"结束原因: error"。
+    // 两边都必须带 x-opencode-session。
+
+    private sealed class CapturingHandler : HttpMessageHandler
+    {
+        public HttpRequestMessage? Last;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken t)
+        {
+            Last = req;
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            { Content = new StringContent(ChatReply("ok")) });
+        }
+    }
+
+    [Theory]
+    [InlineData("https://opencode.ai/zen/go/v1", true)]
+    [InlineData("https://opencode.ai/zen/v1", true)]
+    [InlineData("https://api.opencode.ai/v1", true)]
+    [InlineData("https://api.deepseek.com/v1", false)]
+    [InlineData("http://127.0.0.1:18899/v1", false)]
+    [InlineData("", false)]
+    [InlineData("opencode.ai", false)]          // 不是绝对 URL，不做猜测
+    public void IsOpenCodeEndpoint_DetectsHost(string url, bool expected)
+        => Assert.Equal(expected, OpenCodeCompat.IsOpenCodeEndpoint(url));
+
+    [Fact]
+    public async Task AskAsync_OpenCodeEndpoint_SendsSessionHeader()
+    {
+        var handler = new CapturingHandler();
+        var ai = new AiGateway(new AiOptions
+        {
+            BaseUrl = "https://opencode.ai/zen/go/v1",
+            ApiKey = "k",
+            Model = "deepseek-v4.1-flash"
+        }, new HttpClient(handler));
+
+        await ai.AskAsync("s", "u");
+
+        Assert.True(handler.Last!.Headers.TryGetValues(OpenCodeCompat.SessionHeader, out var values));
+        Assert.StartsWith("smartclassroom-", Assert.Single(values!));
+    }
+
+    [Fact]
+    public async Task AskAsync_OtherEndpoint_DoesNotSendSessionHeader()
+    {
+        var handler = new CapturingHandler();
+        var ai = new AiGateway(new AiOptions { BaseUrl = "https://api.deepseek.com/v1", ApiKey = "k", Model = "m" },
+            new HttpClient(handler));
+
+        await ai.AskAsync("s", "u");
+
+        Assert.False(handler.Last!.Headers.Contains(OpenCodeCompat.SessionHeader));
+    }
+}
+
+public sealed class HomeworkDateCoercionTests
+{
+    private static readonly DateOnly Today = new(2026, 9, 26);
+
+    [Theory]
+    [InlineData("2026-09-26", "2026-09-26")]   // 今天
+    [InlineData("2026-09-27", "2026-09-27")]   // 明天
+    [InlineData("2026-10-05", "2026-10-05")]   // 一周多以后，仍算有效
+    [InlineData("2026-09-25", "2026-09-25")]   // 昨天（老师补发）
+    [InlineData("2026-05-07", "2026-09-26")]   // 实测遇到过的"训练数据日期" → 按今天
+    [InlineData("2027-03-01", "2026-09-26")]   // 太远 → 按今天
+    [InlineData("下周", "2026-09-26")]          // 解析不出来 → 按今天
+    [InlineData("", "2026-09-26")]
+    [InlineData(null, "2026-09-26")]
+    public void CoerceHomeworkDate(string? raw, string expected)
+        => Assert.Equal(DateOnly.Parse(expected), RuleEngine.CoerceHomeworkDate(raw, Today));
 }

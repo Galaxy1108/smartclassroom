@@ -156,6 +156,33 @@ public sealed class PipelineTests
     }
 
     [Fact]
+    public async Task HomeworkFarOffDate_IsCoercedToToday_WithWarning()
+    {
+        // 实测事故：模型把 date 填成了它训练数据里的日期（2026-05-07），
+        // 作业就会挂到那一天。日期不可信时必须按今天处理并在时间线里说明。
+        var homework = new HomeworkStore();
+        var feed = new ActivityFeed();
+        var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
+            new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(ChatReply(
+                    """{"is_homework":true,"subject":"数学","date":"2026-05-07","items":["练习册P10"],"due":"","confidence":0.9}"""))
+            })));
+        var pipe = new PipelineService(_teachers, new AiAnalyzer(ai),
+            new ScheduleGate(new FakeStatus(false)),
+            new PluginLink("http://p", "t", new HttpClient(new StubHandler(_ => Json(new { })))),
+            new OneBotClient("http://q", "ws://q", null, new HttpClient(new StubHandler(_ => Json(new { })))),
+            new FileArchive(new ArchiveOptions { Root = Path.Combine(Path.GetTempPath(), "sc-pipe-" + Guid.NewGuid().ToString("N")) }),
+            new CoursewareService(), homework, feed, new PendingStore(), TestFlags.AllOn);
+
+        await pipe.OnGroupMessageAsync(Msg("今天数学作业：练习册P10"));
+
+        var item = Assert.Single(homework.All);
+        Assert.Equal(DateOnly.FromDateTime(DateTime.Now), item.Date);
+        Assert.Contains(feed.Entries, e => e.Title.Contains("日期已纠偏"));
+    }
+
+    [Fact]
     public async Task Upload_TeacherFile_Archived()
     {
         var archiveRoot = Path.Combine(Path.GetTempPath(), "sc-pipe-up-" + Guid.NewGuid().ToString("N"));

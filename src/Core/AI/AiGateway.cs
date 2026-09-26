@@ -20,6 +20,9 @@ public sealed class AiGateway(AiOptions options, HttpClient? http = null) : IAiC
 {
     private readonly HttpClient _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds) };
 
+    /// <summary>opencode 端点要求的路由会话 id（每个实例稳定复用）。</summary>
+    private readonly string _sessionId = OpenCodeCompat.NewSessionId();
+
     public async Task<string> AskAsync(string system, string user, CancellationToken cancel = default)
     {
         var body = new
@@ -39,6 +42,9 @@ public sealed class AiGateway(AiOptions options, HttpClient? http = null) : IAiC
         };
         if (options.ApiKey.Length > 0)
             req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", options.ApiKey);
+        // opencode.ai 不带这个头会直接 400 MissingSessionID（pi-ai 边车侧由 sidecar 补同样的头）。
+        if (OpenCodeCompat.IsOpenCodeEndpoint(options.BaseUrl))
+            req.Headers.TryAddWithoutValidation(OpenCodeCompat.SessionHeader, _sessionId);
 
         HttpResponseMessage res;
         try { res = await _http.SendAsync(req, cancel).ConfigureAwait(false); }

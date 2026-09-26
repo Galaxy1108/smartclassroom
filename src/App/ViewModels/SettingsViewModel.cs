@@ -509,6 +509,9 @@ public sealed class SettingsViewModel : ViewModelBase
     public List<AiProviderPreset> AiProviders { get; } =
     [
         new("OpenAI 官方", "https://api.openai.com/v1"),
+        // opencode.ai 要求 x-opencode-session 路由头：内置直连与 pi-ai 边车都会自动补，
+        // 所以这里只需要填地址+Key+模型（如 deepseek-v4.1-flash）。
+        new("OpenCode Go（opencode.ai）", "https://opencode.ai/zen/go/v1"),
         new("DeepSeek", "https://api.deepseek.com/v1"),
         new("通义千问（兼容模式）", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
         new("自定义", ""),
@@ -528,7 +531,7 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     public List<string> ModelPresets { get; } =
-        ["gpt-4o-mini", "deepseek-chat", "qwen-flash", "qwen-plus"];
+        ["gpt-4o-mini", "deepseek-chat", "deepseek-v4.1-flash", "qwen-flash", "qwen-plus"];
 
     /// <summary>pi-ai provider 提示（未联网拉目录时也记住上次选择）。</summary>
     private string AiModelProviderHint { get; set; } = "deepseek";

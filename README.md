@@ -62,6 +62,33 @@ pi-ai 是 TypeScript/npm 包，.NET 无法直接引用，因此做成 stdio JSON
 - 打包：Linux 包依赖 `nodejs`；Windows zip 需用户自备 Node ≥ 22.19（或安装 SnowLuma 完整版，其内置 Node 会被自动复用）。
 - 自检：`tools/mock-openai.py` 是本地假端点，用于不花钱验证自定义 baseUrl 链路。
 
+### 实测可用的服务商：OpenCode Go（opencode.ai）
+
+设置页「服务商」里有 **OpenCode Go（opencode.ai）** 预设（`https://opencode.ai/zen/go/v1`），
+两条引擎路径都已用真实 key 跑通（召唤/作业/换课三个任务全部返回正确结构化 JSON）：
+
+| 引擎 | 配置 | 说明 |
+|---|---|---|
+| 内置直连 | 服务商选 OpenCode Go + 模型 `deepseek-v4.1-flash` | 直接 POST `/chat/completions` |
+| pi-ai 边车 | provider 选 `opencode-go` + 模型同上 | 走 pi-ai 目录（41 个 provider） |
+| pi-ai 边车 | 服务地址填 `https://opencode.ai/zen/go/v1` | 等价于自定义端点 |
+
+**踩过的坑（已修）**：opencode.ai 的端点要求每个请求带 `x-opencode-session` 路由头，否则返回
+`400 {"type":"MissingSessionID"}`。而 pi-ai 只在拿到 `sessionId` 时才补这个头 —— 边车以前不传，
+于是请求全被拒；更糟的是 pi-ai 把失败折叠成"空内容 + 结束原因: error"，
+界面上只看到"AI 返回了空内容…建议改用非推理模型"，完全指不到真正的原因。
+现在：内置直连与边车都会带会话头（自定义 baseUrl 时由边车手工注入），
+并且**失败时优先透出 pi-ai 记录的真实原因**（HTTP 状态 + 响应体 + 一句该怎么办）。
+
+想不经过 App 直接定位 AI 问题，可以用边车的手动驱动：
+
+```bash
+OC_KEY=xxx node tools/ai-sidecar/drive.mjs providers
+OC_KEY=xxx node tools/ai-sidecar/drive.mjs models opencode-go
+OC_KEY=xxx node tools/ai-sidecar/drive.mjs complete opencode-go deepseek-v4.1-flash
+OC_KEY=xxx node tools/ai-sidecar/drive.mjs complete "" deepseek-v4.1-flash https://opencode.ai/zen/go/v1
+```
+
 ## ClassIsland 集成
 
 插件经 `127.0.0.1:5199`（可改）提供 `/status`、`/notify`、`/exchange`，需 Bearer token：
@@ -250,6 +277,18 @@ minimal/low/medium/high）。我们的任务是"把群消息整理成 JSON"，�
 
 空内容**不再被当成成功**：内置直连与 pi-ai 边车都会抛出带原因的异常，
 上层据此走保守降级（召唤排队、作业/换课转人工），而不是把空字符串当有效结果继续处理。
+
+失败时的报错顺序也有讲究：pi-ai 把"请求本身失败"（401/404/400/网络）记在 `errorMessage` 里，
+只有真的"请求成功但没正文"才是空内容。所以边车现在**先报真实失败原因**
+（例如 `AI 请求失败：400: {"type":"MissingSessionID",...}（该端点要求 x-opencode-session 路由头）`），
+只有拿不到失败原因时才去猜"是不是推理模型把输出用光了"。
+
+## 作业日期不可信时按今天算
+
+模型偶尔会吐出与自己训练数据同期的日期（实测遇到过 3 个月前的日期），
+那会把作业挂到完全错误的一天。所以解析出的日期只接受 **[今天-1, 今天+14]**，
+超出的一律按"今天的作业"处理，并在事件页记一条「作业日期已纠偏：… → …」。
+（这里的 `date` 语义是"哪一天的作业"，截止说明在 `due` 字段里，不受影响。）
 
 ## 文件归档到哪了
 

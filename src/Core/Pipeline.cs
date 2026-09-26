@@ -391,8 +391,12 @@ public sealed class PipelineService(
         }
         if (!d.IsHomework)
             return;
-        if (!DateOnly.TryParse(d.Date, out var date))
-            date = DateOnly.FromDateTime(DateTime.Now);
+        // 日期纠偏：模型给的日期离今天太远时按今天算，避免作业挂到错误的一天
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var date = RuleEngine.CoerceHomeworkDate(d.Date, today);
+        if (DateOnly.TryParse(d.Date, out var modelDate) && modelDate != date)
+            feed.Append("homework", $"作业日期已纠偏：{modelDate:yyyy-MM-dd} → {date:yyyy-MM-dd}",
+                "模型给出的日期与今天相差过大，已按今天处理", ActivitySeverity.Warning);
         homework.AddOrMerge(new HomeworkItem
         {
             HomeworkId = Guid.NewGuid().ToString(),

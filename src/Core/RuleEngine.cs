@@ -28,6 +28,18 @@ public static class RuleEngine
         if (SummonGate.LooksLikeSummon(text)) kind |= Kind.Summon;
         return kind;
     }
+
+    /// <summary>
+    /// 作业日期纠偏。模型偶尔会吐出与自己训练数据同期的日期（实测遇到过 3 个月前的日期），
+    /// 那会把作业挂到完全错误的一天。只接受 [今天-1, 今天+14]：超出的一律当作"今天的作业"，
+    /// 因为这里的 date 语义是"哪一天的作业"，而不是截止日期（截止说明在 due 里）。
+    /// </summary>
+    public static DateOnly CoerceHomeworkDate(string? raw, DateOnly today)
+    {
+        if (string.IsNullOrWhiteSpace(raw) || !DateOnly.TryParse(raw.Trim(), out var d))
+            return today;
+        return d < today.AddDays(-1) || d > today.AddDays(14) ? today : d;
+    }
 }
 
 /// <summary>AI 结构化调用：三任务专用 prompt + JSON 解析。失败抛 AiException，上层降级。</summary>

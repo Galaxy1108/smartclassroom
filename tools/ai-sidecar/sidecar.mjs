@@ -15,6 +15,7 @@
 // 约定：任何错误都转成 {ok:false,error}，绝不 crash，绝不往 stdout 写日志（日志走 stderr）。
 
 import { createInterface } from 'node:readline';
+import { randomUUID } from 'node:crypto';
 import { createModels, createProvider } from '@earendil-works/pi-ai';
 import {
   builtinModels,
@@ -25,6 +26,22 @@ import {
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 
 const log = (...a) => process.stderr.write(`[sidecar] ${a.join(' ')}\n`);
+
+// opencode.ai 的端点（/zen、/zen/go）要求每个请求带 x-opencode-session 做路由，
+// 否则直接 400 MissingSessionID。内置 provider（opencode / opencode-go）只在
+// options.sessionId 存在时才补这个头，所以这里必须给一个会话 id；
+// 自定义 baseUrl（用户把服务地址填成 opencode 时走这条路）由下面手工塞进 model.headers。
+const OPENCODE_SESSION_HEADER = 'x-opencode-session';
+const SESSION_ID = 'smartclassroom-' + randomUUID();
+
+function isOpenCodeEndpoint(baseUrl) {
+  try {
+    const host = new URL(baseUrl).hostname.toLowerCase();
+    return host === 'opencode.ai' || host.endsWith('.opencode.ai');
+  } catch {
+    return false;
+  }
+}
 
 let builtin = null;
 function models() {
@@ -40,7 +57,7 @@ function models() {
 }
 
 /** 端点是否为「自定义 OpenAI 兼容」——有 baseUrl 就自己造一个临时 provider。 */
-function customProvider(baseUrl, modelId, apiKey, reasoningLevel) {
+function customProvider(baseUrl, modelId, apiKey, reasoningLevel, sessionId) {
   const model = {
     id: modelId,
     name: modelId,
@@ -55,6 +72,10 @@ function customProvider(baseUrl, modelId, apiKey, reasoningLevel) {
     contextWindow: 128000,
     maxTokens: 8192,
   };
+  // 自定义 provider 不会走内置 provider 的 session 包装，opencode 的端点要自己补头。
+  if (isOpenCodeEndpoint(baseUrl)) {
+    model.headers = { [OPENCODE_SESSION_HEADER]: sessionId };
+  }
   return createProvider({
     id: 'smartclassroom-custom',
     name: '自定义端点',
@@ -115,7 +136,7 @@ async function handle(req) {
 
     let model;
     if (req.baseUrl) {
-      const provider = customProvider(req.baseUrl, req.model, req.apiKey, req.reasoning);
+      const provider = customProvider(req.baseUrl, req.model, req.apiKey, req.reasoning, sessionIdOf(req));
       const m = createModels();
       m.setProvider(provider);
       model = m.getModel('smartclassroom-custom', req.model);
@@ -171,9 +192,10 @@ function describeEmpty(message) {
  * 统一的补全调用。
  * 默认用 minimal 推理强度：我们的任务是"把群消息整理成 JSON"，
  * 不需要长思考——推理模型把输出全花在思考上时，final text 会是空的。
+ * sessionId 一律带上：opencode 端点靠它路由（否则 400），其它端点只会用于缓存亲和性。
  */
 async function completeWith(collection, model, context, req) {
-  const options = {};
+  const options = { sessionId: sessionIdOf(req) };
   if (req.apiKey) options.apiKey = req.apiKey;
   if (req.reasoning ?? 'minimal') options.reasoning = req.reasoning ?? 'minimal';
   if (req.maxTokens) options.maxTokens = req.maxTokens;
@@ -181,17 +203,43 @@ async function completeWith(collection, model, context, req) {
   try {
     return await collection.completeSimple(model, context, options);
   } catch (e) {
-    // 个别模型不支持指定推理等级：退回默认参数再试一次
-    log('completeSimple(options) failed, retrying with defaults:', e?.message ?? String(e));
-    return await collection.completeSimple(model, context, {});
+    // 只有"端点不认推理参数"这类错误才值得换默认参数重试一次；
+    // 认证/路由/网络错误重试只是再花一次钱，还会拖慢报错。
+    const msg = e?.message ?? String(e);
+    if (!/reasoning|thinking|effort|unsupported|unrecognized|unknown (field|parameter|argument)/i.test(msg)) {
+      throw e;
+    }
+    log('completeSimple(options) failed, retrying with defaults:', msg);
+    return await collection.completeSimple(model, context, { sessionId: options.sessionId });
   }
 }
 
-/** 取出最终文本；为空则抛错（带诊断）。 */
+function sessionIdOf(req) {
+  return typeof req?.sessionId === 'string' && req.sessionId ? req.sessionId : SESSION_ID;
+}
+
+/** 取出最终文本；为空则抛错（优先透出 pi-ai 记录的真实失败原因）。 */
 function requireText(message) {
   const text = textOf(message);
-  if (!text) throw new Error(describeEmpty(message));
-  return text;
+  if (text) return text;
+
+  // stopReason=error 时 pi-ai 把 HTTP 状态与响应体放在 errorMessage 里。
+  // 必须优先透出它——否则用户只会看到"空内容"，完全不知道是 400、401 还是网络问题
+  //（真实案例：opencode 端点缺 x-opencode-session，报的是 MissingSessionID）。
+  const reason = typeof message?.errorMessage === 'string' ? message.errorMessage.trim() : '';
+  if (reason) throw new Error(`AI 请求失败：${reason}${hintFor(reason)}`);
+
+  throw new Error(describeEmpty(message));
+}
+
+/** 给常见失败原因补一句"该怎么办"。 */
+function hintFor(reason) {
+  if (/MissingSessionID/i.test(reason)) return '（该端点要求 x-opencode-session 路由头）';
+  if (/\b401\b|unauthor|invalid.*api.?key|api key/i.test(reason)) return '（检查 API Key 是否正确、是否过期）';
+  if (/\b404\b|model.*not.*found|unknown model/i.test(reason)) return '（模型名可能不对，或该 provider 没有这个模型）';
+  if (/\b429\b|rate.?limit|quota/i.test(reason)) return '（额度/频率限制，稍后再试或换 key）';
+  if (/abort/i.test(reason)) return '（请求被取消）';
+  return '';
 }
 
 function usageOf(message) {
