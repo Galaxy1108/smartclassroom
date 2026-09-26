@@ -54,6 +54,13 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     /// <summary>pid 文件名（记录本应用启动的 SnowLuma，重启后也能判断它还在不在）。</summary>
     public const string PidFileName = ".smartclassroom.pid";
 
+    /// <summary>
+    /// WebUI 初始密码的官方环境变量。
+    /// SnowLuma 默认每次启动随机生成一个初始密码，而且**只打印到 stdout**
+    /// （GUI 启动时用户根本看不到）——用这个变量就能自己指定，省得去翻输出。
+    /// </summary>
+    public const string BootstrapPasswordEnv = "SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD";
+
     /// <summary>按当前平台挑包：win-x64→zip，linux→tar.gz；full 优先（内置 Node）。</summary>
     public static SnowlumaAsset? PickAsset(SnowlumaRelease release, string rid, bool preferFull = true)
     {
@@ -223,6 +230,30 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
         catch { return null; }
     }
 
+    /// <summary>
+    /// WebUI 是否还在用"初始密码"（config/webui.json 的 mustChangePassword）。
+    /// 只有还在用初始密码时才需要/才应该给它指定一个，否则会打扰用户已经改好的密码。
+    /// </summary>
+    public static bool? ReadWebUiMustChangePassword(string installDir)
+    {
+        try
+        {
+            var path = Path.Combine(installDir, "config", "webui.json");
+            if (!File.Exists(path))
+                return true;    // 还没有这个文件 = 还没设过密码
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            if (!doc.RootElement.TryGetProperty("mustChangePassword", out var v))
+                return null;
+            return v.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                _ => null
+            };
+        }
+        catch { return null; }
+    }
+
     /// <summary>WebUI 地址（端口读 config/runtime.json，读不到按默认 5099）。</summary>
     public static string WebUiUrl(string installDir)
     {
@@ -337,7 +368,8 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     }
 
     /// <summary>启动 SnowLuma（installDir 下 index.mjs）。node 解析顺序：内置 → PATH(≥22)。</summary>
-    public Task StartAsync(string installDir, bool acceptAgreements = false, CancellationToken cancel = default)
+    public Task StartAsync(string installDir, bool acceptAgreements = false,
+        string? webUiPassword = null, CancellationToken cancel = default)
     {
         if (_process is { HasExited: false })
             return Task.CompletedTask;
@@ -368,6 +400,9 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
             foreach (var (key, value) in SnowlumaAgreements.AcceptanceEnvironment())
                 startInfo.Environment[key] = value;
         }
+        // 指定 WebUI 初始密码（否则它会随机生成并只打到 stdout，用户看不到）
+        if (!string.IsNullOrWhiteSpace(webUiPassword))
+            startInfo.Environment[BootstrapPasswordEnv] = webUiPassword;
         _process = new Process
         {
             StartInfo = startInfo,

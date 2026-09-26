@@ -907,6 +907,49 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>SnowLuma 的 WebUI 地址（首次设置、看日志都在这里）。</summary>
     public string WebUiUrl => SnowlumaManager.WebUiUrl(InstallDir);
 
+    // ---------- WebUI 登录（初始密码默认只打到 stdout，用户看不到） ----------
+
+    private string _webUiPassword = "";
+    /// <summary>我们替它指定的 WebUI 初始密码（启动时通过官方环境变量传进去）。</summary>
+    public string WebUiPassword
+    {
+        get => _webUiPassword;
+        private set
+        {
+            if (!Set(ref _webUiPassword, value))
+                return;
+            OnPropertyChanged(nameof(WebUiLoginHint));
+            OnPropertyChanged(nameof(HasWebUiPassword));
+        }
+    }
+
+    public bool HasWebUiPassword => WebUiPassword.Length > 0;
+
+    public string WebUiLoginHint => HasWebUiPassword
+        ? $"登录 WebUI：用户名 admin，初始密码 {WebUiPassword}（登录后请自行修改）"
+        : "";
+
+    /// <summary>
+    /// 还在用初始密码时，生成一个并交给 SnowLuma（否则它随机生成、只打到 stdout，
+    /// GUI 启动的用户根本看不到）。已经改过密码就不插手。
+    /// </summary>
+    private string? EnsureWebUiPassword()
+    {
+        if (SnowlumaManager.ReadWebUiMustChangePassword(InstallDir) != true)
+            return null;   // 已经改过密码 / 读不出来：不要覆盖用户的设置
+        if (!HasWebUiPassword)
+            WebUiPassword = GeneratePassword();
+        return WebUiPassword;
+    }
+
+    /// <summary>随机初始密码：避开容易看错的 0/O/1/l/I。</summary>
+    internal static string GeneratePassword()
+    {
+        const string alphabet = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        var bytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(12);
+        return new string(bytes.Select(b => alphabet[b % alphabet.Length]).ToArray());
+    }
+
     /// <summary>启动/停止/探测期间为 true —— 按钮要转圈，否则用户以为点了没反应。</summary>
     public bool IsQqBusy => IsStarting || IsStopping || IsProbing;
 
@@ -1245,8 +1288,15 @@ public sealed class SettingsViewModel : ViewModelBase
             // 用户点的是「启动注入」，所以这里替他把开关打开（可在 WebUI 里改回去）。
             EnsureAutoInjectEnabled();
 
-            await _manager.StartAsync(InstallDir, acceptAgreements: true);
+            var webUiPassword = EnsureWebUiPassword();
+            await _manager.StartAsync(InstallDir, acceptAgreements: true, webUiPassword: webUiPassword);
             NeedsWebUiSetup = false;   // 同意是我们带过去的，不该再显示"卡在等同意"
+            if (webUiPassword is not null)
+            {
+                AppendLog($"已为 SnowLuma WebUI 指定初始密码（登录后请修改）");
+                Toasts.Show("WebUI 初始密码已设置", $"用户名 admin，密码 {webUiPassword}（设置页可复制）",
+                    NoticeSeverity.Success);
+            }
             AppendLog("SnowLuma 已启动，5 秒后自动检测 QQ…");
             await Task.Delay(5000);
             await ProbeAsync();     // 探测结果自己会弹通知

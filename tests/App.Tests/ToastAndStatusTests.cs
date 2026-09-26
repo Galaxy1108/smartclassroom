@@ -311,6 +311,46 @@ public sealed class ToastAndStatusTests : IDisposable
         }
     }
 
+    // ================= WebUI 初始密码 =================
+
+    [AvaloniaFact]
+    public void WebUiPassword_IsGeneratedOnlyWhileStillBootstrap()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "sc-webui-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, "config"));
+        try
+        {
+            // 还在用初始密码 → 生成一个（否则用户得去翻 SnowLuma 的 stdout）
+            File.WriteAllText(Path.Combine(dir, "config", "webui.json"),
+                """{"passwordHash":"x","mustChangePassword":true}""");
+            // 协议文件也要在：StartAsync 先过协议这一关，否则根本走不到密码那一步
+            File.WriteAllText(Path.Combine(dir, "EULA.md"), "# 用户协议\n\n第一条。");
+            File.WriteAllText(Path.Combine(dir, "PRIVACY.md"), "# 隐私政策\n\n只在本机处理。");
+            var vm = new SettingsViewModel(_path) { InstallDir = dir };
+            vm.ConsentPrompt = _ => Task.FromResult(true);
+            Assert.False(vm.HasWebUiPassword);
+
+            vm.StartAsync();   // 会走到 EnsureWebUiPassword（SnowLuma 未安装，启动会失败，但密码已定）
+
+            Assert.True(vm.HasWebUiPassword);
+            Assert.Contains("admin", vm.WebUiLoginHint);
+            Assert.Contains(vm.WebUiPassword, vm.WebUiLoginHint);
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [AvaloniaFact]
+    public void GeneratePassword_AvoidsConfusingCharacters_AndIsLongEnough()
+    {
+        var a = SettingsViewModel.GeneratePassword();
+        var b = SettingsViewModel.GeneratePassword();
+
+        Assert.Equal(12, a.Length);
+        Assert.NotEqual(a, b);                                   // 每次都不同
+        Assert.DoesNotContain(a, "0O1lI");                       // 避开容易看错的字符
+        Assert.Matches("^[a-zA-Z0-9]+$", a);
+    }
+
     // ================= OneBot Token 也要能填 =================
 
     [AvaloniaFact]

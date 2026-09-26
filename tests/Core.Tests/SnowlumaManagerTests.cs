@@ -118,6 +118,31 @@ public sealed class SnowlumaManagerTests : IDisposable
         Assert.Equal("{ 这不是 json", File.ReadAllText(Path.Combine(dir, "config", "runtime.json")));
     }
 
+    // ================= WebUI 初始密码 =================
+    //
+    // SnowLuma 默认每次启动随机生成初始密码，而且只打印到 stdout —— GUI 启动的用户看不到。
+    // 它提供了官方环境变量 SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD，应用就用它替用户定一个。
+
+    [Fact]
+    public void ReadWebUiMustChangePassword_ReflectsConfig()
+    {
+        var dir = InstallDir();
+        Assert.True(SnowlumaManager.ReadWebUiMustChangePassword(dir));   // 还没有 webui.json = 还没设过
+
+        Directory.CreateDirectory(Path.Combine(dir, "config"));
+        File.WriteAllText(Path.Combine(dir, "config", "webui.json"),
+            """{"passwordHash":"x","mustChangePassword":true}""");
+        Assert.True(SnowlumaManager.ReadWebUiMustChangePassword(dir));
+
+        File.WriteAllText(Path.Combine(dir, "config", "webui.json"),
+            """{"passwordHash":"x","mustChangePassword":false}""");
+        Assert.False(SnowlumaManager.ReadWebUiMustChangePassword(dir));  // 用户已经改过密码
+    }
+
+    [Fact]
+    public void BootstrapPasswordEnv_HasTheOfficialName()
+        => Assert.Equal("SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD", SnowlumaManager.BootstrapPasswordEnv);
+
     // ================= 注入失败的原因（只在它自己的日志里） =================
 
     [Fact]

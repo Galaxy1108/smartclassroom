@@ -328,6 +328,27 @@ SnowLuma 的 `config/runtime.json` 里 `hookAutoLoad` 默认是 **false**：
 所以点「启动」时应用会把这个开关打开（写回 `runtime.json`，保留其它字段，原子替换），
 并在事件页记一条「已开启 SnowLuma 的自动注入」。想关掉在 WebUI 里改回去即可。
 
+### WebUI 的登录密码
+
+SnowLuma 的 WebUI（`http://127.0.0.1:5099`）默认**每次启动随机生成一个初始密码**，
+而且这个密码**只打印到 stdout** —— 从桌面图标启动的用户根本看不到它
+（它自己的日志里只有"凭据"横幅，没有密码本身）。
+
+应用现在用它的官方环境变量 `SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD` 替用户定一个：
+点「启动」时若发现它还在用初始密码（`config/webui.json` 的 `mustChangePassword=true`），
+就生成一个 12 位随机密码（避开 `0/O/1/l/I`）传给它，并显示在设置页上，带「复制密码」按钮：
+
+> 登录 WebUI：用户名 `admin`，初始密码 `xxxxxxxxxxxx`（登录后请自行修改）
+
+已经改过密码（`mustChangePassword=false`）就不再插手。想手动看/重置也可以：
+
+```bash
+cd ~/.local/share/SmartClassroom/snowluma
+./launcher.sh                                    # 从终端启动：密码会打印在输出里
+SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD=你的密码 ./launcher.sh   # 或者自己指定
+rm config/webui.json && ./launcher.sh            # 或者删掉配置，让它重新生成一个
+```
+
 ### Linux 上注入的两个关卡
 
 **第一关：ptrace 权限。**

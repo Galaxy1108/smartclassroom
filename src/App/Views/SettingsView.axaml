@@ -434,6 +434,12 @@
                 </local:NoticeBar.ActionContent>
             </local:NoticeBar>
 
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasWebUiPassword}"
+                        Margin="2,2,0,0">
+                <TextBlock Text="{Binding WebUiLoginHint}" FontSize="12" Opacity="0.75"
+                           TextWrapping="Wrap" MaxWidth="620" VerticalAlignment="Center" />
+                <Button Content="复制密码" FontSize="11" Padding="8,3" Click="CopyWebUiPassword_Click" />
+            </StackPanel>
             <TextBlock Text="{Binding InjectionHint}" IsVisible="{Binding HasInjectionHint}"
                        FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
                        TextWrapping="Wrap" Margin="2,2,0,0" />

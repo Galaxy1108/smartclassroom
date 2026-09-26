@@ -197,6 +197,23 @@ public partial class SettingsView : UserControl
     private async void Stop_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => await Vm.StopAsync();
 
+    /// <summary>复制 WebUI 初始密码（它默认只打到 stdout，用户看不到）。</summary>
+    private async void CopyWebUiPassword_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard is null)
+                return;
+            await clipboard.SetTextAsync(Vm.WebUiPassword);
+            Toasts.Success("已复制 WebUI 初始密码");
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("复制失败", ex.Message);
+        }
+    }
+
     /// <summary>打开 SnowLuma 的日志目录（注入失败的原因只写在那里）。</summary>
     private void OpenQqLog_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => OpenFolder(System.IO.Path.Combine(Vm.InstallDir, "logs"));
