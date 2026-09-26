@@ -89,6 +89,45 @@ public sealed class PiAiSidecarTests : IDisposable
         Assert.Equal("SYS=你是助手|USER=你好|BASE=http://127.0.0.1:1/v1", text);
     }
 
+    /// <summary>
+    /// 真 sidecar.mjs（不是上面那个假边车）至少能被加载并回 ping。
+    /// 它是纯 JS，改动不会被 C# 编译器拦住——语法错误/import 写错会让 AI 直接全废，
+    /// 所以这里留一个最低限度的冒烟。缺 node_modules 时跳过（打包脚本会先 npm install）。
+    /// </summary>
+    [Fact]
+    public async Task RealSidecar_Script_LoadsAndPings()
+    {
+        if (!NodeUsable) return;
+        var dir = FindRepoDir("tools/ai-sidecar");
+        if (dir is null || !File.Exists(Path.Combine(dir, "sidecar.mjs"))
+            || !Directory.Exists(Path.Combine(dir, "node_modules")))
+            return;
+
+        await using var client = new PiAiSidecarClient(new SidecarOptions
+        {
+            SidecarDir = dir,
+            Provider = "opencode-go",
+            Model = "deepseek-v4.1-flash",
+            TimeoutSeconds = 60
+        });
+        var ping = await client.PingAsync();
+        Assert.True(ping, "真 sidecar.mjs 没能回 ping（脚本坏了或依赖缺失）");
+    }
+
+    /// <summary>从测试输出目录往上找仓库根（找不到返回 null，测试就跳过）。</summary>
+    private static string? FindRepoDir(string relative)
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            var candidate = Path.Combine(dir.FullName, relative);
+            if (Directory.Exists(candidate))
+                return candidate;
+            dir = dir.Parent;
+        }
+        return null;
+    }
+
     [Fact]
     public async Task Catalog_ProvidersAndModels()
     {
