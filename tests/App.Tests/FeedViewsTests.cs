@@ -1,4 +1,3 @@
-using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using SmartClassroom.App.ViewModels;
 using SmartClassroom.App.Views;
@@ -8,6 +7,7 @@ using Xunit;
 
 namespace SmartClassroom.App.Tests;
 
+/// <summary>作业/事件页：XAML 可构造、绑定到真实存储后数据正确。</summary>
 public sealed class FeedViewsTests
 {
     private static HomeworkItem Hw() => new()
@@ -19,29 +19,29 @@ public sealed class FeedViewsTests
     };
 
     [AvaloniaFact]
-    public void HomeworkView_RendersItems()
+    public void HomeworkView_BindsToStore()
     {
-        TestSetup.EnsureApp();
         var store = new HomeworkStore();
         store.AddOrMerge(Hw());
-        var view = new HomeworkView { DataContext = new HomeworkViewModel(store) };
-        var window = new Window { Content = view };
-        window.Show();
-        Assert.False(((HomeworkViewModel)view.DataContext!).IsEmpty);
-        Assert.Single(((HomeworkViewModel)view.DataContext!).Items);
-        window.Close();
+        var vm = new HomeworkViewModel(store);
+        var view = new HomeworkView { DataContext = vm };
+
+        Assert.False(vm.IsEmpty);
+        Assert.Single(vm.Items);
+        Assert.Equal("数学", vm.Items[0].Subject);
+        Assert.Same(vm, view.DataContext);
     }
 
     [AvaloniaFact]
-    public void EventsView_RendersEntries()
+    public void EventsView_BindsToFeed()
     {
-        TestSetup.EnsureApp();
         var feed = new ActivityFeed();
         feed.Append("summon", "请小明过去", "张老师：来一下");
-        var view = new EventsView { DataContext = new EventsViewModel(feed) };
-        var window = new Window { Content = view };
-        window.Show();
-        Assert.Single(((EventsViewModel)view.DataContext!).Entries);
-        window.Close();
+        var vm = new EventsViewModel(feed);
+        var view = new EventsView { DataContext = vm };
+
+        var entry = Assert.Single(vm.Entries);
+        Assert.Equal("请小明过去", entry.Title);
+        Assert.Same(vm, view.DataContext);
     }
 }

@@ -31,7 +31,7 @@ public static class RuleEngine
 }
 
 /// <summary>AI 结构化调用：三任务专用 prompt + JSON 解析。失败抛 AiException，上层降级。</summary>
-public sealed class AiAnalyzer(AiGateway ai)
+public sealed class AiAnalyzer(IAiClient ai)
 {
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 

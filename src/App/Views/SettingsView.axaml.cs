@@ -13,6 +13,37 @@ public partial class SettingsView : UserControl
 
     private SettingsViewModel Vm => (SettingsViewModel)DataContext!;
 
+    // ---- AI ----
+    private async void LoadCatalog_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Vm.LoadCatalogAsync();
+
+    private async void TestAi_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Vm.TestAiAsync();
+
+    private void RefreshSidecar_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => Vm.RefreshSidecarInfo();
+
+    // ---- ClassIsland 集成 ----
+    private async void ProbePlugin_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Vm.ProbePluginAsync();
+
+    private void PluginTokenHelp_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => Vm.ShowPluginTokenHelp();
+
+    // ---- 教师映射 ----
+    private void Save_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => Vm.SaveSettings();
+
+    private void AddTeacher_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => Vm.AddTeacher();
+
+    private void RemoveTeacher_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is TeacherRow row)
+            Vm.RemoveTeacher(row);
+    }
+
+    // ---- SnowLuma ----
     private async void Refresh_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => await Vm.RefreshReleasesAsync();
 
@@ -30,16 +61,4 @@ public partial class SettingsView : UserControl
 
     private void AutoConnect_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => Vm.AutoConnect();
-
-    private void Save_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => Vm.SaveSettings();
-
-    private void AddTeacher_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => Vm.AddTeacher();
-
-    private void RemoveTeacher_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if ((sender as Button)?.Tag is TeacherRow row)
-            Vm.RemoveTeacher(row);
-    }
 }

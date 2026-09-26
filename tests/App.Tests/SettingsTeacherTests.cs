@@ -10,6 +10,7 @@ public sealed class SettingsTeacherTests : IDisposable
 
     public void Dispose()
     {
+        TestSetup.OverrideIconFont();
         if (File.Exists(_path))
             File.Delete(_path);
     }
@@ -17,7 +18,7 @@ public sealed class SettingsTeacherTests : IDisposable
     [AvaloniaFact]
     public void AddRemoveTeacher_Persists()
     {
-        TestSetup.EnsureApp();
+        TestSetup.OverrideIconFont();
         var vm = new SettingsViewModel(_path)
         {
             NewTeacherQq = "10001",
@@ -39,7 +40,7 @@ public sealed class SettingsTeacherTests : IDisposable
     [AvaloniaFact]
     public void AddTeacher_RequiresNameAndSubject()
     {
-        TestSetup.EnsureApp();
+        TestSetup.OverrideIconFont();
         var vm = new SettingsViewModel(_path) { NewTeacherName = "", NewTeacherSubject = "" };
         vm.AddTeacher();
         Assert.Empty(vm.Teachers);

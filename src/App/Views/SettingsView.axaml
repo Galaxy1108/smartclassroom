@@ -3,13 +3,36 @@
              xmlns:vm="using:SmartClassroom.App.ViewModels"
              xmlns:fa="using:FluentAvalonia.UI.Controls"
              xmlns:qq="using:SmartClassroom.Core.QQ"
+             xmlns:ai="using:SmartClassroom.Core.AI"
              x:Class="SmartClassroom.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
     <ScrollViewer>
-        <StackPanel Spacing="4" Margin="4" MaxWidth="880" HorizontalAlignment="Left">
+        <StackPanel Spacing="4" Margin="4" MaxWidth="900" HorizontalAlignment="Left">
+
+            <!-- ================= AI ================= -->
             <TextBlock Text="AI" Theme="{StaticResource SubtitleTextBlockStyle}" Margin="0,4" />
-            <fa:SettingsExpander Header="服务商"
-                                 Description="选预设自动填地址，选自定义后手动填。直调 chat/completions，不绑定厂商。">
+            <fa:SettingsExpander Header="接入引擎"
+                                 Description="内置直连零依赖；pi-ai 经 Node 边车，自带多厂商模型目录。">
+                <fa:SettingsExpander.Footer>
+                    <ComboBox MinWidth="240" ItemsSource="{Binding Engines}"
+                              SelectedItem="{Binding EngineOption}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:EngineOption">
+                                <TextBlock Text="{Binding Title}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                        <ComboBox.SelectionBoxItemTemplate>
+                            <DataTemplate x:DataType="vm:EngineOption">
+                                <TextBlock Text="{Binding Title}" />
+                            </DataTemplate>
+                        </ComboBox.SelectionBoxItemTemplate>
+                    </ComboBox>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
+            <!-- 内置直连：服务商预设 -->
+            <fa:SettingsExpander Header="服务商" IsVisible="{Binding IsHttpGateway}"
+                                 Description="选预设自动填地址，选自定义后手动填。">
                 <fa:SettingsExpander.Footer>
                     <ComboBox MinWidth="220" ItemsSource="{Binding AiProviders}"
                               SelectedItem="{Binding AiProvider}">
@@ -26,30 +49,85 @@
                     </ComboBox>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
-            <fa:SettingsExpander Header="服务地址"
-                                 Description="OpenAI-compatible 接口地址">
+
+            <!-- pi-ai：provider / 模型目录 -->
+            <fa:SettingsExpander Header="pi-ai 运行时" IsVisible="{Binding IsPiAi}"
+                                 Description="需要 Node ≥ 22.19；依赖在 ai-sidecar 目录执行一次 npm install。">
                 <fa:SettingsExpander.Footer>
-                    <TextBox Text="{Binding AiBaseUrl}" MinWidth="280" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding SidecarInfo}" VerticalAlignment="Center" FontSize="12" />
+                        <Button Content="刷新状态" Click="RefreshSidecar_Click" />
+                    </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
-            <fa:SettingsExpander Header="API Key"
-                                 Description="只存本机 settings.json，不上传任何地方">
+            <fa:SettingsExpander Header="provider / 模型" IsVisible="{Binding IsPiAi}"
+                                 Description="从 pi-ai 目录拉取；模型列表含上下文长度与能力标记。">
                 <fa:SettingsExpander.Footer>
-                    <TextBox Text="{Binding AiApiKey}" MinWidth="280" PasswordChar="•" />
-                </fa:SettingsExpander.Footer>
-            </fa:SettingsExpander>
-            <fa:SettingsExpander Header="模型"
-                                 Description="可从预设选，也可直接输入">
-                <fa:SettingsExpander.Footer>
-                    <ComboBox MinWidth="220" ItemsSource="{Binding ModelPresets}"
-                              SelectedItem="{Binding AiModel, Mode=TwoWay}"
-                              IsEditable="True" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ComboBox MinWidth="170" ItemsSource="{Binding PiProviders}"
+                                  SelectedItem="{Binding SelectedProvider}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="ai:SidecarProvider">
+                                    <TextBlock Text="{Binding Id}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                            <ComboBox.SelectionBoxItemTemplate>
+                                <DataTemplate x:DataType="ai:SidecarProvider">
+                                    <TextBlock Text="{Binding Id}" />
+                                </DataTemplate>
+                            </ComboBox.SelectionBoxItemTemplate>
+                        </ComboBox>
+                        <ComboBox MinWidth="200" ItemsSource="{Binding PiModels}"
+                                  SelectedItem="{Binding SelectedModel}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="ai:SidecarModel">
+                                    <TextBlock Text="{Binding Name}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                            <ComboBox.SelectionBoxItemTemplate>
+                                <DataTemplate x:DataType="ai:SidecarModel">
+                                    <TextBlock Text="{Binding Id}" />
+                                </DataTemplate>
+                            </ComboBox.SelectionBoxItemTemplate>
+                        </ComboBox>
+                        <Button Content="载入目录" Click="LoadCatalog_Click" />
+                    </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
 
+            <fa:SettingsExpander Header="服务地址"
+                                 Description="pi-ai 引擎留空则用所选 provider 官方端点；填了则按自定义 OpenAI 兼容端点处理。">
+                <fa:SettingsExpander.Footer>
+                    <TextBox Text="{Binding AiBaseUrl}" MinWidth="300" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="API Key"
+                                 Description="只写入本机 settings.json，不上传任何地方；pi-ai 也支持读同名环境变量。">
+                <fa:SettingsExpander.Footer>
+                    <TextBox Text="{Binding AiApiKey}" MinWidth="300" PasswordChar="•" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="模型" IsVisible="{Binding IsHttpGateway}"
+                                 Description="可从预设选，也可直接输入。">
+                <fa:SettingsExpander.Footer>
+                    <ComboBox MinWidth="220" ItemsSource="{Binding ModelPresets}"
+                              SelectedItem="{Binding AiModel, Mode=TwoWay}" IsEditable="True" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="连通性测试"
+                                 Description="用当前配置发一条最小请求，验证地址/Key/模型是否可用。">
+                <fa:SettingsExpander.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="测试" Classes="accent" Click="TestAi_Click" />
+                        <TextBlock Text="{Binding AiTestResult}" VerticalAlignment="Center" FontSize="12" />
+                    </StackPanel>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
+            <!-- ================= 教师映射 ================= -->
             <TextBlock Text="教师映射" Theme="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,4" />
             <fa:SettingsExpander Header="任课老师"
-                                 Description="QQ 号（可空）/ 群名片或姓名 / 科目。QQ 消息按 QQ 号→名片→昵称匹配。">
+                                 Description="QQ 号（可空）/ 姓名或群名片 / 科目。匹配顺序：QQ 号 → 群名片 → 昵称。">
                 <fa:SettingsExpander.Footer>
                     <Button Content="保存设置" Click="Save_Click" />
                 </fa:SettingsExpander.Footer>
@@ -57,14 +135,13 @@
             <ItemsControl ItemsSource="{Binding Teachers}" Margin="0,4">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:TeacherRow">
-                        <Border Margin="0,2" Padding="8" CornerRadius="6"
-                                BorderThickness="1"
+                        <Border Margin="0,2" Padding="8" CornerRadius="6" BorderThickness="1"
                                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                                 Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="{Binding Qq}" Width="110" Opacity="0.7" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding Name}" Width="110" FontWeight="Bold" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding Subject}" Width="110" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Name}" Width="120" FontWeight="Bold" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Subject}" Width="120" VerticalAlignment="Center" />
                                 <Button Content="删除" Click="RemoveTeacher_Click" Tag="{Binding}" />
                             </StackPanel>
                         </Border>
@@ -78,13 +155,44 @@
                 <Button Content="添加" Classes="accent" Click="AddTeacher_Click" />
             </StackPanel>
 
+            <!-- ================= ClassIsland 集成 ================= -->
+            <TextBlock Text="ClassIsland 集成" Theme="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,4" />
+            <fa:SettingsExpander Header="桥接端口"
+                                 Description="本应用经 127.0.0.1 调用插件接口（默认 5199），需与插件一致。">
+                <fa:SettingsExpander.Footer>
+                    <NumericUpDown Value="{Binding PluginPort}" Minimum="1024" Maximum="65535" MinWidth="140" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="桥接 Token"
+                                 Description="插件首次启动自动生成，写在 ClassIsland 配置目录的 smartclassroom.bridge/bridge.token。">
+                <fa:SettingsExpander.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox Text="{Binding PluginToken}" MinWidth="260" PasswordChar="•" />
+                        <Button Content="token 在哪？" Click="PluginTokenHelp_Click" />
+                    </StackPanel>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="连接状态"
+                                 Description="探测插件是否已加载并在线。">
+                <fa:SettingsExpander.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="探测" Click="ProbePlugin_Click" />
+                        <TextBlock Text="{Binding PluginStatus}" VerticalAlignment="Center" FontSize="12" />
+                    </StackPanel>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
+            <!-- ================= QQ 连接 ================= -->
             <TextBlock Text="QQ 连接" Theme="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,4" />
             <fa:InfoBar Severity="Informational" IsOpen="{Binding !IsInstalled}"
-                       Title="您还没有下载 SnowLuma 注入层"
-                       Message="下载后即可注入已登录的班级 QQ，无需单独 QQ 实例；也可以直接填写下方已有 OneBot v11 地址。" />
-            <fa:SettingsExpander Header="SnowLuma 下载器"
-                                 Description="不随应用附带。完整版内置 Node，精简版需自装 Node ≥ 22。"
-                                 IsVisible="{Binding !IsInstalled}">
+                        Title="您还没有下载 SnowLuma 注入层">
+                <fa:InfoBar.Content>
+                    <TextBlock TextWrapping="Wrap"
+                               Text="下载后即可注入已登录的班级 QQ，无需单独 QQ 实例；也可以跳过下载，直接在下方填写已有的 OneBot v11 地址。" />
+                </fa:InfoBar.Content>
+            </fa:InfoBar>
+            <fa:SettingsExpander Header="SnowLuma 下载器" IsVisible="{Binding !IsInstalled}"
+                                 Description="不随应用附带。完整版内置 Node，精简版需自装 Node ≥ 22。">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <ComboBox MinWidth="150" ItemsSource="{Binding Releases}"
@@ -107,19 +215,20 @@
             </fa:SettingsExpander>
             <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="6"
                          IsVisible="{Binding Busy}" Margin="0,4" />
-            <fa:InfoBar Severity="Error" IsOpen="{Binding IsInstalled}"
-                       Title="风险警告"
-                       Message="QQ 官方可能检测第三方登录并封号。建议不要使用全新 QQ 号操作，班级号请确认可接受风险后再启动。" />
-            <fa:SettingsExpander Header="我已知晓风险"
-                                 Description="勾选后才能启动注入。"
-                                 IsVisible="{Binding IsInstalled}">
+            <fa:InfoBar Severity="Error" IsOpen="{Binding IsInstalled}" Title="风险警告">
+                <fa:InfoBar.Content>
+                    <TextBlock TextWrapping="Wrap"
+                               Text="QQ 官方可能检测到第三方登录方式并封禁账号。强烈建议不要使用全新注册的 QQ 号操作；班级号请确认可以接受该风险后再启动注入。" />
+                </fa:InfoBar.Content>
+            </fa:InfoBar>
+            <fa:SettingsExpander Header="我已知晓风险" IsVisible="{Binding IsInstalled}"
+                                 Description="勾选后才允许启动注入。">
                 <fa:SettingsExpander.Footer>
                     <CheckBox IsChecked="{Binding RiskAccepted}" Content="已知晓" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
-            <fa:SettingsExpander Header="运行状态"
-                                 Description="注入三态：QQ 未运行 / 已注入未登录 / 在线"
-                                 IsVisible="{Binding IsInstalled}">
+            <fa:SettingsExpander Header="运行状态" IsVisible="{Binding IsInstalled}"
+                                 Description="注入三态：QQ 未运行 / 已注入未登录 / 在线。">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="启动" Click="Start_Click" IsEnabled="{Binding RiskAccepted}" />
@@ -129,9 +238,11 @@
                     </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
-            <fa:InfoBar Severity="Success" IsOpen="{Binding QqDetected}"
-                       Title="检测到 QQ，是否自动连接？"
-                       Message="将填入默认 OneBot 地址并保存，重启 App 后管线自动连接。">
+            <fa:InfoBar Severity="Success" IsOpen="{Binding QqDetected}" Title="检测到 QQ，是否自动连接？">
+                <fa:InfoBar.Content>
+                    <TextBlock TextWrapping="Wrap"
+                               Text="将填入默认 OneBot 地址并保存，重启应用后消息管线会自动连接。" />
+                </fa:InfoBar.Content>
                 <fa:InfoBar.ActionButton>
                     <Button Content="自动连接" Click="AutoConnect_Click" />
                 </fa:InfoBar.ActionButton>
@@ -149,7 +260,7 @@
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
             <fa:SettingsExpander Header="监听群号"
-                                 Description="英文逗号分隔，只处理这些群的消息">
+                                 Description="英文逗号分隔，只处理这些群的消息。">
                 <fa:SettingsExpander.Footer>
                     <TextBox Text="{Binding GroupIdsText}" MinWidth="280" Watermark="如 123456,789012" />
                 </fa:SettingsExpander.Footer>
@@ -161,9 +272,10 @@
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
 
+            <!-- ================= 日志 ================= -->
             <TextBlock Text="日志" Theme="{StaticResource SubtitleTextBlockStyle}" Margin="0,12,0,4" />
             <TextBox Text="{Binding Log}" IsReadOnly="True" AcceptsReturn="True"
-                     Height="160" FontFamily="Monospace" />
+                     Height="170" FontFamily="Monospace" TextWrapping="Wrap" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

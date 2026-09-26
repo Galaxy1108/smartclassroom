@@ -9,12 +9,25 @@ public sealed class AppSettings
     public string AiBaseUrl { get; set; } = "";
     public string AiApiKey { get; set; } = "";
     public string AiModel { get; set; } = "";
+
+    /// <summary>"http"（默认，手写网关）或 "pi-ai"（Node 边车）。</summary>
+    public string AiEngine { get; set; } = "http";
+
+    /// <summary>pi-ai provider id（如 deepseek、openai）；为空时走 AiBaseUrl 自定义端点。</summary>
+    public string AiProvider { get; set; } = "";
+
     public string OneBotHttp { get; set; } = "http://127.0.0.1:3000";
     public string OneBotWs { get; set; } = "ws://127.0.0.1:3001";
     public string OneBotToken { get; set; } = "";
     public List<long> GroupIds { get; set; } = [];
     public string ArchiveRoot { get; set; } = "";
+
+    /// <summary>ClassIsland 插件桥接 token（插件首次启动生成，写在插件配置目录 bridge.token）。</summary>
     public string PluginToken { get; set; } = "";
+
+    /// <summary>插件桥接端口，默认 5199。</summary>
+    public int PluginPort { get; set; } = 5199;
+
     public List<Teacher> Teachers { get; set; } = [];
     public bool RiskAccepted { get; set; } = false;
 }

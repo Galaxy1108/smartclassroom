@@ -16,7 +16,7 @@ public sealed record AiOptions
 /// OpenAI-compatible HTTP 网关：只发 chat/completions，不绑定具体厂商。
 /// 超时/失败抛 AiException，由上层按"保守降级"处理（召唤排队、作业/换课待确认）。
 /// </summary>
-public sealed class AiGateway(AiOptions options, HttpClient? http = null)
+public sealed class AiGateway(AiOptions options, HttpClient? http = null) : IAiClient
 {
     private readonly HttpClient _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds) };
 

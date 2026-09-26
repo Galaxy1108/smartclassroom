@@ -46,14 +46,26 @@ public static class Runtime
         }
 
         var teachers = new TeacherMap(Settings.Teachers);
-        var ai = new AiGateway(new AiOptions
-        {
-            BaseUrl = Settings.AiBaseUrl,
-            ApiKey = Settings.AiApiKey,
-            Model = Settings.AiModel
-        });
         var oneBot = new OneBotClient(Settings.OneBotHttp, Settings.OneBotWs, Settings.OneBotToken);
-        var plugin = new PluginLink("http://127.0.0.1:5199", Settings.PluginToken);
+        var plugin = new PluginLink($"http://127.0.0.1:{Settings.PluginPort}", Settings.PluginToken);
+
+        // AI 引擎二选一：内置直连（零依赖）或 pi-ai Node 边车。
+        IAiClient ai = AiEngineParser.Parse(Settings.AiEngine) == AiEngine.PiAiSidecar
+            ? new PiAiSidecarClient(new SidecarOptions
+            {
+                SidecarDir = NodeRuntime.SidecarDir(AppContext.BaseDirectory),
+                Provider = Settings.AiProvider.Length > 0 ? Settings.AiProvider : null,
+                Model = Settings.AiModel,
+                ApiKey = Settings.AiApiKey,
+                BaseUrl = Settings.AiBaseUrl
+            })
+            : new AiGateway(new AiOptions
+            {
+                BaseUrl = Settings.AiBaseUrl,
+                ApiKey = Settings.AiApiKey,
+                Model = Settings.AiModel
+            });
+        Feed.Append("ai", $"AI 引擎：{(ai is PiAiSidecarClient ? "pi-ai 边车" : "内置直连")}", Settings.AiModel);
         var archive = new FileArchive(new ArchiveOptions
         {
             Root = Settings.ArchiveRoot.Length > 0 ? Settings.ArchiveRoot

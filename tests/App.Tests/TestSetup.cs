@@ -1,30 +1,27 @@
 using Avalonia;
 using Avalonia.Media;
-using FluentAvalonia.Styling;
 
 namespace SmartClassroom.App.Tests;
 
 /// <summary>
-/// 无头测试需要挂上 FluentAvalonia 主题（生产环境由 App.axaml 加载），
-/// 否则 NavigationView 等控件找不到模板部件。
-/// FAUI 内嵌 Symbols 图标字体在无头 Skia 下加载失败，这里用系统字体替换
-/// （图标在测试里显示为占位符，不影响布局/冒烟；生产环境不受影响）。
+/// headless 渲染辅助。
+/// FluentAvalonia 内嵌的 Symbols 图标字体在 headless Skia 下建不出 glyphTypeface，
+/// 需要在测试运行时（应用已启动后）把 SymbolThemeFontFamily 换成系统字体；
+/// 在 App.Initialize / OnFrameworkInitializationCompleted 里改会被主题资源字典盖掉。
+/// 生产环境不受影响。
 /// </summary>
 public static class TestSetup
 {
-    private static bool _ready;
+    private static bool _done;
 
-    public static void EnsureApp()
+    public static void OverrideIconFont()
     {
-        if (_ready)
+        if (_done)
             return;
-        var app = Application.Current;
-        if (app is not null)
+        if (Application.Current is { } app)
         {
-            if (!app.Styles.OfType<FluentAvaloniaTheme>().Any())
-                app.Styles.Add(new FluentAvaloniaTheme());
             app.Resources["SymbolThemeFontFamily"] = new FontFamily("DejaVu Sans");
+            _done = true;
         }
-        _ready = true;
     }
 }

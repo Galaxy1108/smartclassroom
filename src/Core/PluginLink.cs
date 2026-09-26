@@ -29,6 +29,20 @@ public sealed class PluginLink
         catch { return false; }
     }
 
+    /// <summary>读取插件状态（版本 / 课表是否加载）；插件未运行时返回 null。</summary>
+    public async Task<PluginStatus?> StatusAsync(CancellationToken cancel = default)
+    {
+        try
+        {
+            using var res = await _http.GetAsync("status", cancel).ConfigureAwait(false);
+            if (!res.IsSuccessStatusCode)
+                return null;
+            var body = await res.Content.ReadAsStringAsync(cancel).ConfigureAwait(false);
+            return JsonSerializer.Deserialize<PluginStatus>(body, Json);
+        }
+        catch { return null; }
+    }
+
     public async Task NotifyAsync(string channel, string title, string body, CancellationToken cancel = default)
     {
         var req = new NotifyRequest { Channel = channel, Title = title, Body = body };
