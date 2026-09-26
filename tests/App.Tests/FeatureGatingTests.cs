@@ -212,3 +212,63 @@ public sealed class FeatureGatingTests : IDisposable
         Assert.True(vm.CanEnableSummon);
     }
 }
+
+/// <summary>
+/// 运行时就绪判定必须与设置页的门槛一致，否则会出现"设置页说配好了、运行时说没配置"。
+/// 实测踩到过：只监听私聊被判为未配置；pi-ai 引擎明明不需要服务地址却要求填。
+/// </summary>
+public sealed class RuntimeReadinessTests
+{
+    private static SmartClassroom.Core.AppSettings Base() => new()
+    {
+        OneBotHttp = "http://127.0.0.1:3000",
+        AiEngine = "pi-ai",
+        AiModel = "some-model"
+    };
+
+    [Fact]
+    public void PrivateOnly_WithPiAi_IsReady()
+    {
+        var s = Base();
+        s.ListenTeacherPrivate = true;
+
+        var (ready, text) = SmartClassroom.App.Runtime.EvaluateReadiness(s);
+
+        Assert.True(ready);
+        Assert.Equal("正在连接 QQ…", text);
+    }
+
+    [Fact]
+    public void PiAi_DoesNotNeedBaseUrl()
+    {
+        var s = Base();
+        s.GroupIds = [123456];
+        s.AiBaseUrl = "";                       // pi-ai 走本地边车，不需要地址
+
+        Assert.True(SmartClassroom.App.Runtime.EvaluateReadiness(s).Ready);
+    }
+
+    [Fact]
+    public void BuiltInEngine_NeedsBaseUrl()
+    {
+        var s = Base();
+        s.GroupIds = [123456];
+        s.AiEngine = "builtin";
+        s.AiBaseUrl = "";
+
+        var (ready, text) = SmartClassroom.App.Runtime.EvaluateReadiness(s);
+
+        Assert.False(ready);
+        Assert.Contains("AI 模型", text);
+    }
+
+    [Fact]
+    public void NothingConfigured_SaysExactlyWhatIsMissing()
+    {
+        var (ready, text) = SmartClassroom.App.Runtime.EvaluateReadiness(new SmartClassroom.Core.AppSettings());
+
+        Assert.False(ready);
+        Assert.Contains("监听群号或老师私聊", text);
+        Assert.Contains("AI 模型", text);
+    }
+}

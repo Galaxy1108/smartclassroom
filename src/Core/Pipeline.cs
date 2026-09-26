@@ -71,8 +71,11 @@ public sealed class PipelineService(
     {
         if (teachers.Count > 0 && !teachers.IsKnown(ev.UserId))
         {
-            feed.Append("private", $"忽略陌生人私聊 {ev.UserId}", "不在老师名单里（设置 → 老师映射）",
-                ActivitySeverity.Info);
+            // 把 QQ 号写出来，用户可以直接抄进老师映射 —— 否则只会觉得"我发了怎么没反应"
+            feed.Append("private", $"忽略陌生人私聊 {ev.UserId}",
+                $"它不在老师映射里。要处理它就在 设置 → 老师映射 里加上 QQ {ev.UserId}，"
+                + "或关掉「只处理老师名单里的消息」",
+                ActivitySeverity.Warning);
             return;
         }
         var sender = teachers.ToSender(ev.UserId, null, ev.Nickname);

@@ -40,6 +40,8 @@ public static class Runtime
     public static ScheduleGate? Gate { get; private set; }
     public static PipelineService? Pipeline { get; private set; }
 
+    private static bool _notedNoGroup;
+
     public static void Start(MainViewModel status)
     {
         _cts = new CancellationTokenSource();
@@ -60,9 +62,8 @@ public static class Runtime
         };
         _saveTimer.Start();
 
-        var configured = (Settings.GroupIds.Count > 0 || Settings.ListenAllGroups)
-            && Settings.AiBaseUrl.Length > 0 && Settings.AiModel.Length > 0;
-        status.StatusText = configured ? "正在连接 QQ…" : "未配置：在设置页填写 AI / QQ 后重启生效";
+        var (configured, readiness) = EvaluateReadiness(Settings);
+        status.StatusText = readiness;
         if (Settings.ListenAllGroups)
             Feed.Append("qq", "已开启「监听全部群」", "该账号所在的每个群都会被处理", ActivitySeverity.Warning);
 
@@ -121,6 +122,31 @@ public static class Runtime
 
         _ = RunQqLoopAsync(oneBot, pipeline, status, cancel);
         _ = TryConnectClassIslandAsync(statusProvider, status, cancel, pipeline);
+    }
+
+    /// <summary>
+    /// 就绪判定。**必须与设置页的门槛一致**，否则会出现"设置页说配置好了、运行时说没配置"
+    /// （实测踩到：只监听私聊被判为未配置；pi-ai 引擎明明不需要服务地址却要求填）。
+    /// 返回 (是否就绪, 状态栏文字)。
+    /// </summary>
+    public static (bool Ready, string Text) EvaluateReadiness(AppSettings s)
+    {
+        var missing = new List<string>();
+        if (s.GroupIds.Count == 0 && !s.ListenAllGroups && !s.ListenTeacherPrivate)
+            missing.Add("监听群号或老师私聊");
+        if (s.OneBotHttp.Trim().Length == 0 && s.OneBotWs.Trim().Length == 0)
+            missing.Add("OneBot 地址");
+
+        // pi-ai 走本地边车，不需要服务地址；只有内置直连才要求填
+        var aiReady = s.AiModel.Trim().Length > 0
+                      && (AiEngineParser.Parse(s.AiEngine) == AiEngine.PiAiSidecar
+                          || s.AiBaseUrl.Trim().Length > 0);
+        if (!aiReady)
+            missing.Add("AI 模型");
+
+        return missing.Count == 0
+            ? (true, "正在连接 QQ…")
+            : (false, "未配置：" + string.Join("、", missing) + "（在设置页填好后重启生效）");
     }
 
     public static void Stop()
@@ -228,6 +254,13 @@ public static class Runtime
                     // 注意：不能写成 groups.Count == 0 就全放行 —— 那样"只监听私聊"的用户
                     // 会意外处理所有群的消息。
                     var wanted = listenAll;
+                    if (ev is GroupMessageEvent dropped && !wanted && groups.Count == 0 && !_notedNoGroup)
+                    {
+                        _notedNoGroup = true;   // 只提示一次，别刷屏
+                        Feed.Append("qq", "收到群消息，但没有监听任何群",
+                            $"群 {dropped.GroupId} 的消息被忽略；在「监听群号」里点「选择群…」把它加上",
+                            ActivitySeverity.Warning);
+                    }
                     switch (ev)
                     {
                         case GroupMessageEvent m when wanted || groups.Contains(m.GroupId):
