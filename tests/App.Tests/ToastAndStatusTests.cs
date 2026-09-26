@@ -273,11 +273,32 @@ public sealed class ToastAndStatusTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void SingleInstance_SecondAcquireFails()
+    public void SingleInstance_SecondAcquireIsBlocked()
     {
         // 多开会抢同一个 SnowLuma 进程、同一个桥接端口、同一份 state.json
-        Assert.True(SingleInstance.TryAcquire());
-        Assert.False(SingleInstance.TryAcquire());   // 第二个实例必须被挡住
+        Assert.Null(SingleInstance.TryAcquire());                       // 第一个：抢到
+        Assert.NotNull(SingleInstance.TryAcquire());                    // 第二个：必须被挡住
+        SingleInstance.ReleaseLocks();
+    }
+
+    [AvaloniaFact]
+    public void SingleInstance_LockFileAloneAlsoBlocks()
+    {
+        // 命名互斥量在 Unix 上跟"持有它的线程"绑死，线程一退就失效（实测被它坑过：
+        // 用户机器上两个实例同时在跑）。所以锁文件是主力，单独测一遍。
+        var path = Path.Combine(Path.GetTempPath(), "sc-lock-" + Guid.NewGuid().ToString("N") + ".lock");
+        try
+        {
+            Assert.True(SingleInstance.TryAcquireLockFile(path));
+            Assert.False(SingleInstance.TryAcquireLockFile(path));      // 已被自己占着
+            SingleInstance.ReleaseLocks();
+            Assert.True(SingleInstance.TryAcquireLockFile(path));       // 释放后又能抢
+            SingleInstance.ReleaseLocks();
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
     }
 
     // ================= OneBot Token 也要能填 =================

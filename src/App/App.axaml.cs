@@ -22,10 +22,12 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             // 单实例：第二个实例只给提示，不初始化（否则会抢 SnowLuma/端口/state.json）
-            if (!SingleInstance.TryAcquire())
+            if (SingleInstance.TryAcquire() is { } blockedBy)
             {
-                SingleInstance.ShowAlreadyRunningNotice();
-                DispatcherTimer.RunOnce(() => desktop.Shutdown(), TimeSpan.FromSeconds(6));
+                Console.Error.WriteLine($"智慧课堂已在运行（{blockedBy}），本次启动退出。");
+                // 这里**不能**只靠 desktop.Shutdown()：第二个实例没有主窗口，
+                // Shutdown 不会真的结束进程，提示窗会一直挂着 → 看起来像"多开没被拦住"。
+                SingleInstance.ShowAlreadyRunningAndExit();
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
