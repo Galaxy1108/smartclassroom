@@ -21,6 +21,13 @@ public sealed record FeatureFlags
     /// <summary>上课时弹「您可能需要的课件」。</summary>
     public bool CoursewarePopup { get; init; }
 
+    /// <summary>
+    /// 只处理**老师名单里**的人发的消息（默认开启）。
+    /// 名单外的人发的换课/作业/召唤不自动执行，转人工确认 ——
+    /// 否则群里任何人都能让课表被改掉。
+    /// </summary>
+    public bool RequireKnownTeacher { get; init; } = true;
+
     public static FeatureFlags AllDisabled { get; } = new();
 
     public bool AnyEnabled => Summon || Homework || Exchange || FileArchive || CoursewarePopup;

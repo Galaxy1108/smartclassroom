@@ -25,6 +25,10 @@ public sealed class ScheduleGate(IClassStatusProvider status)
 
     public int PendingCount => _queue.Count;
 
+    /// <summary>当前课程（召唤解析要用它判断"老师"是谁）。未连接/无课表返回 null。</summary>
+    public Task<CurrentLesson?> CurrentLessonAsync(CancellationToken cancel = default)
+        => status.GetCurrentLessonAsync(cancel);
+
     /// <summary>发送函数：(通道, 标题, 正文)。</summary>
     public delegate Task SendFunc(string channel, string title, string body, CancellationToken cancel);
 
@@ -37,14 +41,17 @@ public sealed class ScheduleGate(IClassStatusProvider status)
         var inClass = await status.IsInClassAsync(cancel).ConfigureAwait(false);
         if (summon.Urgent || !inClass)
         {
+            // 通知里写清"哪个老师、哪一科" —— 原消息常只说"老师叫你过去"，
+            // 不带上科任信息，看通知的人根本不知道是谁叫的。
             await send(NotifyChannels.Summon,
-                $"老师请{(summon.Urgent ? "（现在）" : "")}{summon.Target}过去",
-                $"{summon.Sender.TeacherName ?? "老师"}：{summon.Reason}", cancel).ConfigureAwait(false);
+                $"{summon.TeacherLabel}请{(summon.Urgent ? "（现在）" : "")}{summon.Target}过去",
+                $"{summon.TeacherLabel}{summon.SubjectLabel}：{summon.Reason}", cancel).ConfigureAwait(false);
             return GateDecision.SentNow;
         }
         var key = SummonGate.DedupKey(summon.Target, summon.ReceivedAt);
-        _queue[key] = new QueuedNotification(key, NotifyChannels.Summon, $"请{summon.Target}过去",
-            $"{summon.Sender.TeacherName ?? "老师"}：{summon.Reason}", summon.ReceivedAt);
+        _queue[key] = new QueuedNotification(key, NotifyChannels.Summon,
+            $"{summon.TeacherLabel}请{summon.Target}过去",
+            $"{summon.TeacherLabel}{summon.SubjectLabel}：{summon.Reason}", summon.ReceivedAt);
         return GateDecision.Queued;
     }
 

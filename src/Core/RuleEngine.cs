@@ -47,12 +47,26 @@ public sealed class AiAnalyzer(IAiClient ai)
 {
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 
-    public async Task<SummonDraft> AnalyzeSummonAsync(string text, CancellationToken cancel = default)
+    /// <summary>
+    /// 召唤解析。**必须带上下文**：消息里常只说"老师叫你过去一趟"，
+    /// 不给"现在上什么课、谁是科任老师、群里有哪些老师"，AI 根本无从判断是哪个老师，
+    /// 通知也就只能写个含糊的"老师"。
+    /// </summary>
+    public async Task<SummonDraft> AnalyzeSummonAsync(string text, SummonContext? context = null,
+        CancellationToken cancel = default)
     {
-        const string system = """
-            你分析班级QQ群里老师的消息，判断是否为"叫某人过去"类召唤。
-            只输出 JSON：{"is_summon":true/false,"target":"被叫的人名，无则空字符串","urgent":true/false,"confidence":0-1}
+        var ctx = context ?? SummonContext.Empty;
+        var system = $$"""
+            你分析班级QQ群里的消息，判断是否为"叫某人过去"类召唤。
+            只输出 JSON：{"is_summon":true/false,"target":"被叫的人名，无则空字符串","teacher":"叫人的老师姓名，能确定才填，否则空字符串","urgent":true/false,"confidence":0-1}
             urgent 仅当出现"现在/立刻/马上/立即/赶紧"等要求立即过去的词时为 true。
+
+            【上下文】
+            - 发送者：{{ctx.Sender}}（{{ctx.SenderSubject}}）
+            - 当前课程：{{ctx.Lesson}}（科任老师：{{ctx.LessonTeacher}}）
+            - 班里已知老师：{{ctx.Roster}}
+            规则：消息里只写"老师"而没写名字时，优先取**当前课程的科任老师**；
+            写的是科目（如"数学老师"）就从已知老师里按科目匹配；都无法确定就留空。
             """;
         var raw = await ai.AskAsync(system, text, cancel).ConfigureAwait(false);
         var d = JsonSerializer.Deserialize<SummonDraft>(AiGateway.ExtractJson(raw), Json);
@@ -87,8 +101,20 @@ public sealed class AiAnalyzer(IAiClient ai)
 public sealed record SummonDraft(
     [property: JsonPropertyName("is_summon")] bool IsSummon,
     [property: JsonPropertyName("target")] string Target,
+    [property: JsonPropertyName("teacher")] string? Teacher,
     [property: JsonPropertyName("urgent")] bool Urgent,
     [property: JsonPropertyName("confidence")] double Confidence);
+
+/// <summary>召唤解析的上下文（消息里常只说"老师"，得靠这些信息落到具体的人）。</summary>
+public sealed record SummonContext(
+    string Sender,
+    string SenderSubject,
+    string Lesson,
+    string LessonTeacher,
+    string Roster)
+{
+    public static SummonContext Empty { get; } = new("未知", "未知", "未知（课表未加载）", "未知", "未知");
+}
 public sealed record HomeworkDraft(
     [property: JsonPropertyName("is_homework")] bool IsHomework,
     [property: JsonPropertyName("subject")] string Subject,

@@ -506,6 +506,13 @@
             <TextBlock Text="{Binding GroupSummary}" FontSize="12" Opacity="0.7"
                        TextWrapping="Wrap" Margin="2,0,0,0" />
 
+            <fa:SettingsExpander Header="只处理老师名单里的消息"
+                                 Description="名单外的人发来的换课/作业/召唤不自动执行，转人工确认（换课会真的改课表）">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding RequireKnownTeacher}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
             <fa:SettingsExpander Header="监听老师私聊"
                                  Description="老师私聊发的「来一下」/作业也处理；只认老师映射里的 QQ，陌生人私聊忽略">
                 <fa:SettingsExpander.Footer>

@@ -37,6 +37,8 @@ public sealed class PipelineService(
         var kind = RuleEngine.ClassifyLocal(ev.Text);
         if (kind == RuleEngine.Kind.None)
             return;
+        if (kind != RuleEngine.Kind.None && !SenderAllowed(sender, ev, kind))
+            return;
 
         if (kind.HasFlag(RuleEngine.Kind.Summon))
         {
@@ -92,6 +94,35 @@ public sealed class PipelineService(
             await HandleExchangeAsync(ev, sender, cancel).ConfigureAwait(false);
         else if (kind.HasFlag(RuleEngine.Kind.Exchange))
             NoteDisabled("exchange", "换课自动处理");
+    }
+
+    /// <summary>
+    /// 发送者是否允许触发自动动作。
+    /// 默认只认**老师名单里**的人：名单外的人发来的换课/作业/召唤一律不自动执行，
+    /// 转人工确认 —— 否则群里任何人都能让课表被改掉（这是真实存在的越权面）。
+    /// 名单为空时不做过滤（用户还没配名单，否则什么都用不了）。
+    /// </summary>
+    private bool SenderAllowed(SenderInfo sender, IIncomingMessage ev, RuleEngine.Kind kind)
+    {
+        if (!flags.RequireKnownTeacher || teachers.Count == 0)
+            return true;
+        if (sender.TeacherName is not null)
+            return true;
+
+        var what = kind switch
+        {
+            var k when k.HasFlag(RuleEngine.Kind.Exchange) => "换课",
+            var k when k.HasFlag(RuleEngine.Kind.Homework) => "作业",
+            _ => "召唤"
+        };
+        var who = sender.Card ?? sender.Nickname ?? $"QQ{sender.UserId}";
+        feed.Append("auth", $"忽略{what}请求：{who} 不在老师名单里",
+            "设置 → 老师映射 里加上他，或关掉「只处理老师名单里的消息」",
+            ActivitySeverity.Warning);
+        AddPending("auth", $"{what}请求来自名单外的人（{who}），需人工确认", ev.Text,
+            "发送者不在老师名单里", sender,
+            new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
+        return false;
     }
 
     /// <summary>
@@ -361,7 +392,18 @@ public sealed class PipelineService(
         bool keepOnFailure = false, string? resolvePendingId = null)
     {
         SummonDraft d;
-        try { d = await ai.AnalyzeSummonAsync(ev.Text, cancel).ConfigureAwait(false); }
+        try
+        {
+            // 消息里常只说"老师叫你过去"，所以把发送者、当前课程、老师名单一起给 AI
+            var lesson = await gate.CurrentLessonAsync(cancel).ConfigureAwait(false);
+            var context = new SummonContext(
+                Sender: sender.TeacherName ?? sender.Card ?? sender.Nickname ?? $"QQ{sender.UserId}",
+                SenderSubject: sender.Subject ?? "未知",
+                Lesson: lesson?.Subject ?? "未知（课表未加载）",
+                LessonTeacher: lesson?.Teacher ?? "未知",
+                Roster: teachers.Describe());
+            d = await ai.AnalyzeSummonAsync(ev.Text, context, cancel).ConfigureAwait(false);
+        }
         catch (AiException ex)
         {
             if (!keepOnFailure)
@@ -398,6 +440,9 @@ public sealed class PipelineService(
             ReceivedAt = DateTimeOffset.Now,
             Target = d.Target,
             Urgent = d.Urgent,
+            Teacher = string.IsNullOrWhiteSpace(d.Teacher) ? null : d.Teacher!.Trim(),
+            Subject = sender.Subject
+                      ?? (await gate.CurrentLessonAsync(cancel).ConfigureAwait(false))?.Subject,
             Reason = ev.Text,
             Sender = sender,
             Source = new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId },

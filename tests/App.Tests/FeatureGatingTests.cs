@@ -22,7 +22,7 @@ public sealed class FeatureGatingTests : IDisposable
     [AvaloniaFact]
     public void Defaults_EverythingIsBlocked_WithReasons()
     {
-        var vm = new SettingsViewModel(_path);
+        var vm = new SettingsViewModel(_path) { TokenLocator = () => null };
 
         Assert.False(vm.QqReady);                 // 没填群号
         Assert.False(vm.AiReady);                 // 没填模型/地址
@@ -49,6 +49,7 @@ public sealed class FeatureGatingTests : IDisposable
     {
         var vm = new SettingsViewModel(_path)
         {
+            TokenLocator = () => null,
             OneBotHttp = "http://127.0.0.1:3000",   // 在线信息有了，只差群
             AiBaseUrl = "u",
             AiModel = "m"
@@ -76,7 +77,7 @@ public sealed class FeatureGatingTests : IDisposable
     [AvaloniaFact]
     public async Task SummonWithoutClassIsland_WarnsAboutMissingVoice()
     {
-        var vm = new SettingsViewModel(_path) { PluginToken = "" };
+        var vm = new SettingsViewModel(_path) { TokenLocator = () => null, PluginToken = "" };
         vm.RefreshIntegrationState();
 
         Assert.False(vm.ClassIslandReady);
@@ -105,6 +106,7 @@ public sealed class FeatureGatingTests : IDisposable
     {
         var vm = new SettingsViewModel(_path)
         {
+            TokenLocator = () => null,
             OneBotHttp = "http://127.0.0.1:3000",
             AiBaseUrl = "u",
             AiModel = "m"
@@ -123,7 +125,7 @@ public sealed class FeatureGatingTests : IDisposable
     [AvaloniaFact]
     public void EnablingFeatureWithoutIntegrations_IsRejected_AndNotSaved()
     {
-        var vm = new SettingsViewModel(_path);
+        var vm = new SettingsViewModel(_path) { TokenLocator = () => null };
 
         vm.FeatureSummon = true;                  // 界面上开关是灰的，直接赋值也要拦住
 
@@ -137,6 +139,7 @@ public sealed class FeatureGatingTests : IDisposable
     {
         var vm = new SettingsViewModel(_path)
         {
+            TokenLocator = () => null,
             GroupIdsText = "123456",
             AiBaseUrl = "https://api.deepseek.com/v1",
             AiModel = "deepseek-chat"
@@ -161,6 +164,7 @@ public sealed class FeatureGatingTests : IDisposable
     {
         var vm = new SettingsViewModel(_path)
         {
+            TokenLocator = () => null,
             GroupIdsText = "123456",
             AiBaseUrl = "u",
             AiModel = "m",
@@ -181,6 +185,7 @@ public sealed class FeatureGatingTests : IDisposable
     {
         var vm = new SettingsViewModel(_path)
         {
+            TokenLocator = () => null,
             GroupIdsText = "123456",
             AiBaseUrl = "u",
             AiModel = "m"
@@ -199,7 +204,7 @@ public sealed class FeatureGatingTests : IDisposable
     [AvaloniaFact]
     public void PiAiEngine_NeedsModelButNotBaseUrl()
     {
-        var vm = new SettingsViewModel(_path) { GroupIdsText = "123456" };
+        var vm = new SettingsViewModel(_path) { TokenLocator = () => null, GroupIdsText = "123456" };
         vm.EngineOption = vm.Engines.First(e => e.Engine == AiEngine.PiAiSidecar);
         vm.AiModel = "gpt-5";
 

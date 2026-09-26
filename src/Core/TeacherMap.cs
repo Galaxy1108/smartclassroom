@@ -33,6 +33,18 @@ public sealed class TeacherMap
         return null;
     }
 
+    /// <summary>老师名单的一句话描述（喂给 AI 做"数学老师→某人"的匹配）。</summary>
+    public string Describe(int limit = 12)
+    {
+        if (_byQq.Count == 0)
+            return "（未配置）";
+        var items = _byQq.Values
+            .Take(limit)
+            .Select(t => t.Subject.Length > 0 ? $"{t.Name}（{t.Subject}）" : t.Name);
+        var text = string.Join("、", items);
+        return _byQq.Count > limit ? text + $"…共 {_byQq.Count} 人" : text;
+    }
+
     /// <summary>这个 QQ 是否在老师名单里（私聊只认名单里的人，陌生人一律忽略）。</summary>
     public bool IsKnown(long qq) => _byQq.ContainsKey(qq);
 

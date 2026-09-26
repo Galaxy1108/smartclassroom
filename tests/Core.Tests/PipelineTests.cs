@@ -34,6 +34,7 @@ public sealed class PipelineTests
     };
 
     private readonly List<(string Channel, string Title)> _sent = [];
+    private int _exchangeCalls;
     private readonly TeacherMap _teachers = new([new Teacher { Qq = 10001, Name = "张老师", Subject = "数学" }]);
 
     private PipelineService Build(
@@ -60,6 +61,7 @@ public sealed class PipelineTests
                 _sent.Add((Prop("channel", "Channel"), Prop("title", "Title")));
                 return Json(new { });
             }
+            _exchangeCalls++;
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(exchangeVerdict) };
         })));
         var oneBot = new OneBotClient("http://q", "ws://q", null, new HttpClient(new StubHandler(_ =>
@@ -102,6 +104,53 @@ public sealed class PipelineTests
         });
 
         Assert.Empty(_sent);   // 陌生人私聊不处理
+    }
+
+    // ================= 权限：只认老师名单里的人 =================
+    //
+    // 换课会真的改课表，所以名单外的人发来的换课/作业/召唤一律不自动执行，转人工确认。
+    // （这是真实存在的越权面：群里任何人都能发一条"第三节和第五节换一下"。）
+
+    [Fact]
+    public async Task Exchange_FromUnknownSender_IsNotExecuted()
+    {
+        var p = Build("""{"is_exchange":true,"kind":"Swap","from":{"date":"2026-09-28","period":3},"to":{"date":"2026-09-28","period":5},"confidence":0.95}""",
+            inClass: false);
+
+        await p.OnGroupMessageAsync(new GroupMessageEvent
+        {
+            GroupId = 1, UserId = 99999, MessageId = 3,   // 不在老师名单里
+            RawMessage = "第三节和第五节换一下", Text = "第三节和第五节换一下",
+            Card = "路人甲", Nickname = "路人甲"
+        });
+
+        Assert.Equal(0, _exchangeCalls);                       // 没有真的去改课表
+        Assert.Contains(p.Pending.All, i => i.Kind == "auth");  // 转人工确认
+    }
+
+    [Fact]
+    public async Task Exchange_FromMappedTeacher_IsExecuted()
+    {
+        var p = Build("""{"is_exchange":true,"kind":"Swap","from":{"date":"2026-09-28","period":3},"to":{"date":"2026-09-28","period":5},"confidence":0.95}""",
+            inClass: false);
+
+        await p.OnGroupMessageAsync(Msg("第三节和第五节换一下"));   // Msg() 用的就是名单里的 10001
+
+        Assert.Equal(1, _exchangeCalls);
+    }
+
+    [Fact]
+    public async Task Summon_NotificationNamesTheTeacherAndSubject()
+    {
+        // 消息只说"老师叫你过去" —— 通知里必须写清是哪个老师、哪一科
+        var p = Build("""{"is_summon":true,"target":"小明","teacher":"","urgent":true,"confidence":0.9}""",
+            inClass: true);
+
+        await p.OnGroupMessageAsync(Msg("小明现在来一下"));
+
+        Assert.Single(_sent);
+        Assert.Contains("张老师", _sent[0].Title);       // 发送者就是名单里的张老师
+        Assert.Contains("小明", _sent[0].Title);
     }
 
     [Fact]

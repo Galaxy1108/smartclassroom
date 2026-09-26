@@ -42,6 +42,12 @@ public sealed class AppSettings
     /// </summary>
     public bool ListenTeacherPrivate { get; set; } = false;
 
+    /// <summary>
+    /// 只处理老师名单里的人发的消息（默认 true）。
+    /// 关掉它，群里任何人都能触发换课/作业/召唤。
+    /// </summary>
+    public bool RequireKnownTeacher { get; set; } = true;
+
     /// <summary>true = 监听该账号所在的**全部群**（默认 false：只监听 GroupIds 里列的群）。</summary>
     public bool ListenAllGroups { get; set; } = false;
 
@@ -106,6 +112,7 @@ public sealed class AppSettings
         GroupIds = [];
         ListenAllGroups = false;
         ListenTeacherPrivate = false;
+        RequireKnownTeacher = true;
         QqAccount = 0;
         QqAccounts = [];
         SnowLumaAgreementsVersion = "";
@@ -133,7 +140,8 @@ public sealed class AppSettings
         Homework = FeatureHomework,
         Exchange = FeatureExchange,
         FileArchive = FeatureFileArchive,
-        CoursewarePopup = FeatureCoursewarePopup
+        CoursewarePopup = FeatureCoursewarePopup,
+        RequireKnownTeacher = RequireKnownTeacher
     };
 }
 

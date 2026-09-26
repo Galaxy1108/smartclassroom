@@ -306,11 +306,27 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// 查找 ClassIsland 插件 token 的方式（可注入）。
+    /// 做成接缝是为了测试不受"本机有没有装 ClassIsland"影响。
+    /// </summary>
+    private Func<string?> _tokenLocator = () => ClassIslandLocator.TryReadToken();
+
+    public Func<string?> TokenLocator
+    {
+        get => _tokenLocator;
+        set
+        {
+            _tokenLocator = value;
+            RefreshIntegrationState();   // 换了查找方式就重新判定（测试在构造后注入）
+        }
+    }
+
     /// <summary>重新判断集成就绪情况（改设置、打开设置页、自动查找 token 后调用）。</summary>
     public void RefreshIntegrationState()
     {
         bool located;
-        try { located = ClassIslandLocator.TryReadToken() is not null; }
+        try { located = TokenLocator() is not null; }
         catch { located = false; }
         ClassIslandReady = PluginToken.Trim().Length > 0 || located;
         if (ClassIslandReady)
@@ -1219,6 +1235,23 @@ public sealed class SettingsViewModel : ViewModelBase
                 : $"已选 {ids.Count} 个群：{string.Join("、", ids)}";
         }
     }
+
+    /// <summary>
+    /// 只处理老师名单里的人发的消息（默认开启）。
+    /// 关掉它，群里任何人都能触发换课/作业/召唤 —— 换课会真的改课表，慎关。
+    /// </summary>
+    public bool RequireKnownTeacher
+    {
+        get => _requireKnownTeacher;
+        set
+        {
+            if (!Set(ref _requireKnownTeacher, value))
+                return;
+            SaveSettings();
+        }
+    }
+
+    private bool _requireKnownTeacher = true;
 
     /// <summary>
     /// 也处理老师私聊（默认关闭）。只认老师映射里的 QQ，陌生人私聊忽略。
@@ -2202,6 +2235,7 @@ public sealed class SettingsViewModel : ViewModelBase
             WebUiPassword = s.SnowLumaWebUiPassword;
             _listenAllGroups = s.ListenAllGroups;
             _listenTeacherPrivate = s.ListenTeacherPrivate;
+            _requireKnownTeacher = s.RequireKnownTeacher;
             _qqAccount = s.QqAccount;
             QqCandidates.Clear();
             foreach (var a in s.QqAccounts)
@@ -2252,6 +2286,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.SnowLumaWebUiPassword = _webUiPasswordManual ? WebUiPassword : "";
         s.ListenAllGroups = ListenAllGroups;
         s.ListenTeacherPrivate = ListenTeacherPrivate;
+        s.RequireKnownTeacher = RequireKnownTeacher;
         s.QqAccount = QqAccount;
         s.QqAccounts = QqCandidates.ToList();
         s.Teachers = Teachers.Select(t => new Teacher

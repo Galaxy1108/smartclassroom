@@ -15,6 +15,29 @@ public sealed record SummonEvent
     /// <summary>是否要求立刻过去（出现"现在/立刻/马上/立即"等词）。</summary>
     public required bool Urgent { get; init; }
 
+    /// <summary>叫人的老师姓名（AI 结合当前课程/老师名单解析；未知则空）。</summary>
+    public string? Teacher { get; init; }
+
+    /// <summary>该老师/当前课程的科目（用于通知里写清是哪一科）。</summary>
+    public string? Subject { get; init; }
+
+    /// <summary>通知里显示的老师称呼：解析出的老师 → 发送者 → "老师"。</summary>
+    public string TeacherLabel =>
+        !string.IsNullOrWhiteSpace(Teacher) ? Teacher!
+        : !string.IsNullOrWhiteSpace(Sender.TeacherName) ? Sender.TeacherName!
+        : "老师";
+
+    /// <summary>通知里显示的科目后缀（如"（数学）"；未知则空）。</summary>
+    public string SubjectLabel
+    {
+        get
+        {
+            var subject = !string.IsNullOrWhiteSpace(Subject) ? Subject
+                : Sender.Subject;
+            return string.IsNullOrWhiteSpace(subject) ? "" : $"（{subject}）";
+        }
+    }
+
     /// <summary>原消息摘录（去图去 at 后的纯文本）。</summary>
     public required string Reason { get; init; }
 
