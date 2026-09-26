@@ -5,6 +5,68 @@
              xmlns:local="using:SmartClassroom.App.Views"
              x:Class="SmartClassroom.App.Views.EventsView"
              x:DataType="vm:EventsViewModel">
+    <UserControl.Styles>
+        <!-- 时间线卡片按严重级别着色（信息=蓝 / 成功=绿 / 警告=橙 / 错误=红）。
+             配色与 NoticeBar 一致，颜色定义在 App.axaml 的主题字典里，随浅色/深色切换。 -->
+        <Style Selector="Border.tlrow">
+            <Setter Property="Margin" Value="0,3" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource SeverityInfoFillBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SeverityInfoStrokeBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow Border.tlstrip">
+            <Setter Property="Background" Value="{DynamicResource SeverityInfoAccentBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow PathIcon">
+            <Setter Property="Foreground" Value="{DynamicResource SeverityInfoAccentBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow TextBlock.tlseverity">
+            <Setter Property="Foreground" Value="{DynamicResource SeverityInfoAccentBrush}" />
+        </Style>
+
+        <Style Selector="Border.tlrow.success">
+            <Setter Property="Background" Value="{DynamicResource SeveritySuccessFillBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SeveritySuccessStrokeBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow.success Border.tlstrip">
+            <Setter Property="Background" Value="{DynamicResource SeveritySuccessAccentBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow.success PathIcon">
+            <Setter Property="Foreground" Value="{DynamicResource SeveritySuccessAccentBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow.success TextBlock.tlseverity">
+            <Setter Property="Foreground" Value="{DynamicResource SeveritySuccessAccentBrush}" />
+        </Style>
+
+        <Style Selector="Border.tlrow.warning">
+            <Setter Property="Background" Value="{DynamicResource SeverityWarningFillBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SeverityWarningStrokeBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow.warning Border.tlstrip">
+            <Setter Property="Background" Value="{DynamicResource SeverityWarningAccentBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow.warning PathIcon">
+            <Setter Property="Foreground" Value="{DynamicResource SeverityWarningAccentBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow.warning TextBlock.tlseverity">
+            <Setter Property="Foreground" Value="{DynamicResource SeverityWarningAccentBrush}" />
+        </Style>
+
+        <Style Selector="Border.tlrow.error">
+            <Setter Property="Background" Value="{DynamicResource SeverityErrorFillBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SeverityErrorStrokeBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow.error Border.tlstrip">
+            <Setter Property="Background" Value="{DynamicResource SeverityErrorAccentBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow.error PathIcon">
+            <Setter Property="Foreground" Value="{DynamicResource SeverityErrorAccentBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow.error TextBlock.tlseverity">
+            <Setter Property="Foreground" Value="{DynamicResource SeverityErrorAccentBrush}" />
+        </Style>
+    </UserControl.Styles>
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="8" MaxWidth="900" HorizontalAlignment="Stretch">
 
@@ -113,30 +175,66 @@
                        FontSize="12" Opacity="0.85" TextWrapping="Wrap" />
 
             <!-- ============ 决策时间线 ============ -->
-            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-                <PathIcon Width="16" Height="16" Data="{StaticResource IconInfo}" VerticalAlignment="Center" />
-                <TextBlock Text="决策时间线" Theme="{StaticResource SubtitleTextBlockStyle}" />
-            </StackPanel>
-            <TextBlock Text="应用对群里消息做了什么、为什么没做，都记在这里（重启后清空）。"
-                       FontSize="12" Opacity="0.6" />
+            <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <PathIcon Width="16" Height="16" Data="{StaticResource IconInfo}" VerticalAlignment="Center" />
+                    <TextBlock Text="决策时间线" Theme="{StaticResource SubtitleTextBlockStyle}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Content="复制全部" Click="CopyAll_Click" IsEnabled="{Binding HasEntries}"
+                            ToolTip.Tip="把整条时间线复制到剪贴板" />
+                    <Button Content="清空" Click="ClearTimeline_Click" IsEnabled="{Binding HasEntries}"
+                            ToolTip.Tip="清空时间线（它不会随重启自动清空，所以给了这个入口）" />
+                </StackPanel>
+            </Grid>
+            <TextBlock Text="应用对群里消息做了什么、为什么没做，都记在这里。保留最近 200 条，且跨重启保留（存在 state.json）；可逐条复制或手动清空。"
+                       FontSize="12" Opacity="0.6" TextWrapping="Wrap" />
+
+            <TextBlock Text="{Binding TimelineResult}" FontSize="12" Opacity="0.85" TextWrapping="Wrap" />
 
             <ItemsControl ItemsSource="{Binding Entries}">
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="c:ActivityEntry">
-                        <Border Margin="0,2" Padding="10,8" CornerRadius="6" BorderThickness="1"
-                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                            <StackPanel Spacing="2">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="{Binding Kind}" FontSize="11" Opacity="0.6" />
-                                    <TextBlock Text="{Binding At, StringFormat='{}{0:MM-dd HH:mm}'}" FontSize="11" Opacity="0.6" />
+                    <DataTemplate x:DataType="vm:ActivityRow">
+                        <Border Classes="tlrow"
+                                Classes.success="{Binding IsSuccess}"
+                                Classes.warning="{Binding IsWarning}"
+                                Classes.error="{Binding IsError}">
+                            <Grid ColumnDefinitions="4,*,Auto">
+                                <!-- 左侧严重级别色条 -->
+                                <Border Grid.Column="0" Classes="tlstrip" Width="4" CornerRadius="6,0,0,6" />
+                                <StackPanel Grid.Column="1" Margin="10,7" Spacing="2">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <PathIcon Width="13" Height="13" VerticalAlignment="Center"
+                                                  Data="{StaticResource IconInfo}" IsVisible="{Binding IsInfo}" />
+                                        <PathIcon Width="13" Height="13" VerticalAlignment="Center"
+                                                  Data="{StaticResource IconAlert}" IsVisible="{Binding IsSuccess}" />
+                                        <PathIcon Width="13" Height="13" VerticalAlignment="Center"
+                                                  Data="{StaticResource IconWarning}" IsVisible="{Binding IsWarning}" />
+                                        <PathIcon Width="13" Height="13" VerticalAlignment="Center"
+                                                  Data="{StaticResource IconAlert}" IsVisible="{Binding IsError}" />
+                                        <TextBlock Classes="tlseverity" Text="{Binding SeverityLabel}"
+                                                   FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Kind}" FontSize="11" Opacity="0.6"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Time}" FontSize="11" Opacity="0.6"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <SelectableTextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                                         TextWrapping="Wrap" />
+                                    <SelectableTextBlock Text="{Binding Detail}" TextWrapping="Wrap"
+                                                         FontSize="12" Opacity="0.85" />
                                 </StackPanel>
-                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Opacity="0.8" />
-                            </StackPanel>
+                                <Button Grid.Column="2" Content="复制" FontSize="11" Margin="6,6,6,0"
+                                        VerticalAlignment="Top" Padding="8,3"
+                                        Click="CopyEntry_Click" Tag="{Binding}"
+                                        ToolTip.Tip="复制这条记录" />
+                            </Grid>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+            <TextBlock Text="暂无记录。应用处理群消息后，这里会出现对应的行。"
+                       IsVisible="{Binding IsEmptyTimeline}" FontSize="12" Opacity="0.55" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

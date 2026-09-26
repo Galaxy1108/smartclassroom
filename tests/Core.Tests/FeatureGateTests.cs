@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using SmartClassroom.Contracts;
 using SmartClassroom.Core.AI;
 using SmartClassroom.Core.QQ;
 using Xunit;
@@ -27,6 +28,7 @@ public sealed class FeatureGateTests : IDisposable
         public readonly HomeworkStore Homework = new();
         public readonly PendingStore Pending = new();
         public readonly ActivityFeed Feed = new();
+        public readonly CoursewareService Courseware = new();
 
         public PipelineService Build(FeatureFlags flags, string archiveRoot)
         {
@@ -54,7 +56,7 @@ public sealed class FeatureGateTests : IDisposable
                 new FileArchive(new ArchiveOptions { Root = archiveRoot },
                     new HttpClient(new Stub(_ => new HttpResponseMessage(HttpStatusCode.OK)
                     { Content = new ByteArrayContent([1]) }))),
-                new CoursewareService(), Homework, Feed, Pending, flags);
+                Courseware, Homework, Feed, Pending, flags);
         }
     }
 
@@ -171,5 +173,83 @@ public sealed class FeatureGateTests : IDisposable
             FileArchive = files, CoursewarePopup = popup
         };
         Assert.Contains(expected, f.Describe());
+    }
+
+    // ================= 上课课件弹窗：没有当天该科的课件就不弹 =================
+
+    /// <summary>造一个当天真实存在的课件文件（Query 会检查本地文件是否还在）。</summary>
+    private CoursewareFile Register(string name, string subject, string teacher, DateOnly date)
+    {
+        Directory.CreateDirectory(_dir);
+        var path = Path.Combine(_dir, name);
+        File.WriteAllBytes(path, [1]);
+        var file = new CoursewareFile
+        {
+            FileId = name, FileName = name, Size = 3,
+            Sender = new SenderInfo { UserId = 10001, TeacherName = teacher },
+            Source = new MessageRef { GroupId = 1, MessageId = 1 },
+            LocalPath = path, Subject = subject, ClassDate = date
+        };
+        return file;
+    }
+
+    private (Harness H, PipelineService Pipe, List<int> Raised) PopupHarness()
+    {
+        var h = new Harness();
+        var pipe = h.Build(FeatureFlags.AllDisabled with { CoursewarePopup = true }, Path.Combine(_dir, "a"));
+        var raised = new List<int>();
+        pipe.CoursewareSuggested += files => raised.Add(files.Count);
+        return (h, pipe, raised);
+    }
+
+    [Fact]
+    public void CoursewarePopup_NoFileForLesson_DoesNotRaise()
+    {
+        var (h, pipe, raised) = PopupHarness();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        h.Courseware.Register(Register("语文.pptx", "语文", "李老师", today));
+
+        pipe.OnClassStarted(today, "数学", "张老师");   // 当天只有语文课件
+
+        Assert.Empty(raised);
+    }
+
+    [Fact]
+    public void CoursewarePopup_SameDaySameSubject_RaisesOncePerLesson()
+    {
+        var (h, pipe, raised) = PopupHarness();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        h.Courseware.Register(Register("数学.pptx", "数学", "张老师", today));
+
+        pipe.OnClassStarted(today, "数学", "张老师");
+        pipe.OnClassStarted(today, "数学", "张老师");   // 同一节课重复触发不重复弹
+
+        Assert.Equal([1], raised);
+    }
+
+    [Fact]
+    public void CoursewarePopup_NoSubjectAtAll_DoesNotRaise()
+    {
+        var (h, pipe, raised) = PopupHarness();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        h.Courseware.Register(Register("数学.pptx", "数学", "张老师", today));
+
+        pipe.OnClassStarted(today, null, null);   // 课表没给科目也认不出老师
+
+        Assert.Empty(raised);
+        Assert.Contains(h.Feed.Entries, e => e.Title.Contains("没有科目信息"));
+    }
+
+    [Fact]
+    public void CoursewarePopup_SubjectMissingButTeacherMapped_UsesMappedSubject()
+    {
+        var (h, pipe, raised) = PopupHarness();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        h.Courseware.Register(Register("数学.pptx", "数学", "张老师", today));
+
+        // 课表没给科目，但"张老师"在教师映射里是数学 → 按数学匹配
+        pipe.OnClassStarted(today, null, "张老师");
+
+        Assert.Equal([1], raised);
     }
 }

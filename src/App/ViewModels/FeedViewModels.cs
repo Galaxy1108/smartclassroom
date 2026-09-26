@@ -175,7 +175,17 @@ public sealed class EventsViewModel : ViewModelBase
     }
 
     // ---------- 时间线 ----------
-    public ObservableCollection<ActivityEntry> Entries { get; } = new();
+    //
+    // 时间线是**跨重启保留**的（存在 state.json 里，见 AppStateStore）。
+    // 定时器每 2 秒会调一次 Refresh()，若无条件 Clear+重建，
+    // 用户正拖选的一段文字会每 2 秒被清掉一次；所以这里也做指纹比较，没变就不动。
+
+    public ObservableCollection<ActivityRow> Entries { get; } = new();
+
+    public bool HasEntries => Entries.Count > 0;
+    public bool IsEmptyTimeline => Entries.Count == 0;
+
+    private string _entriesSignature = "";
 
     // ---------- 待处理 ----------
     public ObservableCollection<PendingRow> Pending { get; } = new();
@@ -185,6 +195,13 @@ public sealed class EventsViewModel : ViewModelBase
 
     private string _actionResult = "";
     public string ActionResult { get => _actionResult; private set => Set(ref _actionResult, value); }
+
+    /// <summary>时间线自己的操作反馈（复制/清空），与上方待处理区的 ActionResult 分开显示。</summary>
+    private string _timelineResult = "";
+    public string TimelineResult { get => _timelineResult; private set => Set(ref _timelineResult, value); }
+
+    /// <summary>视图层（复制到剪贴板等）回报结果用。</summary>
+    public void Report(string text) => TimelineResult = text;
 
     // ---------- 人工录入表单 ----------
     private PendingRow? _editing;
@@ -237,11 +254,21 @@ public sealed class EventsViewModel : ViewModelBase
     public List<string> ExchangeKinds { get; } = ["Swap", "Replace", "CrossDay"];
 
     // ---------- 刷新 ----------
-    public void Refresh()
+    public void Refresh() => Refresh(force: false);
+
+    /// <param name="force">true = 无视指纹重建（清空、切换页面等需要立刻反映的操作）。</param>
+    public void Refresh(bool force)
     {
-        Entries.Clear();
-        foreach (var e in _feed.Entries)
-            Entries.Add(e);
+        var signature = EntriesSignature();
+        if (force || signature != _entriesSignature || Entries.Count != _feed.Entries.Count)
+        {
+            _entriesSignature = signature;
+            Entries.Clear();
+            foreach (var e in _feed.Entries)
+                Entries.Add(new ActivityRow(e));
+            OnPropertyChanged(nameof(HasEntries));
+            OnPropertyChanged(nameof(IsEmptyTimeline));
+        }
 
         Pending.Clear();
         foreach (var p in _pending.All)
@@ -249,6 +276,44 @@ public sealed class EventsViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasPending));
         OnPropertyChanged(nameof(PendingHeader));
         OnPropertyChanged(nameof(PendingHint));
+    }
+
+    private string EntriesSignature()
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var e in _feed.Entries)
+            sb.Append(e.At.Ticks).Append('|').Append(e.Kind).Append('|').Append(e.Title)
+              .Append('|').Append(e.Detail).Append('|').Append((int)e.Severity).Append('\u0002');
+        return sb.ToString();
+    }
+
+    /// <summary>单条记录的可复制文本。</summary>
+    public string CopyEntryText(ActivityRow row) => row.CopyText;
+
+    /// <summary>
+    /// 整条时间线的导出文本：带上导出时间与条数，
+    /// 方便用户直接把整段贴进聊天窗口或 issue 里。
+    /// </summary>
+    public string CopyAllText()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append("智慧课堂 · 决策时间线（").Append(Entries.Count).Append(" 条，导出于 ")
+          .Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")).Append("）");
+        foreach (var row in Entries)
+            sb.Append('\n').Append(row.CopyText);
+        return sb.ToString();
+    }
+
+    /// <summary>清空时间线（它不会随重启自动清，所以得给个手动出口）。返回清掉的条数。</summary>
+    public int ClearTimeline()
+    {
+        var n = Entries.Count;
+        _feed.Clear();
+        Entries.Clear();
+        _entriesSignature = "";
+        OnPropertyChanged(nameof(HasEntries));
+        OnPropertyChanged(nameof(IsEmptyTimeline));
+        return n;
     }
 
     /// <summary>启用了管理员密码时，待处理操作需要先验证。</summary>
@@ -334,6 +399,39 @@ public sealed class EventsViewModel : ViewModelBase
         Editing = null;
         Refresh();
     }
+}
+
+/// <summary>
+/// 时间线行：把 <see cref="ActivitySeverity"/> 翻译成界面语义
+/// （配色类名开关 + 图标开关 + 可复制文本），XAML 里不做任何逻辑。
+/// </summary>
+public sealed class ActivityRow(ActivityEntry entry)
+{
+    public DateTimeOffset At => entry.At;
+    public string Kind => entry.Kind;
+    public string Title => entry.Title;
+    public string Detail => entry.Detail;
+    public ActivitySeverity Severity => entry.Severity;
+
+    public string Time => entry.At.ToString("MM-dd HH:mm:ss");
+
+    public bool IsInfo => entry.Severity == ActivitySeverity.Info;
+    public bool IsSuccess => entry.Severity == ActivitySeverity.Success;
+    public bool IsWarning => entry.Severity == ActivitySeverity.Warning;
+    public bool IsError => entry.Severity == ActivitySeverity.Error;
+
+    public string SeverityLabel => entry.Severity switch
+    {
+        ActivitySeverity.Success => "成功",
+        ActivitySeverity.Warning => "警告",
+        ActivitySeverity.Error => "错误",
+        _ => "信息"
+    };
+
+    /// <summary>复制出去的文本：级别 + 时间 + 来源 + 正文（明细缩进一行）。</summary>
+    public string CopyText => string.IsNullOrWhiteSpace(entry.Detail)
+        ? $"[{Time}] [{SeverityLabel}] {Kind} · {Title}"
+        : $"[{Time}] [{SeverityLabel}] {Kind} · {Title}\n    {entry.Detail.Replace("\n", "\n    ")}";
 }
 
 /// <summary>待处理行（包一层，便于绑定显示教师名等派生信息）。</summary>

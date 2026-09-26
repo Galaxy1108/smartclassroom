@@ -47,6 +47,33 @@ public sealed class StoresTests
     }
 
     [Fact]
+    public void ActivityFeed_KeepsSeverity_AndCanBeCleared()
+    {
+        var feed = new ActivityFeed();
+        feed.Append("crash", "后台任务异常", "boom", ActivitySeverity.Error);
+        feed.Append("file", "已归档：a.pptx", "", ActivitySeverity.Success);
+        feed.Append("summon", "普通记录", "x");                        // 默认 Info
+
+        // 时间线是"新的在前"
+        Assert.Equal(ActivitySeverity.Info, feed.Entries[0].Severity);
+        Assert.Equal(ActivitySeverity.Success, feed.Entries[1].Severity);
+        Assert.Equal(ActivitySeverity.Error, feed.Entries[2].Severity);
+
+        feed.Clear();
+        Assert.Empty(feed.Entries);
+    }
+
+    [Fact]
+    public void ActivityFeed_Clear_ThenAppend_StartsFresh()
+    {
+        var feed = new ActivityFeed(3);
+        feed.Append("a", "t1", "d1");
+        feed.Clear();
+        feed.Append("b", "t2", "d2");
+        Assert.Equal("t2", Assert.Single(feed.Entries).Title);
+    }
+
+    [Fact]
     public void SettingsStore_Roundtrips()
     {
         var path = Path.Combine(Path.GetTempPath(), "sc-settings-" + Guid.NewGuid().ToString("N") + ".json");

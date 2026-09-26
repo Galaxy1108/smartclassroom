@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 using SmartClassroom.App.ViewModels;
+using SmartClassroom.Core;
 
 namespace SmartClassroom.App.Views;
 
@@ -284,7 +285,7 @@ public partial class HomeworkView : UserControl
         _sourceIndex = -1;
         _targetIndex = -1;
         Vm.SuspendRefresh = false;
-        Runtime.Feed.Append("ui", "拖拽排序出错，已复位", ex.GetType().Name + ": " + ex.Message);
+        Runtime.Feed.Append("ui", "拖拽排序出错，已复位", App.Describe(ex), ActivitySeverity.Warning);
     }
 
     /// <summary>当前实际渲染出来的卡片容器（顺序与数据一致）。</summary>

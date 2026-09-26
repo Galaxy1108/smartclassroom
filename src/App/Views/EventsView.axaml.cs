@@ -55,4 +55,43 @@ public partial class EventsView : UserControl
 
     private void Cancel_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => Vm.CancelEdit();
+
+    // ================= 决策时间线：复制 / 清空 =================
+
+    private async void CopyEntry_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is not ActivityRow row)
+            return;
+        await CopyAsync(Vm.CopyEntryText(row), "已复制这条记录。");
+    }
+
+    private async void CopyAll_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await CopyAsync(Vm.CopyAllText(), $"已复制 {Vm.Entries.Count} 条记录。");
+
+    private void ClearTimeline_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var n = Vm.ClearTimeline();
+        Runtime.SaveState();   // 清空立刻落盘，否则要等 30 秒定时器或退出
+        Vm.Report($"已清空决策时间线（{n} 条）。");
+    }
+
+    /// <summary>写剪贴板；失败只回报一句，不影响其它操作。</summary>
+    private async Task CopyAsync(string text, string okMessage)
+    {
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard is null)
+            {
+                Vm.Report("当前环境没有剪贴板，无法复制（可手动选中文本复制）。");
+                return;
+            }
+            await clipboard.SetTextAsync(text);
+            Vm.Report(okMessage);
+        }
+        catch (Exception ex)
+        {
+            Vm.Report($"复制失败：{App.Describe(ex)}");
+        }
+    }
 }

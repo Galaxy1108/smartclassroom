@@ -95,6 +95,7 @@ public sealed class FileArchive(ArchiveOptions options, HttpClient? http = null)
             GroupId = ev.GroupId,
             SenderQq = sender.UserId,
             SenderName = sender.TeacherName ?? sender.Card ?? sender.Nickname ?? "",
+            Subject = sender.Subject ?? "",
             Time = DateTimeOffset.Now,
             LocalPath = localPath
         };
@@ -145,6 +146,10 @@ public sealed record ArchiveMeta
     public long GroupId { get; init; }
     public long SenderQq { get; init; }
     public string SenderName { get; init; } = "";
+
+    /// <summary>教师映射命中的科目；空 = 认不出（旧的 meta 也没有这个字段）。</summary>
+    public string Subject { get; init; } = "";
+
     public DateTimeOffset Time { get; init; }
     public string? LocalPath { get; init; }
 }

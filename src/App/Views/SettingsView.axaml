@@ -28,37 +28,66 @@
                 <TextBlock Text="功能开关" Theme="{StaticResource SubtitleTextBlockStyle}" />
             </StackPanel>
 
+            <!-- 前置集成没配好时，先把理由摆在最上面：开关是灰的，用户得知道为什么 -->
+            <local:NoticeBar Severity="Warning" IsVisible="{Binding HasMissingIntegration}"
+                             Title="有集成还没配置完成"
+                             Message="{Binding IntegrationSummary}" />
 
             <fa:SettingsExpander Header="召唤通知"
                                  Description="老师在群里叫「xxx 来一下」时发 ClassIsland 通知；上课中排队、下课再发，带「现在/立刻」则立刻发。">
                 <fa:SettingsExpander.Footer>
-                    <ToggleSwitch IsChecked="{Binding FeatureSummon}" />
+                    <ToggleSwitch IsChecked="{Binding FeatureSummon}" IsEnabled="{Binding CanEnableSummon}" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
+            <TextBlock Text="{Binding SummonGateHint}" IsVisible="{Binding !CanEnableSummon}"
+                       FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
+                       TextWrapping="Wrap" Margin="2,0,0,2" />
+
             <fa:SettingsExpander Header="作业自动录入"
                                  Description="AI 把老师宣布的当日作业整理成条目上墙到「作业」页。">
                 <fa:SettingsExpander.Footer>
-                    <ToggleSwitch IsChecked="{Binding FeatureHomework}" />
+                    <ToggleSwitch IsChecked="{Binding FeatureHomework}" IsEnabled="{Binding CanEnableHomework}" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
+            <TextBlock Text="{Binding HomeworkGateHint}" IsVisible="{Binding !CanEnableHomework}"
+                       FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
+                       TextWrapping="Wrap" Margin="2,0,0,2" />
+
             <fa:SettingsExpander Header="换课自动处理"
                                  Description="AI 解析换课（调换/替换/跨天）后交插件校验，合法才落课（临时层），非法转人工。">
                 <fa:SettingsExpander.Footer>
-                    <ToggleSwitch IsChecked="{Binding FeatureExchange}" />
+                    <ToggleSwitch IsChecked="{Binding FeatureExchange}" IsEnabled="{Binding CanEnableExchange}" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
+            <TextBlock Text="{Binding ExchangeGateHint}" IsVisible="{Binding !CanEnableExchange}"
+                       FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
+                       TextWrapping="Wrap" Margin="2,0,0,2" />
+
             <fa:SettingsExpander Header="群文件自动归档"
-                                 Description="老师发的群文件自动下载，按发送者分类存到归档目录。">
+                                 Description="老师发的群文件自动下载，按科目分类存到归档目录。">
                 <fa:SettingsExpander.Footer>
-                    <ToggleSwitch IsChecked="{Binding FeatureFileArchive}" />
+                    <ToggleSwitch IsChecked="{Binding FeatureFileArchive}" IsEnabled="{Binding CanEnableFileArchive}" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
+            <TextBlock Text="{Binding ArchiveGateHint}" IsVisible="{Binding !CanEnableFileArchive}"
+                       FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
+                       TextWrapping="Wrap" Margin="2,0,0,2" />
+
             <fa:SettingsExpander Header="上课课件弹窗"
-                                 Description="上课时若当天该科老师发过文件，弹出「您可能需要的课件」窗口。">
+                                 Description="上课时若当天该科有课件，弹出「您可能需要的课件」窗口；没有当天该科的课件就不弹。">
                 <fa:SettingsExpander.Footer>
-                    <ToggleSwitch IsChecked="{Binding FeatureCoursewarePopup}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="测试弹窗" Click="TestCourseware_Click"
+                                ToolTip.Tip="立即打开一次弹窗（用当天已归档的课件；没有就显示空状态）" />
+                        <ToggleSwitch IsChecked="{Binding FeatureCoursewarePopup}"
+                                      IsEnabled="{Binding CanEnableCoursewarePopup}" />
+                    </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
+            <TextBlock Text="{Binding CoursewareGateHint}" IsVisible="{Binding !CanEnableCoursewarePopup}"
+                       FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
+                       TextWrapping="Wrap" Margin="2,0,0,2" />
+
             <TextBlock Text="{Binding FeatureSummary}" FontSize="12" Opacity="0.75"
                        TextWrapping="Wrap" Margin="2,4,0,0" />
 
@@ -471,6 +500,11 @@
             </StackPanel>
             <TextBox Text="{Binding Log}" IsReadOnly="True" AcceptsReturn="True"
                      Height="170" FontFamily="Monospace" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                <Button Content="复制日志" Click="CopyLog_Click"
+                        ToolTip.Tip="把整段日志复制到剪贴板" />
+                <Button Content="清空日志" Click="ClearLog_Click" />
+            </StackPanel>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

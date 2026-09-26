@@ -62,6 +62,31 @@ public sealed class AppStateStoreTests : IDisposable
     }
 
     [Fact]
+    public void FeedSeverity_SurvivesRoundTrip_AndLegacyEntriesStayInfo()
+    {
+        AppStateStore.Save(new PersistedState
+        {
+            Feed =
+            [
+                new ActivityEntry(DateTimeOffset.Now, "crash", "后台任务异常", "boom", ActivitySeverity.Error),
+                new ActivityEntry(DateTimeOffset.Now, "file", "已归档", "a.pptx", ActivitySeverity.Success)
+            ]
+        }, _path);
+
+        var back = AppStateStore.Load(_path);
+        Assert.Equal(ActivitySeverity.Error, back.Feed[0].Severity);
+        Assert.Equal(ActivitySeverity.Success, back.Feed[1].Severity);
+        // 枚举以字符串落盘，出问题能直接看文件
+        Assert.Contains("\"severity\":\"error\"", File.ReadAllText(_path));
+
+        // 老版本写下的文件没有 severity 字段 → 读到 Info，不能因此炸掉
+        File.WriteAllText(_path,
+            """{"feed":[{"at":"2026-09-25T10:00:00+08:00","kind":"summon","title":"旧记录","detail":""}]}""");
+        var legacy = AppStateStore.Load(_path);
+        Assert.Equal(ActivitySeverity.Info, Assert.Single(legacy.Feed).Severity);
+    }
+
+    [Fact]
     public void MissingFile_ReturnsEmpty()
     {
         var s = AppStateStore.Load(Path.Combine(Path.GetTempPath(), "sc-nope-" + Guid.NewGuid().ToString("N") + ".json"));

@@ -68,7 +68,8 @@ public sealed class PipelineService(
     private void NoteDisabled(string kind, string featureName)
     {
         if (_disabledNotified.Add(kind))
-            feed.Append(kind, $"「{featureName}」未启用，已跳过", "可在 设置 → 功能开关 中开启");
+            feed.Append(kind, $"「{featureName}」未启用，已跳过", "可在 设置 → 功能开关 中开启",
+                ActivitySeverity.Warning);
     }
 
     /// <summary>群文件上传入口。</summary>
@@ -91,7 +92,7 @@ public sealed class PipelineService(
         }
         catch (Exception ex)
         {
-            feed.Append("file", $"文件归档失败：{ev.File.Name}", ex.Message);
+            feed.Append("file", $"文件归档失败：{ev.File.Name}", ex.Message, ActivitySeverity.Error);
             return;
         }
         switch (outcome.Result)
@@ -105,30 +106,54 @@ public sealed class PipelineService(
                     Sender = sender,
                     Source = new MessageRef { GroupId = ev.GroupId, MessageId = 0 },
                     LocalPath = outcome.LocalPath,
+                    Subject = sender.Subject,
                     ClassDate = DateOnly.FromDateTime(DateTime.Now)
                 });
-                feed.Append("file", $"已归档：{ev.File.Name}", $"来自{sender.TeacherName ?? "未知发送者"}");
+                feed.Append("file", $"已归档：{ev.File.Name}", $"来自{sender.TeacherName ?? "未知发送者"}",
+                    ActivitySeverity.Success);
                 break;
             case ArchiveResult.PendingConfirm:
-                feed.Append("file", $"大文件待确认：{ev.File.Name}", $"{ev.File.Size / 1024 / 1024}MB，来自{sender.TeacherName ?? "未知发送者"}");
+                feed.Append("file", $"大文件待确认：{ev.File.Name}",
+                    $"{ev.File.Size / 1024 / 1024}MB，来自{sender.TeacherName ?? "未知发送者"}",
+                    ActivitySeverity.Warning);
                 break;
             case ArchiveResult.Failed:
-                feed.Append("file", $"文件归档失败：{ev.File.Name}", outcome.Error ?? "");
+                feed.Append("file", $"文件归档失败：{ev.File.Name}", outcome.Error ?? "",
+                    ActivitySeverity.Error);
                 break;
         }
     }
 
-    /// <summary>上课事件：当天老师有课件则弹推荐（App 层订阅）。</summary>
-    public void OnClassStarted(DateOnly date, string subject, string? teacherName, long? teacherQq = null)
+    /// <summary>
+    /// 上课事件：**当天 + 当科**有课件才弹（没有就完全不弹），App 层订阅弹窗。
+    /// 科目缺失时用教师映射里的科目补；都补不出来就不弹——宁可少弹，也不要上数学课弹语文课件。
+    /// </summary>
+    public void OnClassStarted(DateOnly date, string? subject, string? teacherName, long? teacherQq = null)
     {
         if (!flags.CoursewarePopup)
         {
             NoteDisabled("courseware", "课件弹窗");
             return;
         }
-        var files = courseware.Query(date, teacherName, teacherQq);
-        if (files.Count == 0 || !courseware.TryMarkShown(date, subject))
+        var known = teacherQq is not null
+            ? teachers.Resolve(teacherQq.Value, null, null)
+            : teachers.Resolve(0, teacherName, teacherName);
+        var effectiveSubject = !string.IsNullOrWhiteSpace(subject) ? subject : known?.Subject;
+        if (string.IsNullOrWhiteSpace(effectiveSubject))
+        {
+            feed.Append("courseware", "本节课没有科目信息，已跳过课件弹窗", "可在教师映射里补上该老师的科目",
+                ActivitySeverity.Warning);
             return;
+        }
+        var effectiveName = teacherName ?? known?.Name;
+        var effectiveQq = teacherQq ?? (known is { Qq: > 0 } ? known.Qq : null);
+        var files = courseware.QueryForLesson(date, effectiveSubject, effectiveName, effectiveQq);
+        if (files.Count == 0)
+            return;   // 没有当天该科的课件：不弹
+        if (!courseware.TryMarkShown(date, effectiveSubject))
+            return;   // 本节课已经弹过
+        feed.Append("courseware", $"上课弹窗：{effectiveSubject}", $"当天该科课件 {files.Count} 个",
+            ActivitySeverity.Success);
         CoursewareSuggested?.Invoke(files);
     }
 
@@ -172,7 +197,7 @@ public sealed class PipelineService(
         var item = pending.Get(id);
         if (item is null || !pending.Remove(id))
             return false;
-        feed.Append(item.Kind, $"已忽略：{item.Title}", item.RawText);
+        feed.Append(item.Kind, $"已忽略：{item.Title}", item.RawText, ActivitySeverity.Warning);
         return true;
     }
 
@@ -197,7 +222,8 @@ public sealed class PipelineService(
         };
         var decision = await gate.ProcessSummonAsync(summon, Send, cancel).ConfigureAwait(false);
         pending.Remove(id);
-        feed.Append("summon", $"人工补录召唤 {summon.Target}（{(urgent ? "立刻" : "排队")}，{Desc(decision)}）", item.RawText);
+        feed.Append("summon", $"人工补录召唤 {summon.Target}（{(urgent ? "立刻" : "排队")}，{Desc(decision)}）",
+            item.RawText, ActivitySeverity.Success);
         return "已按人工录入处理。";
     }
 
@@ -220,7 +246,8 @@ public sealed class PipelineService(
             Source = item.Source
         });
         pending.Remove(id);
-        feed.Append("homework", $"人工补录作业：{merged.Subject}", string.Join("；", merged.Items));
+        feed.Append("homework", $"人工补录作业：{merged.Subject}", string.Join("；", merged.Items),
+            ActivitySeverity.Success);
         return "已按人工录入上墙。";
     }
 
@@ -251,12 +278,15 @@ public sealed class PipelineService(
         try { verdict = await plugin.ExchangeAsync(req, cancel).ConfigureAwait(false); }
         catch (Exception ex)
         {
-            feed.Append("exchange", "人工换课提交失败", $"{item.RawText}（{ex.Message}）");
+            feed.Append("exchange", "人工换课提交失败", $"{item.RawText}（{ex.Message}）",
+                ActivitySeverity.Error);
             return $"提交失败：{ex.Message}";
         }
         pending.Remove(id);
         feed.Append("exchange",
-            verdict.Legal ? $"人工换课已执行：{verdict.Message}" : $"人工换课被驳回：{verdict.Message}", item.RawText);
+            verdict.Legal ? $"人工换课已执行：{verdict.Message}" : $"人工换课被驳回：{verdict.Message}",
+            item.RawText,
+            verdict.Legal ? ActivitySeverity.Success : ActivitySeverity.Warning);
         if (!verdict.Legal)
             gate.EnqueueManual("需手动换课", verdict.Message);
         return verdict.Message;
@@ -286,7 +316,7 @@ public sealed class PipelineService(
             Source = source,
             CreatedAt = DateTimeOffset.Now
         });
-        feed.Append(kind, $"待确认：{title}", $"原因：{reason}");
+        feed.Append(kind, $"待确认：{title}", $"原因：{reason}", ActivitySeverity.Warning);
         return item;
     }
 
@@ -317,7 +347,8 @@ public sealed class PipelineService(
                 Confidence = 0.3
             };
             var decision = await gate.ProcessSummonAsync(fallback, Send, cancel).ConfigureAwait(false);
-            feed.Append("summon", $"疑似召唤（AI 失败，已{Desc(decision)}）", ev.Text);
+            feed.Append("summon", $"疑似召唤（AI 失败，已{Desc(decision)}）", ev.Text,
+                ActivitySeverity.Warning);
             return;
         }
         if (!d.IsSummon || string.IsNullOrWhiteSpace(d.Target))
@@ -341,7 +372,8 @@ public sealed class PipelineService(
         var result = await gate.ProcessSummonAsync(summon, Send, cancel).ConfigureAwait(false);
         if (resolvePendingId is not null)
             pending.Remove(resolvePendingId);
-        feed.Append("summon", $"召唤{d.Target}（{(d.Urgent ? "立刻" : "排队")}，{Desc(result)}）", ev.Text);
+        feed.Append("summon", $"召唤{d.Target}（{(d.Urgent ? "立刻" : "排队")}，{Desc(result)}）", ev.Text,
+            ActivitySeverity.Success);
     }
 
     private async Task HandleHomeworkAsync(
@@ -373,7 +405,8 @@ public sealed class PipelineService(
         });
         if (resolvePendingId is not null)
             pending.Remove(resolvePendingId);
-        feed.Append("homework", $"作业已上墙：{d.Subject}", string.Join("；", d.Items));
+        feed.Append("homework", $"作业已上墙：{d.Subject}", string.Join("；", d.Items),
+            ActivitySeverity.Success);
     }
 
     private async Task HandleExchangeAsync(
@@ -425,7 +458,9 @@ public sealed class PipelineService(
         }
         if (resolvePendingId is not null)
             pending.Remove(resolvePendingId);
-        feed.Append("exchange", verdict.Legal ? $"换课已执行：{verdict.Message}" : $"换课非法，已排队下课通知手动：{verdict.Message}", ev.Text);
+        feed.Append("exchange",
+            verdict.Legal ? $"换课已执行：{verdict.Message}" : $"换课非法，已排队下课通知手动：{verdict.Message}",
+            ev.Text, verdict.Legal ? ActivitySeverity.Success : ActivitySeverity.Warning);
         if (!verdict.Legal)
             gate.EnqueueManual("需手动换课", verdict.Message);
     }

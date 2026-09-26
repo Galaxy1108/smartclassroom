@@ -38,6 +38,7 @@ public sealed class CoursewareService
                     Sender = new SenderInfo { UserId = meta.SenderQq, TeacherName = meta.SenderName.Length > 0 ? meta.SenderName : null },
                     Source = new MessageRef { GroupId = meta.GroupId, MessageId = 0 },
                     LocalPath = meta.LocalPath,
+                    Subject = meta.Subject.Length > 0 ? meta.Subject : null,
                     ClassDate = DateOnly.FromDateTime(meta.Time.LocalDateTime)
                 });
             }
@@ -45,14 +46,43 @@ public sealed class CoursewareService
         }
     }
 
-    /// <summary>查询某日课件。老师与 QQ 均为空时返回当日全部。</summary>
-    public IReadOnlyList<CoursewareFile> Query(DateOnly date, string? teacherName, long? teacherQq = null)
-        => _files.Where(f => f.ClassDate == date
-            && f.LocalPath is not null && File.Exists(f.LocalPath)
-            && (teacherName is null && teacherQq is null
-                || teacherName is not null && f.Sender.TeacherName == teacherName
-                || teacherQq is not null && f.Sender.UserId == teacherQq))
+    /// <summary>某日全部课件（「课件」页列表用）。</summary>
+    public IReadOnlyList<CoursewareFile> QueryDay(DateOnly date)
+        => _files.Where(f => f.ClassDate == date && f.LocalPath is not null && File.Exists(f.LocalPath))
             .OrderBy(f => f.FileName).ToList();
+
+    /// <summary>
+    /// 上课弹窗用的严格查询：**只取当天的、当科的**。
+    /// 规则：
+    /// 1) 必须是同一天且本地文件还在；
+    /// 2) 科目必须匹配（AI/映射认不出科目的文件不算"当科"，除非能确认就是这位老师发的——
+    ///    那种情况属于"老师的文件但分不出科目"，仍然给他看，总比漏掉强）；
+    /// 3) 科目为空时一律不弹（无从判断）。
+    /// </summary>
+    public IReadOnlyList<CoursewareFile> QueryForLesson(
+        DateOnly date, string? subject, string? teacherName = null, long? teacherQq = null)
+    {
+        if (string.IsNullOrWhiteSpace(subject))
+            return [];
+        return _files.Where(f => f.ClassDate == date
+                && f.LocalPath is not null && File.Exists(f.LocalPath)
+                && LessonMatch(f, subject, teacherName, teacherQq))
+            .OrderBy(f => f.FileName).ToList();
+    }
+
+    private static bool LessonMatch(CoursewareFile f, string subject, string? teacherName, long? teacherQq)
+    {
+        var subjectKnown = !string.IsNullOrWhiteSpace(f.Subject);
+        if (subjectKnown
+            && string.Equals(f.Subject!.Trim(), subject.Trim(), StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // 科目未知：只有确认是这位老师的文件才放行（同一老师只有一门课，误弹概率低）。
+        var identityMatch = teacherQq is not null && f.Sender.UserId == teacherQq
+            || !string.IsNullOrWhiteSpace(teacherName)
+               && string.Equals(f.Sender.TeacherName ?? "", teacherName.Trim(), StringComparison.OrdinalIgnoreCase);
+        return !subjectKnown && identityMatch;
+    }
 
     /// <summary>本节课是否已弹过（去重键：日期+科目）。未弹过则标记并返回 true。</summary>
     public bool TryMarkShown(DateOnly date, string subject)

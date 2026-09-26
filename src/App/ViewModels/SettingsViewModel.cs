@@ -58,6 +58,7 @@ public sealed class SettingsViewModel : ViewModelBase
         RefreshSidecarInfo();
         RefreshNodeStatus();
         OnPropertyChanged(nameof(FeatureSummary));
+        RefreshIntegrationState();   // 判定 QQ / AI / ClassIsland 是否就绪 → 决定功能开关能否开
         // 用 Ctrl+滚轮改了缩放时，设置页滑块要跟着动（不再反向触发保存）
         ContentZoom.Changed += OnExternalScaleChanged;
     }
@@ -68,6 +69,18 @@ public sealed class SettingsViewModel : ViewModelBase
 
     /// <summary>供视图写入日志（例如打开目录失败）。</summary>
     public void AppendLogFromView(string line) => AppendLog(line);
+
+    /// <summary>清空日志框（只清内存里的这段文本，不影响事件时间线）。</summary>
+    public void ClearLog()
+    {
+        Log = "";
+        AppendLog("日志已清空。");
+    }
+
+    /// <summary>监听群号（设置里是逗号分隔的文本）。</summary>
+    private List<long> ParseGroupIds()
+        => GroupIdsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(g => long.TryParse(g, out var n) ? n : 0).Where(n => n > 0).ToList();
 
     // ================= 管理员密码 / 关闭行为 =================
 
@@ -133,8 +146,12 @@ public sealed class SettingsViewModel : ViewModelBase
         ? "关闭主窗口会收回到托盘；从托盘菜单可重新打开或退出。"
         : "当前桌面环境未提供系统托盘，关闭主窗口将直接退出应用。";
 
-    /// <summary>刷新锁定状态（打开设置页 / 认证成功后调用）。</summary>
-    public void RefreshLockState() => IsLocked = Runtime.Auth.IsEnabled && !Runtime.Auth.IsUnlocked;
+    /// <summary>刷新锁定状态（打开设置页 / 认证成功后调用），顺便重判集成状态。</summary>
+    public void RefreshLockState()
+    {
+        IsLocked = Runtime.Auth.IsEnabled && !Runtime.Auth.IsUnlocked;
+        RefreshIntegrationState();
+    }
 
     /// <summary>设置或清除管理员密码。</summary>
     public void ApplyPassword()
@@ -186,35 +203,184 @@ public sealed class SettingsViewModel : ViewModelBase
     //
     // 这些能力会读班级群消息并产生副作用（发通知、改课表、下文件），
     // 所以默认全部关闭，由用户逐项开启。
+    // 另外：开关依赖的外部集成必须先配置好，否则开了也只是空转
+    //（没有 QQ 就收不到消息、没有 ClassIsland 就发不出通知也落不了课），
+    // 因此依赖不满足时**直接不允许开启**，并在页面上说明缺什么。
+
+    // ---------- 集成是否就绪 ----------
+
+    /// <summary>QQ 连接就绪：有监听群号，且有 OneBot 地址。</summary>
+    public bool QqReady
+        => ParseGroupIds().Count > 0
+           && (OneBotHttp.Trim().Length > 0 || OneBotWs.Trim().Length > 0);
+
+    /// <summary>AI 就绪：有模型；内置直连还要求服务地址，pi-ai 走 provider 目录。</summary>
+    public bool AiReady
+        => AiModel.Trim().Length > 0 && (IsPiAi || AiBaseUrl.Trim().Length > 0);
+
+    private bool _classIslandReady;
+    /// <summary>ClassIsland 集成就绪：填过桥接 token，或能在磁盘上找到插件生成的 token。</summary>
+    public bool ClassIslandReady
+    {
+        get => _classIslandReady;
+        private set => Set(ref _classIslandReady, value);
+    }
+
+    /// <summary>重新判断集成就绪情况（改设置、打开设置页、自动查找 token 后调用）。</summary>
+    public void RefreshIntegrationState()
+    {
+        bool located;
+        try { located = ClassIslandLocator.TryReadToken() is not null; }
+        catch { located = false; }
+        ClassIslandReady = PluginToken.Trim().Length > 0 || located;
+        RefreshFeatureGates();
+    }
+
+    // ---------- 各开关的前置条件 ----------
+
+    private List<string> MissingFor(bool needQq, bool needAi, bool needClassIsland)
+    {
+        var missing = new List<string>();
+        if (needQq && !QqReady)
+            missing.Add("QQ 连接（下方「QQ 连接」：填 OneBot 地址 + 监听群号）");
+        if (needAi && !AiReady)
+            missing.Add("AI（上方「AI」：选引擎并填模型，内置直连还要填服务地址）");
+        if (needClassIsland && !ClassIslandReady)
+            missing.Add("ClassIsland 集成（「ClassIsland 集成」：先让插件生成 token，再点「自动查找」）");
+        return missing;
+    }
+
+    private string _summonGateHint = "";
+    private string _homeworkGateHint = "";
+    private string _exchangeGateHint = "";
+    private string _archiveGateHint = "";
+    private string _coursewareGateHint = "";
+
+    public string SummonGateHint { get => _summonGateHint; private set => Set(ref _summonGateHint, value); }
+    public string HomeworkGateHint { get => _homeworkGateHint; private set => Set(ref _homeworkGateHint, value); }
+    public string ExchangeGateHint { get => _exchangeGateHint; private set => Set(ref _exchangeGateHint, value); }
+    public string ArchiveGateHint { get => _archiveGateHint; private set => Set(ref _archiveGateHint, value); }
+    public string CoursewareGateHint { get => _coursewareGateHint; private set => Set(ref _coursewareGateHint, value); }
+
+    public bool CanEnableSummon => SummonGateHint.Length == 0;
+    public bool CanEnableHomework => HomeworkGateHint.Length == 0;
+    public bool CanEnableExchange => ExchangeGateHint.Length == 0;
+    public bool CanEnableFileArchive => ArchiveGateHint.Length == 0;
+    public bool CanEnableCoursewarePopup => CoursewareGateHint.Length == 0;
+
+    private static string GateHint(List<string> missing)
+        => missing.Count == 0 ? "" : "⛔ 需先完成：" + string.Join("；", missing);
+
+    /// <summary>重算五个开关的前置条件，并把不满足条件的开关关掉。</summary>
+    public void RefreshFeatureGates()
+    {
+        SummonGateHint = GateHint(MissingFor(needQq: true, needAi: true, needClassIsland: false));
+        HomeworkGateHint = GateHint(MissingFor(needQq: true, needAi: true, needClassIsland: false));
+        ExchangeGateHint = GateHint(MissingFor(needQq: true, needAi: true, needClassIsland: true));
+        ArchiveGateHint = GateHint(MissingFor(needQq: true, needAi: false, needClassIsland: false));
+        CoursewareGateHint = GateHint(MissingFor(needQq: false, needAi: false, needClassIsland: true));
+
+        OnPropertyChanged(nameof(CanEnableSummon));
+        OnPropertyChanged(nameof(CanEnableHomework));
+        OnPropertyChanged(nameof(CanEnableExchange));
+        OnPropertyChanged(nameof(CanEnableFileArchive));
+        OnPropertyChanged(nameof(CanEnableCoursewarePopup));
+        OnPropertyChanged(nameof(IntegrationSummary));
+        OnPropertyChanged(nameof(HasMissingIntegration));
+
+        TurnOffUnavailableFeatures();
+    }
+
+    /// <summary>前置条件不满足却处于开启状态的开关，一律关掉（设置文件被手改也一样）。</summary>
+    private void TurnOffUnavailableFeatures()
+    {
+        if (_enforcingGates)
+            return;
+        _enforcingGates = true;
+        try
+        {
+            var turnedOff = new List<string>();
+            if (_featureSummon && !CanEnableSummon) { _featureSummon = false; turnedOff.Add("召唤通知"); }
+            if (_featureHomework && !CanEnableHomework) { _featureHomework = false; turnedOff.Add("作业自动录入"); }
+            if (_featureExchange && !CanEnableExchange) { _featureExchange = false; turnedOff.Add("换课自动处理"); }
+            if (_featureFileArchive && !CanEnableFileArchive) { _featureFileArchive = false; turnedOff.Add("群文件自动归档"); }
+            if (_featureCoursewarePopup && !CanEnableCoursewarePopup) { _featureCoursewarePopup = false; turnedOff.Add("上课课件弹窗"); }
+            if (turnedOff.Count == 0)
+                return;
+
+            OnPropertyChanged(nameof(FeatureSummon));
+            OnPropertyChanged(nameof(FeatureHomework));
+            OnPropertyChanged(nameof(FeatureExchange));
+            OnPropertyChanged(nameof(FeatureFileArchive));
+            OnPropertyChanged(nameof(FeatureCoursewarePopup));
+            OnPropertyChanged(nameof(FeatureSummary));
+            AppendLog($"前置集成未完成，已自动关闭：{string.Join("、", turnedOff)}");
+            SaveSettings();
+        }
+        finally { _enforcingGates = false; }
+    }
+
+    private bool _enforcingGates;
+
+    /// <summary>总览：哪些集成还没配好。放在功能开关区顶部，用户一眼能看到原因。</summary>
+    public string IntegrationSummary
+    {
+        get
+        {
+            var missing = MissingFor(needQq: true, needAi: true, needClassIsland: true);
+            return missing.Count == 0 ? "" : "以下集成尚未配置完成，相关开关暂时无法开启：" + string.Join("；", missing);
+        }
+    }
+
+    /// <summary>有集成没配好（决定总览提示是否显示）。</summary>
+    public bool HasMissingIntegration => IntegrationSummary.Length > 0;
 
     public bool FeatureSummon
     {
         get => _featureSummon;
-        set { if (Set(ref _featureSummon, value)) OnFeatureChanged(); }
+        set => SetFeature(ref _featureSummon, value, CanEnableSummon, "召唤通知");
     }
 
     public bool FeatureHomework
     {
         get => _featureHomework;
-        set { if (Set(ref _featureHomework, value)) OnFeatureChanged(); }
+        set => SetFeature(ref _featureHomework, value, CanEnableHomework, "作业自动录入");
     }
 
     public bool FeatureExchange
     {
         get => _featureExchange;
-        set { if (Set(ref _featureExchange, value)) OnFeatureChanged(); }
+        set => SetFeature(ref _featureExchange, value, CanEnableExchange, "换课自动处理");
     }
 
     public bool FeatureFileArchive
     {
         get => _featureFileArchive;
-        set { if (Set(ref _featureFileArchive, value)) OnFeatureChanged(); }
+        set => SetFeature(ref _featureFileArchive, value, CanEnableFileArchive, "群文件自动归档");
     }
 
     public bool FeatureCoursewarePopup
     {
         get => _featureCoursewarePopup;
-        set { if (Set(ref _featureCoursewarePopup, value)) OnFeatureChanged(); }
+        set => SetFeature(ref _featureCoursewarePopup, value, CanEnableCoursewarePopup, "上课课件弹窗");
+    }
+
+    /// <summary>开启前统一检查前置条件；不允许就直接拒绝并写日志（界面上开关本来就是禁用的）。</summary>
+    private void SetFeature(ref bool field, bool value, bool allowed, string name)
+    {
+        if (value && !allowed)
+        {
+            AppendLog($"「{name}」的前置集成还没配好，无法开启。");
+            OnPropertyChanged(nameof(FeatureSummon));
+            OnPropertyChanged(nameof(FeatureHomework));
+            OnPropertyChanged(nameof(FeatureExchange));
+            OnPropertyChanged(nameof(FeatureFileArchive));
+            OnPropertyChanged(nameof(FeatureCoursewarePopup));
+            return;
+        }
+        if (!Set(ref field, value))
+            return;
+        OnFeatureChanged();
     }
 
     /// <summary>当前开关摘要（保存后重启生效）。</summary>
@@ -224,6 +390,7 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         SaveSettings();
         OnPropertyChanged(nameof(FeatureSummary));
+        OnPropertyChanged(nameof(IntegrationSummary));
     }
 
     private FeatureFlags CurrentFlags() => new()
@@ -258,10 +425,13 @@ public sealed class SettingsViewModel : ViewModelBase
             OnPropertyChanged(nameof(IsPiAi));
             OnPropertyChanged(nameof(IsHttpGateway));
             OnPropertyChanged(nameof(ShowSidecarSettings));
+            RefreshFeatureGates();   // pi-ai 不要求服务地址，切换引擎会改变 AI 是否就绪
         }
     }
 
-    public AiEngine AiEngine => EngineOption.Engine;
+    // 注意：LoadSettings() 期间 EngineOption 可能还没赋值，
+    // 而 AiModel 等 setter 会立刻重算功能开关（依赖 AiEngine），所以这里必须容忍 null。
+    public AiEngine AiEngine => EngineOption?.Engine ?? AiEngine.HttpGateway;
     public bool IsPiAi => AiEngine == AiEngine.PiAiSidecar;
     public bool IsHttpGateway => AiEngine == AiEngine.HttpGateway;
 
@@ -305,13 +475,21 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     private string _aiBaseUrl = "";
-    public string AiBaseUrl { get => _aiBaseUrl; set => Set(ref _aiBaseUrl, value); }
+    public string AiBaseUrl
+    {
+        get => _aiBaseUrl;
+        set { if (Set(ref _aiBaseUrl, value)) RefreshFeatureGates(); }
+    }
 
     private string _aiApiKey = "";
     public string AiApiKey { get => _aiApiKey; set => Set(ref _aiApiKey, value); }
 
     private string _aiModel = "";
-    public string AiModel { get => _aiModel; set => Set(ref _aiModel, value); }
+    public string AiModel
+    {
+        get => _aiModel;
+        set { if (Set(ref _aiModel, value)) RefreshFeatureGates(); }
+    }
 
     public string AiTestResult { get => _aiTestResult; private set => Set(ref _aiTestResult, value); }
 
@@ -542,7 +720,11 @@ public sealed class SettingsViewModel : ViewModelBase
     // ================= ClassIsland 集成 =================
 
     private string _pluginToken = "";
-    public string PluginToken { get => _pluginToken; set => Set(ref _pluginToken, value); }
+    public string PluginToken
+    {
+        get => _pluginToken;
+        set { if (Set(ref _pluginToken, value)) RefreshIntegrationState(); }
+    }
 
     private int _pluginPort = 5199;
     public int PluginPort { get => _pluginPort; set => Set(ref _pluginPort, value); }
@@ -579,6 +761,7 @@ public sealed class SettingsViewModel : ViewModelBase
         }
         PluginToken = token;
         SaveSettings();
+        RefreshIntegrationState();   // token 到位 → 依赖 ClassIsland 的开关可以开了
         AppendLog("已自动填入插件 token 并保存。");
         return (true, explanation + "\n\ntoken 已自动填入并保存。");
     }
@@ -638,13 +821,25 @@ public sealed class SettingsViewModel : ViewModelBase
     public bool QqDetected { get => _qqDetected; private set => Set(ref _qqDetected, value); }
 
     private string _oneBotHttp = "http://127.0.0.1:3000";
-    public string OneBotHttp { get => _oneBotHttp; set => Set(ref _oneBotHttp, value); }
+    public string OneBotHttp
+    {
+        get => _oneBotHttp;
+        set { if (Set(ref _oneBotHttp, value)) RefreshFeatureGates(); }
+    }
 
     private string _oneBotWs = "ws://127.0.0.1:3001";
-    public string OneBotWs { get => _oneBotWs; set => Set(ref _oneBotWs, value); }
+    public string OneBotWs
+    {
+        get => _oneBotWs;
+        set { if (Set(ref _oneBotWs, value)) RefreshFeatureGates(); }
+    }
 
     private string _groupIds = "";
-    public string GroupIdsText { get => _groupIds; set => Set(ref _groupIds, value); }
+    public string GroupIdsText
+    {
+        get => _groupIds;
+        set { if (Set(ref _groupIds, value)) RefreshFeatureGates(); }
+    }
 
     private bool _autostart;
     public bool AutostartEnabled
@@ -788,8 +983,7 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public void SaveSettings()
     {
-        var groups = GroupIdsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(g => long.TryParse(g, out var n) ? n : 0).Where(n => n > 0).ToList();
+        var groups = ParseGroupIds();
         SettingsStore.Save(new AppSettings
         {
             AiEngine = AiEngine.ToStorage(),

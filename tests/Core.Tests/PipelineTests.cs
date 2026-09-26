@@ -178,7 +178,9 @@ public sealed class PipelineTests
                 File = new UploadedFile { Id = "f1", Name = "课件.pptx", Size = 10 }
             });
             var today = DateOnly.FromDateTime(DateTime.Now);
-            Assert.Single(courseware.Query(today, "张老师"));
+            var archived = Assert.Single(courseware.QueryDay(today));
+            Assert.Equal("张老师", archived.Sender.TeacherName);
+            Assert.Equal("数学", archived.Subject);   // 科目要进课件索引，上课弹窗靠它判"当科"
         }
         finally { if (Directory.Exists(archiveRoot)) Directory.Delete(archiveRoot, true); }
     }

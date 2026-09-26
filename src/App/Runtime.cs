@@ -101,7 +101,7 @@ public static class Runtime
                     .Select(f => (f.FileName, f.LocalPath!, f.Size)));
                 new CoursewareWindow { DataContext = vm }.Show();
             }
-            catch (Exception ex) { Feed.Append("courseware", "课件弹窗失败", ex.Message); }
+            catch (Exception ex) { Feed.Append("courseware", "课件弹窗失败", ex.Message, ActivitySeverity.Error); }
         });
 
         _ = RunQqLoopAsync(oneBot, pipeline, status, cancel);
@@ -138,7 +138,7 @@ public static class Runtime
         }
         catch (Exception ex)
         {
-            Feed.Append("state", "状态恢复失败", ex.Message);
+            Feed.Append("state", "状态恢复失败", ex.Message, ActivitySeverity.Error);
         }
     }
 
@@ -202,7 +202,7 @@ public static class Runtime
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
-                Feed.Append("qq", "QQ 连接断开，5 秒后重连", ex.Message);
+                Feed.Append("qq", "QQ 连接断开，5 秒后重连", ex.Message, ActivitySeverity.Warning);
                 Dispatcher.UIThread.Post(() => status.StatusText = "QQ 未连接（重连中…）");
                 try { await Task.Delay(5000, cancel); } catch { break; }
             }
@@ -229,7 +229,8 @@ public static class Runtime
         }
         catch (Exception ex)
         {
-            Feed.Append("classisland", "ClassIsland 未连接（稍后可单独用 App 通知降级）", ex.Message);
+            Feed.Append("classisland", "ClassIsland 未连接（稍后可单独用 App 通知降级）", ex.Message,
+                ActivitySeverity.Warning);
         }
     }
 
@@ -242,6 +243,6 @@ public static class Runtime
                 return;
             pipeline.OnClassStarted(DateOnly.FromDateTime(DateTime.Now), lesson.Subject, lesson.Teacher);
         }
-        catch (Exception ex) { Feed.Append("classisland", "上课事件处理失败", ex.Message); }
+        catch (Exception ex) { Feed.Append("classisland", "上课事件处理失败", ex.Message, ActivitySeverity.Error); }
     }
 }

@@ -44,6 +44,31 @@ public sealed class FileArchiveTests : IDisposable
     }
 
     [Fact]
+    public async Task Meta_RecordsSubject_SoCoursewarePopupCanFilterBySubject()
+    {
+        var o = await Archive().HandleAsync(Ev(), Teacher(), (_, _) => Task.FromResult<string?>("http://x/f"));
+
+        var meta = System.Text.Json.JsonSerializer.Deserialize<ArchiveMeta>(
+            await File.ReadAllTextAsync(o.LocalPath! + ".meta.json"));
+
+        Assert.NotNull(meta);
+        Assert.Equal("数学", meta!.Subject);       // 上课弹窗靠它判断"当科"
+        Assert.Equal("张老师", meta.SenderName);
+        Assert.Equal(10001, meta.SenderQq);
+    }
+
+    [Fact]
+    public async Task Meta_UnknownSubject_StaysEmpty()
+    {
+        var o = await Archive(downloadAll: true)
+            .HandleAsync(Ev(), Stranger(), (_, _) => Task.FromResult<string?>("http://x/f"));
+
+        var meta = System.Text.Json.JsonSerializer.Deserialize<ArchiveMeta>(
+            await File.ReadAllTextAsync(o.LocalPath! + ".meta.json"));
+        Assert.Equal("", meta!.Subject);           // 认不出科目就不能瞎猜
+    }
+
+    [Fact]
     public void SubjectFolder_PrefersSubject_ThenTeacher_ThenUnclassified()
     {
         Assert.Equal("数学", FileArchive.SubjectFolder(new SenderInfo { UserId = 1, TeacherName = "张老师", Subject = "数学" }));

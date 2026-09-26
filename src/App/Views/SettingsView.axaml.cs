@@ -158,4 +158,45 @@ public partial class SettingsView : UserControl
 
     private void AutoConnect_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => Vm.AutoConnect();
+
+    // ---- 上课课件弹窗：手动测试 ----
+
+    /// <summary>
+    /// 手动弹一次课件窗（真实触发走上课事件 + 功能开关）。
+    /// 用当天已归档的课件；当天没有就显示空状态——点了必须有反应，否则会以为功能坏了。
+    /// </summary>
+    private void TestCourseware_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var files = Runtime.Courseware.QueryDay(today);
+        var vm = CoursewareViewModel.FromFiles(files
+            .Where(f => f.LocalPath is not null)
+            .Select(f => (f.FileName, f.LocalPath!, f.Size)));
+        new CoursewareWindow { DataContext = vm }.Show();
+        Vm.AppendLogFromView($"已打开课件弹窗：{today:yyyy-MM-dd} 共 {files.Count} 个文件。");
+    }
+
+    // ---- 日志 ----
+
+    private async void CopyLog_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+            if (clipboard is null)
+            {
+                Vm.AppendLogFromView("当前环境没有剪贴板，无法复制。");
+                return;
+            }
+            await clipboard.SetTextAsync(Vm.Log);
+            Vm.AppendLogFromView($"已复制日志（{Vm.Log.Length} 字符）。");
+        }
+        catch (Exception ex)
+        {
+            Vm.AppendLogFromView($"复制日志失败：{ex.Message}");
+        }
+    }
+
+    private void ClearLog_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => Vm.ClearLog();
 }

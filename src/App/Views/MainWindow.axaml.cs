@@ -75,7 +75,7 @@ public partial class MainWindow : Window
     {
         var today = DateOnly.FromDateTime(DateTime.Now);
         _coursewareVm.Items.Clear();
-        foreach (var f in Runtime.Courseware.Query(today, null))
+        foreach (var f in Runtime.Courseware.QueryDay(today))
         {
             if (f.LocalPath is null)
                 continue;

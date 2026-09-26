@@ -57,12 +57,16 @@ public sealed class ActivityFeed(int capacity = 200)
 
     public IReadOnlyList<ActivityEntry> Entries => _entries.ToList();
 
-    public void Append(string kind, string title, string detail)
+    public void Append(string kind, string title, string detail,
+        ActivitySeverity severity = ActivitySeverity.Info)
     {
-        _entries.AddFirst(new ActivityEntry(DateTimeOffset.Now, kind, title, detail));
+        _entries.AddFirst(new ActivityEntry(DateTimeOffset.Now, kind, title, detail, severity));
         while (_entries.Count > capacity)
             _entries.RemoveLast();
     }
+
+    /// <summary>清空时间线（界面上的「清空」按钮；持久化由 App 层的下一次落盘完成）。</summary>
+    public void Clear() => _entries.Clear();
 
     /// <summary>整体替换（从磁盘恢复时用，按时间倒序重放）。</summary>
     public void ReplaceAll(IEnumerable<ActivityEntry> entries)
@@ -75,4 +79,28 @@ public sealed class ActivityFeed(int capacity = 200)
     }
 }
 
-public sealed record ActivityEntry(DateTimeOffset At, string Kind, string Title, string Detail);
+/// <summary>
+/// 时间线条目的严重级别。它只表达"这条消息对用户意味着什么"，
+/// 用来决定界面配色（信息=中性蓝、成功=绿、警告=橙、错误=红）。
+/// </summary>
+public enum ActivitySeverity
+{
+    /// <summary>中性记录（正常流程、恢复状态、AI 判定后跳过）。</summary>
+    Info,
+
+    /// <summary>按预期完成的副作用（已归档、已上墙、已发通知）。</summary>
+    Success,
+
+    /// <summary>需要留意但没坏（功能未开启、连接断开重连中、非法换课转人工、AI 降级）。</summary>
+    Warning,
+
+    /// <summary>出错（异常、归档失败、解析失败）。</summary>
+    Error
+}
+
+public sealed record ActivityEntry(
+    DateTimeOffset At,
+    string Kind,
+    string Title,
+    string Detail,
+    ActivitySeverity Severity = ActivitySeverity.Info);

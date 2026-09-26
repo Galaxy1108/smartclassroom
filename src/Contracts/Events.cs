@@ -102,6 +102,12 @@ public sealed record CoursewareFile
     /// <summary>本地归档绝对路径（下载完成后填写）。</summary>
     public string? LocalPath { get; init; }
 
+    /// <summary>
+    /// 科目（教师映射命中时）。为空 = 认不出科目；
+    /// 上课弹窗要求"当科"，此时只能退化为按老师身份匹配。
+    /// </summary>
+    public string? Subject { get; init; }
+
     public required DateOnly ClassDate { get; init; }
 }
 
