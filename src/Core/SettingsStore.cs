@@ -23,7 +23,11 @@ public sealed class AppSettings
     public string OneBotWs { get; set; } = "ws://127.0.0.1:3001";
     public string OneBotToken { get; set; } = "";
     public List<long> GroupIds { get; set; } = [];
+    /// <summary>群文件归档根目录；留空用默认（&lt;LocalAppData&gt;/SmartClassroom/archive）。</summary>
     public string ArchiveRoot { get; set; } = "";
+
+    /// <summary>true = 下载群里所有人的文件；false（默认）= 只下载教师映射命中的发送者。</summary>
+    public bool ArchiveDownloadAll { get; set; } = false;
 
     /// <summary>ClassIsland 插件桥接 token（插件首次启动生成，写在插件配置目录 bridge.token）。</summary>
     public string PluginToken { get; set; } = "";

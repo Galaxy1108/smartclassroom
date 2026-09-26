@@ -29,6 +29,8 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _sidecarInfo = "";
     private string _aiTestResult = "";
     private string _aiReasoning = "minimal";
+    private string _archiveRoot = "";
+    private bool _archiveDownloadAll;
     private bool _isNodeReady;
     private bool _isLocked;
     private bool _minimizeToTray = true;
@@ -63,6 +65,9 @@ public sealed class SettingsViewModel : ViewModelBase
     public string SettingsPath { get; }
 
     private void AppendLog(string line) => Log += line + "\n";
+
+    /// <summary>供视图写入日志（例如打开目录失败）。</summary>
+    public void AppendLogFromView(string line) => AppendLog(line);
 
     // ================= 管理员密码 / 关闭行为 =================
 
@@ -439,6 +444,31 @@ public sealed class SettingsViewModel : ViewModelBase
         return client;
     }
 
+    // ================= 文件归档 =================
+
+    /// <summary>归档根目录；留空表示用默认位置。</summary>
+    public string ArchiveRoot
+    {
+        get => _archiveRoot;
+        set
+        {
+            if (!Set(ref _archiveRoot, value))
+                return;
+            OnPropertyChanged(nameof(EffectiveArchiveRoot));
+            SaveSettings();
+        }
+    }
+
+    /// <summary>真正生效的目录（空则默认），界面上要显示出来，否则用户找不到文件。</summary>
+    public string EffectiveArchiveRoot => ArchiveRoot.Length > 0 ? ArchiveRoot : Runtime.DefaultArchiveRoot;
+
+    /// <summary>下载群里所有人的文件（默认只下载教师）。</summary>
+    public bool ArchiveDownloadAll
+    {
+        get => _archiveDownloadAll;
+        set { if (Set(ref _archiveDownloadAll, value)) SaveSettings(); }
+    }
+
     // ================= Node 运行时（pi-ai 前置依赖） =================
 
     public ObservableCollection<NodeRelease> NodeReleases { get; } = new();
@@ -732,6 +762,8 @@ public sealed class SettingsViewModel : ViewModelBase
         AiModel = s.AiModel;
         AiModelProviderHint = s.AiProvider.Length > 0 ? s.AiProvider : "deepseek";
         _aiReasoning = s.AiReasoning.Length > 0 ? s.AiReasoning : "minimal";
+        _archiveRoot = s.ArchiveRoot;
+        _archiveDownloadAll = s.ArchiveDownloadAll;
         OneBotHttp = s.OneBotHttp;
         OneBotWs = s.OneBotWs;
         GroupIdsText = string.Join(",", s.GroupIds);
@@ -763,6 +795,8 @@ public sealed class SettingsViewModel : ViewModelBase
             AiEngine = AiEngine.ToStorage(),
             AiProvider = SelectedProvider?.Id ?? AiModelProviderHint,
             AiReasoning = AiReasoning,
+            ArchiveRoot = ArchiveRoot,
+            ArchiveDownloadAll = ArchiveDownloadAll,
             AiBaseUrl = AiBaseUrl,
             AiApiKey = AiApiKey,
             AiModel = AiModel,

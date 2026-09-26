@@ -25,6 +25,11 @@ public static class Runtime
 
     /// <summary>管理员认证门；密码哈希随时从当前设置读取（改了密码立即生效）。</summary>
     public static AuthGate Auth { get; } = new(() => Settings.AdminPasswordHash);
+
+    /// <summary>归档默认根目录（用户未指定时）。</summary>
+    public static string DefaultArchiveRoot => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "SmartClassroom", "archive");
     public static ScheduleGate? Gate { get; private set; }
     public static PipelineService? Pipeline { get; private set; }
 
@@ -81,8 +86,8 @@ public static class Runtime
         Feed.Append("ai", $"AI 引擎：{(ai is PiAiSidecarClient ? "pi-ai 边车" : "内置直连")}", Settings.AiModel);
         var archive = new FileArchive(new ArchiveOptions
         {
-            Root = Settings.ArchiveRoot.Length > 0 ? Settings.ArchiveRoot
-                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SmartClassroom", "archive")
+            Root = Settings.ArchiveRoot.Length > 0 ? Settings.ArchiveRoot : DefaultArchiveRoot,
+            DownloadAll = Settings.ArchiveDownloadAll
         });
         var pipeline = new PipelineService(teachers, new AiAnalyzer(ai), gate, plugin,
             oneBot, archive, Courseware, Homework, Feed, Pending, Settings.ToFeatureFlags());

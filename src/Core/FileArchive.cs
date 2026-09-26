@@ -16,15 +16,26 @@ public sealed record ArchiveOptions
 }
 
 /// <summary>
-/// 群文件自动归档：按发送者分类 → &lt;Root&gt;/&lt;老师&gt;/&lt;yyyy-MM-dd&gt;/&lt;文件名&gt; + .meta.json。
+/// 群文件自动归档：**按科目分类** → &lt;Root&gt;/&lt;科目名&gt;/&lt;文件名&gt; + 同名 .meta.json。
+/// 目录只到科目一层（不按日期再分层）；发送时间、群号、发送者都记在 meta.json 里。
 /// 同 file_id 不重复下载；重名自动加 (1)(2)；非老师文件按配置决定。
 /// </summary>
 public sealed class FileArchive(ArchiveOptions options, HttpClient? http = null)
 {
     private readonly HttpClient _http = http ?? new HttpClient();
 
-    public static string SenderFolder(SenderInfo sender)
-        => Sanitize(sender.TeacherName ?? $"QQ{sender.UserId}");
+    /// <summary>
+    /// 归档子目录名：优先用教师映射里的**科目**；
+    /// 没配科目但认得出发送者时退化为老师姓名，都不认识则归入「未分类」。
+    /// </summary>
+    public static string SubjectFolder(SenderInfo sender)
+    {
+        if (!string.IsNullOrWhiteSpace(sender.Subject))
+            return Sanitize(sender.Subject);
+        if (!string.IsNullOrWhiteSpace(sender.TeacherName))
+            return Sanitize(sender.TeacherName);
+        return "未分类";
+    }
 
     /// <summary>处理一条群上传事件。返回归档结果（下载/跳过/待确认）。</summary>
     public async Task<ArchiveOutcome> HandleAsync(
@@ -33,9 +44,9 @@ public sealed class FileArchive(ArchiveOptions options, HttpClient? http = null)
         Func<GroupUploadEvent, CancellationToken, Task<string?>> resolveUrl,
         CancellationToken cancel = default)
     {
-        var dir = Path.Combine(options.Root, SenderFolder(sender), DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd"));
+        var dir = Path.Combine(options.Root, SubjectFolder(sender));
 
-        // 去重：扫描当日目录 meta，同 file_id 且本地文件仍在 → 已归档。
+        // 去重：扫描该科目目录下的 meta，同 file_id 且本地文件仍在 → 已归档。
         if (Directory.Exists(dir))
         {
             foreach (var metaFile in Directory.EnumerateFiles(dir, "*.meta.json"))

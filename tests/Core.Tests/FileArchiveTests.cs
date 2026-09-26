@@ -24,7 +24,7 @@ public sealed class FileArchiveTests : IDisposable
     private static GroupUploadEvent Ev(string fileId = "fid-1", string name = "课件.pptx", long size = 100)
         => new() { GroupId = 1, UserId = 10001, File = new UploadedFile { Id = fileId, Name = name, Size = size } };
 
-    private static SenderInfo Teacher() => new() { UserId = 10001, TeacherName = "张老师" };
+    private static SenderInfo Teacher() => new() { UserId = 10001, TeacherName = "张老师", Subject = "数学" };
     private static SenderInfo Stranger() => new() { UserId = 99999, Card = "陌生人" };
 
     private FileArchive Archive(bool downloadAll = false, HttpClient? http = null)
@@ -32,14 +32,25 @@ public sealed class FileArchiveTests : IDisposable
             http ?? new HttpClient(new StubHandler([1, 2, 3])));
 
     [Fact]
-    public async Task TeacherFile_DownloadsToSenderFolder()
+    public async Task TeacherFile_GoesIntoSubjectFolder()
     {
         var o = await Archive().HandleAsync(Ev(), Teacher(), (_, _) => Task.FromResult<string?>("http://x/f"));
         Assert.Equal(ArchiveResult.Downloaded, o.Result);
         Assert.NotNull(o.LocalPath);
-        Assert.Contains(Path.Combine("张老师", DateTime.Now.ToString("yyyy-MM-dd"), "课件.pptx"), o.LocalPath);
+        // 结构：<根>/<科目名>/<文件名>（不再按日期分层）
+        Assert.Equal(Path.Combine(_root, "数学", "课件.pptx"), o.LocalPath);
         Assert.True(File.Exists(o.LocalPath));
-        Assert.True(File.Exists(o.LocalPath + ".meta.json"));
+        Assert.True(File.Exists(o.LocalPath + ".meta.json"));   // 发送时间等仍在 meta 里
+    }
+
+    [Fact]
+    public void SubjectFolder_PrefersSubject_ThenTeacher_ThenUnclassified()
+    {
+        Assert.Equal("数学", FileArchive.SubjectFolder(new SenderInfo { UserId = 1, TeacherName = "张老师", Subject = "数学" }));
+        Assert.Equal("张老师", FileArchive.SubjectFolder(new SenderInfo { UserId = 1, TeacherName = "张老师" }));
+        Assert.Equal("未分类", FileArchive.SubjectFolder(new SenderInfo { UserId = 999 }));
+        // 科目名里的非法文件名字符要被替换，避免建目录失败
+        Assert.Equal("数学_物理", FileArchive.SubjectFolder(new SenderInfo { UserId = 1, Subject = "数学/物理" }));
     }
 
     [Fact]
@@ -77,7 +88,7 @@ public sealed class FileArchiveTests : IDisposable
     {
         var o = await Archive(downloadAll: true).HandleAsync(Ev(), Stranger(), (_, _) => Task.FromResult<string?>("http://x/f"));
         Assert.Equal(ArchiveResult.Downloaded, o.Result);
-        Assert.Contains("QQ99999", o.LocalPath);
+        Assert.Contains(Path.Combine("未分类", "课件.pptx"), o.LocalPath);
     }
 
     [Fact]

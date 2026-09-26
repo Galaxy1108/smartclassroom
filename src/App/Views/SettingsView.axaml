@@ -274,6 +274,36 @@
                 <Button Content="添加" Classes="accent" Click="AddTeacher_Click" />
             </StackPanel>
 
+            <!-- ================= 文件归档 ================= -->
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">
+                <PathIcon Width="16" Height="16" Data="{StaticResource IconFolder}" VerticalAlignment="Center" />
+                <TextBlock Text="文件归档" Theme="{StaticResource SubtitleTextBlockStyle}" />
+            </StackPanel>
+
+            <fa:SettingsExpander Header="归档目录"
+                                 Description="老师发的文件保存为「根目录 / 科目名 / 文件名」；不认科目时用老师姓名，都不认识则归入「未分类」。留空则用默认位置。">
+                <fa:SettingsExpander.IconSource>
+                    <fa:PathIconSource Data="{StaticResource IconFolder}" />
+                </fa:SettingsExpander.IconSource>
+                <fa:SettingsExpander.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox Text="{Binding ArchiveRoot}" MinWidth="240"
+                                 Watermark="{Binding EffectiveArchiveRoot}" />
+                        <Button Content="浏览…" Click="BrowseArchive_Click" />
+                        <Button Content="打开" Click="OpenArchive_Click" />
+                    </StackPanel>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <TextBlock Text="{Binding EffectiveArchiveRoot}" FontSize="12" Opacity="0.7"
+                       TextWrapping="Wrap" Margin="2,0,0,0" />
+
+            <fa:SettingsExpander Header="下载群里所有人的文件"
+                                 Description="默认只下载教师映射命中的发送者（能落到对应科目目录）；开启后群里任何人的文件都下载，认不出的进「未分类」。">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding ArchiveDownloadAll}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
             <!-- ================= ClassIsland 集成 ================= -->
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">
                 <PathIcon Width="16" Height="16" Data="{StaticResource IconAlert}" VerticalAlignment="Center" />

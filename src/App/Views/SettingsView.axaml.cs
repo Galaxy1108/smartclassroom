@@ -1,4 +1,6 @@
+using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Platform.Storage;
 using SmartClassroom.App.ViewModels;
 
 namespace SmartClassroom.App.Views;
@@ -78,6 +80,45 @@ public partial class SettingsView : UserControl
     {
         var (found, message) = Vm.LocatePluginToken();
         await Dialogs.ShowAsync(found ? "已找到插件 Token" : "未找到插件 Token", message);
+    }
+
+    // ---- 文件归档 ----
+
+    /// <summary>选归档目录（用系统文件夹选择器，避免手打路径出错）。</summary>
+    private async void BrowseArchive_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var top = TopLevel.GetTopLevel(this);
+        if (top is null)
+            return;
+        var picked = await top.StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
+        {
+            Title = "选择归档目录",
+            AllowMultiple = false
+        });
+        var path = picked.FirstOrDefault()?.Path.LocalPath;
+        if (!string.IsNullOrWhiteSpace(path))
+            Vm.ArchiveRoot = path;
+    }
+
+    /// <summary>打开归档目录；不存在就先建出来，避免"点了没反应"。</summary>
+    private void OpenArchive_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => OpenFolder(Vm.EffectiveArchiveRoot);
+
+    /// <summary>在系统文件管理器里打开目录（不存在则先创建）。</summary>
+    private void OpenFolder(string path)
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(path);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Vm.AppendLogFromView($"打开目录失败：{ex.Message}");
+        }
     }
 
     // ---- 教师映射 ----
