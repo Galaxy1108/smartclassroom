@@ -23,7 +23,34 @@ public sealed class AiGateway(AiOptions options, HttpClient? http = null) : IAiC
     /// <summary>opencode 端点要求的路由会话 id（每个实例稳定复用）。</summary>
     private readonly string _sessionId = OpenCodeCompat.NewSessionId();
 
-    public async Task<string> AskAsync(string system, string user, CancellationToken cancel = default)
+    public async Task<string> AskAsync(string system, string user, CancellationToken cancel = default,
+        Action<string>? onProgress = null)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                if (attempt > 1)
+                    onProgress?.Invoke($"正在重试（第 {attempt}/{AiRetry.MaxAttempts} 次）…");
+                return await AskOnceAsync(system, user, cancel).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (attempt < AiRetry.MaxAttempts && !cancel.IsCancellationRequested
+                                       && ex is not OperationCanceledException)
+            {
+                var delay = AiRetry.DelayFor(attempt);
+                onProgress?.Invoke($"AI 请求失败（第 {attempt}/{AiRetry.MaxAttempts} 次）："
+                                   + $"{AiRetry.Short(ex)} · {delay.TotalSeconds:0} 秒后重试");
+                await Task.Delay(delay, cancel).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                onProgress?.Invoke($"AI 请求失败：{AiRetry.Short(ex)}");
+                throw;
+            }
+        }
+    }
+
+    private async Task<string> AskOnceAsync(string system, string user, CancellationToken cancel)
     {
         var body = new
         {

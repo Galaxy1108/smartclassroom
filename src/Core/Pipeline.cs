@@ -31,12 +31,14 @@ public sealed class PipelineService(
     public event Action<IReadOnlyList<CoursewareFile>>? CoursewareSuggested;
 
     /// <summary>群文本消息入口（只处理配置群，群过滤由调用方完成）。</summary>
-    public async Task OnGroupMessageAsync(GroupMessageEvent ev, CancellationToken cancel = default)
+    public async Task OnGroupMessageAsync(GroupMessageEvent ev, CancellationToken cancel = default,
+        Guid? rowId = null)
     {
         var sender = teachers.ToSender(ev.UserId, ev.Card, ev.Nickname);
         var who = sender.Card ?? sender.Nickname ?? $"QQ{sender.UserId}";
-        // 进行中的条目：用户要的是"实时看到处理到哪一步"，而不是只在结束后看到结果
-        var id = feed.Begin("qq", "正在处理消息", $"{who}：{Trim(ev.Text)}");
+        // 进行中的条目：用户要的是"实时看到处理到哪一步"，而不是只在结束后看到结果。
+        // 行可以由 Runtime 先建好（那样"未监听的群"也能给出已忽略的结果），这里复用。
+        var id = rowId ?? feed.Begin("qq", "正在处理消息", $"{who}：{Trim(ev.Text)}");
         try
         {
             feed.Update(id, "正在处理消息", $"{who}：{Trim(ev.Text)} · 本地分流…");
@@ -52,38 +54,37 @@ public sealed class PipelineService(
                 feed.Complete(id, "已忽略（发送者不在老师名单里）", Trim(ev.Text), ActivitySeverity.Warning);
                 return;
             }
-            await DispatchGroupAsync(ev, sender, kind, cancel).ConfigureAwait(false);
-            feed.Complete(id, $"已处理：{FeatureName(kind)}", Trim(ev.Text));
+            await DispatchGroupAsync(ev, sender, kind, cancel, id).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            feed.Complete(id, "处理失败", ex.Message, ActivitySeverity.Error);
+            feed.Complete(id, "出现错误", ex.Message, ActivitySeverity.Error);
             throw;
         }
     }
 
     /// <summary>按判定结果分发到对应处理流程（群消息）。</summary>
     private async Task DispatchGroupAsync(GroupMessageEvent ev, SenderInfo sender,
-        RuleEngine.Kind kind, CancellationToken cancel)
+        RuleEngine.Kind kind, CancellationToken cancel, Guid? rowId = null)
     {
         if (kind.HasFlag(RuleEngine.Kind.Summon))
         {
             if (flags.Summon)
-                await HandleSummonAsync(ev, sender, cancel).ConfigureAwait(false);
+                await HandleSummonAsync(ev, sender, cancel, rowId: rowId).ConfigureAwait(false);
             else
                 NoteDisabled("summon", "召唤通知");
         }
         if (kind.HasFlag(RuleEngine.Kind.Homework))
         {
             if (flags.Homework)
-                await HandleHomeworkAsync(ev, sender, cancel).ConfigureAwait(false);
+                await HandleHomeworkAsync(ev, sender, cancel, rowId: rowId).ConfigureAwait(false);
             else
                 NoteDisabled("homework", "作业自动录入");
         }
         if (kind.HasFlag(RuleEngine.Kind.Exchange))
         {
             if (flags.Exchange)
-                await HandleExchangeAsync(ev, sender, cancel).ConfigureAwait(false);
+                await HandleExchangeAsync(ev, sender, cancel, rowId: rowId).ConfigureAwait(false);
             else
                 NoteDisabled("exchange", "换课自动处理");
         }
@@ -98,11 +99,32 @@ public sealed class PipelineService(
     private static string Trim(string text)
         => text.Length <= 40 ? text : text[..40] + "…";
 
+    /// <summary>更新进行中行的细节（AI 步骤、失败与重试都走这里）。</summary>
+    private void UpdateRow(Guid? rowId, string title, string detail)
+    {
+        if (rowId is { } id)
+            feed.Update(id, title, detail);
+    }
+
+    /// <summary>
+    /// 收尾：有进行中的行就把它就地变成结果行（已忽略 / 已执行 / 出现错误），
+    /// 没有行（人工补录等场景）才新加一条。
+    /// </summary>
+    private void Finish(Guid? rowId, string title, string detail,
+        ActivitySeverity severity = ActivitySeverity.Success)
+    {
+        if (rowId is { } id)
+            feed.Complete(id, title, detail, severity);
+        else
+            feed.Append("qq", title, detail, severity);
+    }
+
     /// <summary>
     /// 私聊入口：老师私聊也可能发"来一下"或作业，所以走同一套判定。
     /// 只认老师名单里的人 —— 陌生人私聊一律忽略（不然谁发都触发）。
     /// </summary>
-    public async Task OnPrivateMessageAsync(PrivateMessageEvent ev, CancellationToken cancel = default)
+    public async Task OnPrivateMessageAsync(PrivateMessageEvent ev, CancellationToken cancel = default,
+        Guid? rowId = null)
     {
         if (teachers.Count > 0 && !teachers.IsKnown(ev.UserId))
         {
@@ -115,7 +137,7 @@ public sealed class PipelineService(
         }
         var sender = teachers.ToSender(ev.UserId, null, ev.Nickname);
         var who = sender.Card ?? sender.Nickname ?? $"QQ{ev.UserId}";
-        var id = feed.Begin("qq", "正在处理私聊", $"{who}：{Trim(ev.Text)}");
+        var id = rowId ?? feed.Begin("qq", "正在处理私聊", $"{who}：{Trim(ev.Text)}");
         var kind = await ClassifyAsync(ev, sender, cancel, id).ConfigureAwait(false);
         if (kind == RuleEngine.Kind.None)
         {
@@ -125,17 +147,17 @@ public sealed class PipelineService(
         feed.Update(id, $"正在处理：{FeatureName(kind)}", $"{who}：{Trim(ev.Text)}");
 
         if (kind.HasFlag(RuleEngine.Kind.Summon) && flags.Summon)
-            await HandleSummonAsync(ev, sender, cancel).ConfigureAwait(false);
+            await HandleSummonAsync(ev, sender, cancel, rowId: id).ConfigureAwait(false);
         else if (kind.HasFlag(RuleEngine.Kind.Summon))
             NoteDisabled("summon", "召唤通知");
 
         if (kind.HasFlag(RuleEngine.Kind.Homework) && flags.Homework)
-            await HandleHomeworkAsync(ev, sender, cancel).ConfigureAwait(false);
+            await HandleHomeworkAsync(ev, sender, cancel, rowId: id).ConfigureAwait(false);
         else if (kind.HasFlag(RuleEngine.Kind.Homework))
             NoteDisabled("homework", "作业自动录入");
 
         if (kind.HasFlag(RuleEngine.Kind.Exchange) && flags.Exchange)
-            await HandleExchangeAsync(ev, sender, cancel).ConfigureAwait(false);
+            await HandleExchangeAsync(ev, sender, cancel, rowId: id).ConfigureAwait(false);
         else if (kind.HasFlag(RuleEngine.Kind.Exchange))
             NoteDisabled("exchange", "换课自动处理");
     }
@@ -158,8 +180,11 @@ public sealed class PipelineService(
             return RuleEngine.ClassifyLocal(ev.Text);
 
         if (progressId is { } pid)
-            feed.Update(pid, "正在处理消息", $"本地关键词未命中 · 交给 AI 分类…");
-        var kind = await ai.AnalyzeKindAsync(ev.Text, sender.Subject, cancel).ConfigureAwait(false);
+            feed.Update(pid, "正在处理消息", "交给 AI 分类…");
+        // AI 的失败与重试也实时写在进度下面（用户要求：失败也要可见，并且要重试）
+        var kind = await ai.AnalyzeKindAsync(ev.Text, sender.Subject, cancel,
+            msg => { if (progressId is { } p2) feed.Update(p2, "正在处理消息", msg); })
+            .ConfigureAwait(false);
         var mapped = kind switch
         {
             "homework" => RuleEngine.Kind.Homework,
@@ -169,8 +194,8 @@ public sealed class PipelineService(
             // AI 没给出结论（调用失败/格式不对）→ 回退到本地关键词，别把消息丢掉
             _ => RuleEngine.ClassifyLocal(ev.Text)
         };
-        if (mapped != RuleEngine.Kind.None)
-            feed.Append("ai", $"AI 判定为{mapped}（未命中关键词）", ev.Text, ActivitySeverity.Info);
+        if (mapped != RuleEngine.Kind.None && progressId is { } id2)
+            feed.Update(id2, "正在处理消息", $"AI 判定为 {FeatureName(mapped)} · 正在处理…");
         return mapped;
     }
 
@@ -467,7 +492,7 @@ public sealed class PipelineService(
 
     private async Task HandleSummonAsync(
         IIncomingMessage ev, SenderInfo sender, CancellationToken cancel,
-        bool keepOnFailure = false, string? resolvePendingId = null)
+        bool keepOnFailure = false, string? resolvePendingId = null, Guid? rowId = null)
     {
         SummonDraft d;
         try
@@ -480,7 +505,8 @@ public sealed class PipelineService(
                 Lesson: lesson?.Subject ?? "未知（课表未加载）",
                 LessonTeacher: lesson?.Teacher ?? "未知",
                 Roster: teachers.Describe());
-            d = await ai.AnalyzeSummonAsync(ev.Text, context, cancel).ConfigureAwait(false);
+            d = await ai.AnalyzeSummonAsync(ev.Text, context, cancel,
+                msg => UpdateRow(rowId, "正在解析召唤", msg)).ConfigureAwait(false);
         }
         catch (AiException ex)
         {
@@ -501,6 +527,8 @@ public sealed class PipelineService(
                 Confidence = 0.3
             };
             var decision = await gate.ProcessSummonAsync(fallback, Send, cancel).ConfigureAwait(false);
+            Finish(rowId, $"出现错误：召唤解析失败（已{Desc(decision)}）", ev.Text + " · " + ex.Message,
+                ActivitySeverity.Warning);
             feed.Append("summon", $"疑似召唤（AI 失败，已{Desc(decision)}）", ev.Text,
                 ActivitySeverity.Warning);
             return;
@@ -509,7 +537,7 @@ public sealed class PipelineService(
         {
             if (resolvePendingId is not null)
                 pending.Remove(resolvePendingId);
-            feed.Append("summon", "AI 判定非召唤，已忽略", ev.Text);
+            Finish(rowId, "已忽略（AI 判定不是召唤）", ev.Text, ActivitySeverity.Info);
             return;
         }
         var summon = new SummonEvent
@@ -531,16 +559,19 @@ public sealed class PipelineService(
         var result = await gate.ProcessSummonAsync(summon, Send, cancel).ConfigureAwait(false);
         if (resolvePendingId is not null)
             pending.Remove(resolvePendingId);
-        feed.Append("summon", $"召唤{d.Target}（{(d.Urgent ? "立刻" : "排队")}，{Desc(result)}）", ev.Text,
-            ActivitySeverity.Success);
+        Finish(rowId, $"已执行：召唤（{Desc(result)}）", $"{d.Target} · {ev.Text}");
     }
 
     private async Task HandleHomeworkAsync(
         IIncomingMessage ev, SenderInfo sender, CancellationToken cancel,
-        bool keepOnFailure = false, string? resolvePendingId = null)
+        bool keepOnFailure = false, string? resolvePendingId = null, Guid? rowId = null)
     {
         HomeworkDraft d;
-        try { d = await ai.AnalyzeHomeworkAsync(ev.Text, sender.Subject, cancel).ConfigureAwait(false); }
+        try
+        {
+            d = await ai.AnalyzeHomeworkAsync(ev.Text, sender.Subject, cancel,
+                msg => UpdateRow(rowId, "正在整理作业", msg)).ConfigureAwait(false);
+        }
         catch (AiException ex)
         {
             if (!keepOnFailure)
@@ -568,16 +599,19 @@ public sealed class PipelineService(
         });
         if (resolvePendingId is not null)
             pending.Remove(resolvePendingId);
-        feed.Append("homework", $"作业已上墙：{d.Subject}", string.Join("；", d.Items),
-            ActivitySeverity.Success);
+        Finish(rowId, $"已执行：作业已上墙（{d.Subject}）", string.Join("；", d.Items));
     }
 
     private async Task HandleExchangeAsync(
         IIncomingMessage ev, SenderInfo sender, CancellationToken cancel,
-        bool keepOnFailure = false, string? resolvePendingId = null)
+        bool keepOnFailure = false, string? resolvePendingId = null, Guid? rowId = null)
     {
         ExchangeDraft d;
-        try { d = await ai.AnalyzeExchangeAsync(ev.Text, cancel).ConfigureAwait(false); }
+        try
+        {
+            d = await ai.AnalyzeExchangeAsync(ev.Text, cancel,
+                msg => UpdateRow(rowId, "正在解析换课", msg)).ConfigureAwait(false);
+        }
         catch (AiException ex)
         {
             if (!keepOnFailure)
@@ -621,9 +655,10 @@ public sealed class PipelineService(
         }
         if (resolvePendingId is not null)
             pending.Remove(resolvePendingId);
-        feed.Append("exchange",
-            verdict.Legal ? $"换课已执行：{verdict.Message}" : $"换课非法，已排队下课通知手动：{verdict.Message}",
-            ev.Text, verdict.Legal ? ActivitySeverity.Success : ActivitySeverity.Warning);
+        Finish(rowId,
+            verdict.Legal ? "已执行：换课" : "已忽略：换课非法（已转人工）",
+            $"{verdict.Message} · {ev.Text}",
+            verdict.Legal ? ActivitySeverity.Success : ActivitySeverity.Warning);
         if (!verdict.Legal)
             gate.EnqueueManual("需手动换课", verdict.Message);
     }

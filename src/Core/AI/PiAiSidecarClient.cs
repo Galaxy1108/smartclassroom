@@ -63,20 +63,44 @@ public sealed class PiAiSidecarClient : IAiClient, IAsyncDisposable
 
     // ---- 高层 API ----
 
-    public async Task<string> AskAsync(string system, string user, CancellationToken cancel = default)
+    public async Task<string> AskAsync(string system, string user, CancellationToken cancel = default,
+        Action<string>? onProgress = null)
     {
-        var data = await SendAsync("complete", new
+        // 端点会抽风（实测一次请求挂了 76 秒还没结果），所以失败要重试，
+        // 并且把"第几次、为什么失败"实时报给界面。
+        for (var attempt = 1; ; attempt++)
         {
-            provider = _options.Provider,
-            model = _options.Model,
-            apiKey = _options.ApiKey,
-            baseUrl = _options.BaseUrl,
-            reasoning = _options.Reasoning,
-            maxTokens = _options.MaxTokens,
-            system,
-            user
-        }, cancel).ConfigureAwait(false);
-        return data.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "";
+            try
+            {
+                if (attempt > 1)
+                    onProgress?.Invoke($"正在重试（第 {attempt}/{AiRetry.MaxAttempts} 次）…");
+                var data = await SendAsync("complete", new
+                {
+                    provider = _options.Provider,
+                    model = _options.Model,
+                    apiKey = _options.ApiKey,
+                    baseUrl = _options.BaseUrl,
+                    reasoning = _options.Reasoning,
+                    maxTokens = _options.MaxTokens,
+                    system,
+                    user
+                }, cancel).ConfigureAwait(false);
+                return data.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "";
+            }
+            catch (Exception ex) when (attempt < AiRetry.MaxAttempts && !cancel.IsCancellationRequested
+                                       && ex is not OperationCanceledException)
+            {
+                var delay = AiRetry.DelayFor(attempt);
+                onProgress?.Invoke($"AI 请求失败（第 {attempt}/{AiRetry.MaxAttempts} 次）："
+                                   + $"{AiRetry.Short(ex)} · {delay.TotalSeconds:0} 秒后重试");
+                await Task.Delay(delay, cancel).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                onProgress?.Invoke($"AI 请求失败：{AiRetry.Short(ex)}");
+                throw;
+            }
+        }
     }
 
     public async Task<SidecarProvider[]> ListProvidersAsync(CancellationToken cancel = default)

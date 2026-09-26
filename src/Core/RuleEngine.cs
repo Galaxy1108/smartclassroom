@@ -53,7 +53,7 @@ public sealed class AiAnalyzer(IAiClient ai)
     /// 通知也就只能写个含糊的"老师"。
     /// </summary>
     public async Task<SummonDraft> AnalyzeSummonAsync(string text, SummonContext? context = null,
-        CancellationToken cancel = default)
+        CancellationToken cancel = default, Action<string>? onProgress = null)
     {
         var ctx = context ?? SummonContext.Empty;
         var system = $$"""
@@ -75,7 +75,7 @@ public sealed class AiAnalyzer(IAiClient ai)
             规则：消息里只写"老师"而没写名字时，优先取**当前课程的科任老师**；
             写的是科目（如"数学老师"）就从已知老师里按科目匹配；都无法确定就留空。
             """;
-        var raw = await ai.AskAsync(system, text, cancel).ConfigureAwait(false);
+        var raw = await ai.AskAsync(system, text, cancel, onProgress).ConfigureAwait(false);
         var d = JsonSerializer.Deserialize<SummonDraft>(AiGateway.ExtractJson(raw), Json);
         return d ?? throw new AiException("召唤解析为空");
     }
@@ -87,7 +87,7 @@ public sealed class AiAnalyzer(IAiClient ai)
     /// 返回 "homework" / "exchange" / "summon" / "none"。
     /// </summary>
     public async Task<string?> AnalyzeKindAsync(string text, string? senderSubject,
-        CancellationToken cancel = default)
+        CancellationToken cancel = default, Action<string>? onProgress = null)
     {
         var system = $$"""
             你是班级群消息分类器。只输出 JSON：{"category":"homework|exchange|summon|none"}
@@ -108,7 +108,7 @@ public sealed class AiAnalyzer(IAiClient ai)
             """;
         try
         {
-            var raw = await ai.AskAsync(system, text, cancel).ConfigureAwait(false);
+            var raw = await ai.AskAsync(system, text, cancel, onProgress).ConfigureAwait(false);
             using var doc = JsonDocument.Parse(AiGateway.ExtractJson(raw));
             // 拿不到 kind 字段（模型没按格式答 / 调用失败）→ 返回 null，
             // 由上层回退到本地关键词，而不是把消息当"无关"丢掉。
@@ -129,26 +129,26 @@ public sealed class AiAnalyzer(IAiClient ai)
         }
     }
 
-    public async Task<HomeworkDraft> AnalyzeHomeworkAsync(string text, string? senderSubject, CancellationToken cancel = default)
+    public async Task<HomeworkDraft> AnalyzeHomeworkAsync(string text, string? senderSubject, CancellationToken cancel = default, Action<string>? onProgress = null)
     {
         var system = $$"""
             你整理老师布置的作业。发送者科目为"{{senderSubject ?? "未知"}}"（可作参考，以消息内容为准）。
             只输出 JSON：{"is_homework":true/false,"subject":"科目","date":"yyyy-MM-dd，当日作业则为今天","items":["作业条目1","作业条目2"],"due":"截止说明，无则空字符串","confidence":0-1}
             今天是 {{DateTime.Now:yyyy-MM-dd}}。
             """;
-        var raw = await ai.AskAsync(system, text, cancel).ConfigureAwait(false);
+        var raw = await ai.AskAsync(system, text, cancel, onProgress).ConfigureAwait(false);
         var d = JsonSerializer.Deserialize<HomeworkDraft>(AiGateway.ExtractJson(raw), Json);
         return d ?? throw new AiException("作业解析为空");
     }
 
-    public async Task<ExchangeDraft> AnalyzeExchangeAsync(string text, CancellationToken cancel = default)
+    public async Task<ExchangeDraft> AnalyzeExchangeAsync(string text, CancellationToken cancel = default, Action<string>? onProgress = null)
     {
         var system = $$"""
             你解析老师的换课消息。换课类型 kind：Swap=两节对调(同天)/Replace=某节改为另一科目/CrossDay=涉及不同日期。
             只输出 JSON：{"is_exchange":true/false,"kind":"Swap/Replace/CrossDay","from":{"date":"yyyy-MM-dd","period":某日第几节,"subject":"原科目，可空"},"to":{"date":"yyyy-MM-dd","period":n}或null,"new_subject":"Replace目标科目，否则空字符串","confidence":0-1}
             今天是 {{DateTime.Now:yyyy-MM-dd}}。"明天第三节和今天第五节换"这类要换算成具体日期。
             """;
-        var raw = await ai.AskAsync(system, text, cancel).ConfigureAwait(false);
+        var raw = await ai.AskAsync(system, text, cancel, onProgress).ConfigureAwait(false);
         var d = JsonSerializer.Deserialize<ExchangeDraft>(AiGateway.ExtractJson(raw), Json);
         return d ?? throw new AiException("换课解析为空");
     }

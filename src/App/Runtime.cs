@@ -40,7 +40,12 @@ public static class Runtime
     public static ScheduleGate? Gate { get; private set; }
     public static PipelineService? Pipeline { get; private set; }
 
-    private static bool _notedNoGroup;
+    /// <summary>已提示过"该群没监听"的群（每个群只提示一次）。</summary>
+    private static readonly HashSet<long> _ignoredGroups = [];
+
+    /// <summary>消息摘要（时间线里一行放得下）。</summary>
+    private static string Trim(string text)
+        => text.Length <= 40 ? text : text[..40] + "…";
 
     public static void Start(MainViewModel status)
     {
@@ -318,24 +323,38 @@ public static class Runtime
                     // 注意：不能写成 groups.Count == 0 就全放行 —— 那样"只监听私聊"的用户
                     // 会意外处理所有群的消息。
                     var wanted = listenAll;
-                    if (ev is GroupMessageEvent dropped && !wanted && groups.Count == 0 && !_notedNoGroup)
-                    {
-                        _notedNoGroup = true;   // 只提示一次，别刷屏
-                        Feed.Append("qq", "收到群消息，但没有监听任何群",
-                            $"群 {dropped.GroupId} 的消息被忽略；在「监听群号」里点「选择群…」把它加上",
-                            ActivitySeverity.Warning);
-                    }
                     switch (ev)
                     {
                         case GroupMessageEvent m when wanted || groups.Contains(m.GroupId):
-                            await pipeline.OnGroupMessageAsync(m, ct);
+                        {
+                            // 每条消息先建一条"进行中"的记录，处理过程中实时更新
+                            var row = Feed.Begin("qq", "收到群消息",
+                                $"{m.Card ?? m.Nickname ?? $"QQ{m.UserId}"}：{Trim(m.Text)}");
+                            await pipeline.OnGroupMessageAsync(m, ct, row);
+                            break;
+                        }
+                        case GroupMessageEvent ignored:
+                            // 没监听的群也要给出**结果**（已忽略），否则用户只看到"什么都没发生"。
+                            // 每个群只提示一次，免得几十个群刷屏。
+                            if (_ignoredGroups.Add(ignored.GroupId))
+                            {
+                                var row = Feed.Begin("qq", "收到群消息",
+                                    $"{ignored.Card ?? ignored.Nickname ?? $"QQ{ignored.UserId}"}：{Trim(ignored.Text)}");
+                                Feed.Complete(row, "已忽略（该群没有监听）",
+                                    $"群 {ignored.GroupId} 不在监听列表里；在「监听群号」里点「选择群…」把它加上",
+                                    ActivitySeverity.Warning);
+                            }
                             break;
                         case GroupUploadEvent u when wanted || groups.Contains(u.GroupId):
                             await pipeline.OnGroupUploadAsync(u, ct);
                             break;
                         case PrivateMessageEvent p when Settings.ListenTeacherPrivate:
-                            await pipeline.OnPrivateMessageAsync(p, ct);
+                        {
+                            var row = Feed.Begin("qq", "收到私聊",
+                                $"{p.Nickname ?? $"QQ{p.UserId}"}：{Trim(p.Text)}");
+                            await pipeline.OnPrivateMessageAsync(p, ct, row);
                             break;
+                        }
                     }
                 }, cancel);
                 Dispatcher.UIThread.Post(() => status.StatusText = "QQ 已连接");
