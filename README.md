@@ -330,7 +330,8 @@ SnowLuma 的 `config/runtime.json` 里 `hookAutoLoad` 默认是 **false**：
 
 ### ClassIsland 插件（应用自带，一键安装）
 
-配套插件在 `src/ClassIslandPlugin/`，**安装包里自带一份**：
+配套插件在 `src/ClassIslandPlugin/`，**安装包里自带一份**。它现在真的能用了 ——
+之前有四个坑，全都踩过并修掉了（见本节末尾）。
 
 - 设置页 → ClassIsland 集成 → **「安装插件」**：应用把它复制到
   `<ClassIsland 根>/Plugins/smartclassroom.bridge/`，重启 ClassIsland 后状态就会变成"已连接"；
@@ -339,6 +340,42 @@ SnowLuma 的 `config/runtime.json` 里 `hookAutoLoad` 默认是 **false**：
 - 找不到 ClassIsland 目录时会明确告诉你手动把 `classisland-plugin` 里的文件放到哪。
 
 > 之前几个版本只发布了应用、**没有发布插件** —— 所以 ClassIsland 一直是"未连接"。
+
+#### 插件踩过的四个坑
+
+1. **没发布**：打包脚本只发应用，插件一直留在源码里。
+2. **SDK 太旧**：插件用 `1.7.106.2-dev-v2` 编译，而 ClassIsland 已经 2.1 ——
+   提醒提供方要用官方的 `AddNotificationProvider<T>()`（`ClassIsland.Core.Extensions.Registry`）
+   注册，用 `AddHostedService`/`AddSingleton` 都不行，ClassIsland 的提醒宿主找不到它
+   （报"没有找到与 … 对应的提醒提供方"）。现在 SDK 跟着 ClassIsland 版本走（`2.1.0.1`）。
+3. **依赖 ASP.NET**：桥接原本用 Kestrel，而 ClassIsland 是普通 .NET 应用、不带 ASP.NET 运行时 →
+   `Could not load file or assembly 'Microsoft.AspNetCore'`。现在用 BCL 的 `TcpListener`
+   自己处理那三个接口，零框架依赖。
+4. **线程**：ClassIsland 的提醒 API 必须在 **UI 线程**调用，否则抛 `Call from invalid thread`
+   （HTTP 线程直接调会得到空响应）。现在通过 `Dispatcher.UIThread.InvokeAsync` 切过去。
+
+**实测结果**（用真实课表跑的）：
+
+| 用例 | 结果 |
+|---|---|
+| `GET /status` | `{"pluginVersion":"0.35.0","classPlanLoaded":false}` |
+| `POST /notify`（召唤） | `{"ok":true}` —— ClassIsland 真的弹了通知并语音播报 |
+| `POST /exchange` 周一第2节语文 ↔ 第4节数学 | `legal:true`「已将09-28第2节（语文）与第4节（数学）对调。（已写入临时层课表）」 |
+| `POST /exchange` 今天（周六） | `legal:false`「09-26 当天没有课表，无法自动换课」 |
+| `POST /exchange` 周一第3节英语 → 自习 | `legal:true`「已将09-28第3节（英语）替换为自习」 |
+
+> 换课会**真的写进临时层课表**（ClassIsland 里会显示调换后的课），验证完记得清掉。
+
+#### 目录包安装（Linux）的路径
+
+ClassIsland 的目录包安装把用户数据放在 `<应用目录>/data/`：
+插件放 `data/Plugins/<id>/`，配置（含我们的 `bridge.token`）在 `data/Config/Plugins/<id>/`。
+应用会自动在这些位置里找 token（「自动查找」按钮），找不到时才需要手填。
+
+#### 启动画面卡住（ClassIsland 2.1.0.1 的问题）
+
+实测 ClassIsland 2.1.0.1 的"正在启动…"窗口有时不会自己关（**与插件无关**，拿掉插件也一样）。
+它自己有开关：`data/Settings.json` 里 `IsSplashEnabled: false` 就不再显示启动画面。
 
 ### ClassIsland 的状态与语音播报
 

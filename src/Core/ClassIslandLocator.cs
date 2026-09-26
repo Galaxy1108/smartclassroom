@@ -20,6 +20,14 @@ public static class ClassIslandLocator
     /// <summary>候选根目录（去重、按优先级）。</summary>
     public static IReadOnlyList<string> CandidateRoots()
     {
+        var dataRoots = DataFolderRoots();
+        if (dataRoots.Count > 0)
+            return dataRoots.Concat(CandidateRootsStatic()).ToList();
+        return CandidateRootsStatic();
+    }
+
+    private static IReadOnlyList<string> CandidateRootsStatic()
+    {
         var list = new List<string>();
         void Add(string? p)
         {
@@ -67,6 +75,56 @@ public static class ClassIslandLocator
     /// <summary>已存在的 ClassIsland 根目录（用来决定插件往哪装）。</summary>
     public static string? FindExistingRoot(IEnumerable<string>? roots = null)
         => (roots ?? CandidateRoots()).FirstOrDefault(Directory.Exists);
+
+    /// <summary>
+    /// 目录包安装（Linux 的 ClassIsland_app_linux_x64_selfContained_folder 那种）里，
+    /// 用户数据在 <c>&lt;应用目录&gt;/data</c>：插件放 <c>data/Plugins/&lt;id&gt;/</c>，
+    /// 配置（含我们插件的 token）在 <c>data/Config/Plugins/&lt;id&gt;/</c>。
+    /// 这里在常见安装位置里找这样的 data 目录。
+    /// </summary>
+    public static IReadOnlyList<string> DataFolderRoots()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var bases = new List<string>
+        {
+            Path.Combine(home, "Downloads"),
+            Path.Combine(home, "下载"),
+            Path.Combine(home, "Applications"),
+            Path.Combine(home, "Desktop"),
+            Path.Combine(home, "桌面"),
+            Path.Combine(home, ".local", "share"),
+            "/opt"
+        };
+        var found = new List<string>();
+        foreach (var b in bases.Where(Directory.Exists))
+        {
+            try
+            {
+                // 深度有限：data 一般就在应用目录下一层
+                foreach (var dir in Directory.EnumerateDirectories(b, "data", SearchOption.AllDirectories)
+                             .Where(d => Directory.Exists(Path.Combine(d, "Config"))
+                                         && Directory.Exists(Path.Combine(d, "Plugins"))))
+                {
+                    if (dir.Contains("/Trash/", StringComparison.OrdinalIgnoreCase))
+                        continue;   // 回收站里的不算
+                    // 它的**父目录本身**得是 ClassIsland 的应用目录（名字带 ClassIsland，
+                    // 或者里面直接躺着 ClassIsland 的启动器）——不能只看"旁边有没有 ClassIsland"，
+                    // 否则 ~/Downloads/data 这种也会被误认成 ClassIsland 的数据目录。
+                    var parent = Path.GetDirectoryName(dir)!;
+                    // 只看父目录的名字：目录包安装时它叫 ClassIsland_xxx_selfContained_folder。
+                    // 别再去看"旁边有没有 ClassIsland 文件" —— ~/Downloads 里就有那个 zip，
+                    // 会把 ~/Downloads/data 误认成 ClassIsland 的数据目录。
+                    var parentName = Path.GetFileName(parent);
+                    var looksLikeClassIsland =
+                        parentName.Contains("ClassIsland", StringComparison.OrdinalIgnoreCase);
+                    if (looksLikeClassIsland && !found.Contains(dir))
+                        found.Add(dir);
+                }
+            }
+            catch { /* 没权限就跳过 */ }
+        }
+        return found;
+    }
 
     /// <summary>
     /// 把插件文件装进 ClassIsland。

@@ -8,13 +8,12 @@
              不调用 Windows-only API，使同一 DLL 在 Linux 版 ClassIsland 上也可加载。 -->
     </PropertyGroup>
 
-    <!-- localhost 执行接口用 Kestrel（Microsoft.AspNetCore.App 为纯托管跨平台框架引用）。 -->
-    <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    </ItemGroup>
+    <!-- localhost 执行接口用 BCL 的 TcpListener 自己实现：
+         不能引用 Microsoft.AspNetCore.App —— ClassIsland 是普通 .NET 应用、不带 ASP.NET 运行时，
+         插件里加载它会 FileNotFoundException（实测：桥接服务一直起不来）。 -->
 
     <PropertyGroup>
-        <ClassIslandPluginSdkVersion>1.7.106.2-dev-v2</ClassIslandPluginSdkVersion>
+        <ClassIslandPluginSdkVersion>2.1.0.1</ClassIslandPluginSdkVersion>
     </PropertyGroup>
 
     <ItemGroup>
