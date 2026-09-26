@@ -4,8 +4,11 @@
              x:Class="SmartClassroom.App.Views.CoursewareListView"
              x:DataType="vm:CoursewareViewModel">
     <StackPanel Spacing="8">
-        <TextBlock Text="当天归档的课件都在这里，双击打开。"
-                   Opacity="0.6" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="当天归档的课件都在这里，双击打开。"
+                       Opacity="0.6" VerticalAlignment="Center" />
+            <Button Content="预览上课弹窗" Click="Preview_Click" />
+        </StackPanel>
         <ItemsControl ItemsSource="{Binding Items}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>

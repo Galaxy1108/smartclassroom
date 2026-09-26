@@ -22,4 +22,15 @@ public partial class CoursewareListView : UserControl
             catch { }
         }
     }
+
+    /// <summary>预览上课时的推荐弹窗（真实触发走上课事件，这里看效果）。</summary>
+    private void Preview_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is not CoursewareViewModel vm || vm.Items.Count == 0)
+            return;
+        var preview = new CoursewareViewModel();
+        foreach (var item in vm.Items)
+            preview.Items.Add(item);
+        new CoursewareWindow { DataContext = preview }.Show();
+    }
 }
