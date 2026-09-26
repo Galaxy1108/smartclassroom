@@ -8,7 +8,7 @@
     ".NETCoreApp,Version=v8.0": {
       "SmartClassroom.ClassIslandPlugin/1.0.0": {
         "dependencies": {
-          "ClassIsland.PluginSdk": "1.7.106.2-dev-v2",
+          "ClassIsland.PluginSdk": "2.1.0.1",
           "SmartClassroom.Contracts": "1.0.0"
         },
         "runtime": {
@@ -17,65 +17,65 @@
       },
       "AsyncImageLoader.Avalonia/3.3.0": {
         "dependencies": {
-          "Avalonia": "11.3.6"
+          "Avalonia": "11.3.17"
         }
       },
-      "Avalonia/11.3.6": {
+      "Avalonia/11.3.17": {
         "dependencies": {
-          "Avalonia.BuildServices": "0.0.31",
-          "Avalonia.Remote.Protocol": "11.3.6",
+          "Avalonia.BuildServices": "11.3.2",
+          "Avalonia.Remote.Protocol": "11.3.17",
           "MicroCom.Runtime": "0.11.0"
         }
       },
       "Avalonia.Angle.Windows.Natives/2.1.25547.20250602": {},
       "Avalonia.AvaloniaEdit/11.0.0": {
         "dependencies": {
-          "Avalonia": "11.3.6",
+          "Avalonia": "11.3.17",
           "System.Collections.Immutable": "1.6.0"
         }
       },
-      "Avalonia.BuildServices/0.0.31": {},
-      "Avalonia.Controls.ColorPicker/11.3.6": {
+      "Avalonia.BuildServices/11.3.2": {},
+      "Avalonia.Controls.ColorPicker/11.3.17": {
         "dependencies": {
-          "Avalonia": "11.3.6",
-          "Avalonia.Remote.Protocol": "11.3.6"
+          "Avalonia": "11.3.17",
+          "Avalonia.Remote.Protocol": "11.3.17"
         }
       },
       "Avalonia.Controls.DataGrid/11.2.5": {
         "dependencies": {
-          "Avalonia": "11.3.6",
-          "Avalonia.Remote.Protocol": "11.3.6"
+          "Avalonia": "11.3.17",
+          "Avalonia.Remote.Protocol": "11.3.17"
         }
       },
-      "Avalonia.Desktop/11.3.6": {
+      "Avalonia.Desktop/11.3.17": {
         "dependencies": {
-          "Avalonia": "11.3.6",
-          "Avalonia.Native": "11.3.6",
-          "Avalonia.Skia": "11.3.6",
-          "Avalonia.Win32": "11.3.6",
-          "Avalonia.X11": "11.3.6"
+          "Avalonia": "11.3.17",
+          "Avalonia.Native": "11.3.17",
+          "Avalonia.Skia": "11.3.17",
+          "Avalonia.Win32": "11.3.17",
+          "Avalonia.X11": "11.3.17"
         }
       },
-      "Avalonia.FreeDesktop/11.3.6": {
+      "Avalonia.FreeDesktop/11.3.17": {
         "dependencies": {
-          "Avalonia": "11.3.6",
-          "Tmds.DBus.Protocol": "0.21.2"
+          "Avalonia": "11.3.17",
+          "Tmds.DBus.Protocol": "0.21.3"
         }
       },
       "Avalonia.Labs.CommandManager/11.3.0": {
         "dependencies": {
-          "Avalonia": "11.3.6"
+          "Avalonia": "11.3.17"
         }
       },
-      "Avalonia.Native/11.3.6": {
+      "Avalonia.Native/11.3.17": {
         "dependencies": {
-          "Avalonia": "11.3.6"
+          "Avalonia": "11.3.17"
         }
       },
-      "Avalonia.Remote.Protocol/11.3.6": {},
-      "Avalonia.Skia/11.3.6": {
+      "Avalonia.Remote.Protocol/11.3.17": {},
+      "Avalonia.Skia/11.3.17": {
         "dependencies": {
-          "Avalonia": "11.3.6",
+          "Avalonia": "11.3.17",
           "HarfBuzzSharp": "8.3.1.1",
           "HarfBuzzSharp.NativeAssets.Linux": "8.3.1.1",
           "HarfBuzzSharp.NativeAssets.WebAssembly": "8.3.1.1",
@@ -86,55 +86,56 @@
       },
       "Avalonia.Svg/11.0.0": {
         "dependencies": {
-          "Avalonia": "11.3.6",
+          "Avalonia": "11.3.17",
           "Svg.Model": "1.0.0"
         }
       },
-      "Avalonia.Win32/11.3.6": {
+      "Avalonia.Win32/11.3.17": {
         "dependencies": {
-          "Avalonia": "11.3.6",
+          "Avalonia": "11.3.17",
           "Avalonia.Angle.Windows.Natives": "2.1.25547.20250602"
         }
       },
-      "Avalonia.X11/11.3.6": {
+      "Avalonia.X11/11.3.17": {
         "dependencies": {
-          "Avalonia": "11.3.6",
-          "Avalonia.FreeDesktop": "11.3.6",
-          "Avalonia.Skia": "11.3.6"
+          "Avalonia": "11.3.17",
+          "Avalonia.FreeDesktop": "11.3.17",
+          "Avalonia.Skia": "11.3.17"
         }
       },
       "ClassIsland.ColorDocument.Avalonia/11.0.3.4": {
         "dependencies": {
-          "Avalonia": "11.3.6",
+          "Avalonia": "11.3.17",
           "ClassIsland.ColorTextBlock.Avalonia": "11.0.3.4"
         }
       },
       "ClassIsland.ColorTextBlock.Avalonia/11.0.3.4": {
         "dependencies": {
-          "Avalonia": "11.3.6"
+          "Avalonia": "11.3.17"
         }
       },
-      "ClassIsland.Core/1.7.106.2-dev-v2": {
+      "ClassIsland.Core/2.1.0.1": {
         "dependencies": {
           "AsyncImageLoader.Avalonia": "3.3.0",
-          "Avalonia": "11.3.6",
-          "Avalonia.Controls.ColorPicker": "11.3.6",
-          "Avalonia.Desktop": "11.3.6",
+          "Avalonia": "11.3.17",
+          "Avalonia.Controls.ColorPicker": "11.3.17",
+          "Avalonia.Desktop": "11.3.17",
           "Avalonia.Labs.CommandManager": "11.3.0",
           "ClassIsland.Markdown.Avalonia": "11.0.3.4",
-          "ClassIsland.Platforms.Abstractions": "1.7.106.2-dev-v2",
-          "ClassIsland.Shared": "1.7.106.2-dev-v2",
-          "ClassIsland.Shared.IPC": "1.7.106.2-dev-v2",
+          "ClassIsland.Platforms.Abstractions": "2.1.0.1",
+          "ClassIsland.Shared": "2.1.0.1",
+          "ClassIsland.Shared.IPC": "2.1.0.1",
           "FluentAvaloniaUI": "2.4.1",
           "Lib.Harmony.Thin": "2.4.2",
           "Microsoft.Extensions.Configuration.UserSecrets": "8.0.0",
           "Microsoft.Extensions.Hosting": "8.0.0",
           "Microsoft.Extensions.Hosting.Abstractions": "8.0.0",
+          "MoonSharp": "2.0.0",
           "Octokit": "9.1.0",
           "ReactiveUI": "20.2.45",
           "SoundFlow": "1.2.1",
           "System.Text.Encoding.CodePages": "8.0.0",
-          "Xaml.Behaviors": "11.2.0.14",
+          "Xaml.Behaviors": "11.3.9.5",
           "YamlDotNet": "16.3.0"
         }
       },
@@ -148,7 +149,7 @@
       },
       "ClassIsland.Markdown.Avalonia.Html/11.0.3.4": {
         "dependencies": {
-          "Avalonia": "11.3.6",
+          "Avalonia": "11.3.17",
           "ClassIsland.ColorTextBlock.Avalonia": "11.0.3.4",
           "ClassIsland.Markdown.Avalonia.SyntaxHigh": "11.0.3.4",
           "ClassIsland.Markdown.Avalonia.Tight": "11.0.3.4",
@@ -157,36 +158,36 @@
       },
       "ClassIsland.Markdown.Avalonia.Svg/11.0.3.4": {
         "dependencies": {
-          "Avalonia": "11.3.6",
+          "Avalonia": "11.3.17",
           "Avalonia.Svg": "11.0.0",
           "ClassIsland.Markdown.Avalonia.Tight": "11.0.3.4"
         }
       },
       "ClassIsland.Markdown.Avalonia.SyntaxHigh/11.0.3.4": {
         "dependencies": {
-          "Avalonia": "11.3.6",
+          "Avalonia": "11.3.17",
           "Avalonia.AvaloniaEdit": "11.0.0"
         }
       },
       "ClassIsland.Markdown.Avalonia.Tight/11.0.3.4": {
         "dependencies": {
-          "Avalonia": "11.3.6",
+          "Avalonia": "11.3.17",
           "ClassIsland.ColorDocument.Avalonia": "11.0.3.4",
           "ClassIsland.ColorTextBlock.Avalonia": "11.0.3.4"
         }
       },
-      "ClassIsland.Platforms.Abstractions/1.7.106.2-dev-v2": {
+      "ClassIsland.Platforms.Abstractions/2.1.0.1": {
         "dependencies": {
-          "Avalonia": "11.3.6",
-          "ClassIsland.Shared": "1.7.106.2-dev-v2"
+          "Avalonia": "11.3.17",
+          "ClassIsland.Shared": "2.1.0.1"
         }
       },
-      "ClassIsland.PluginSdk/1.7.106.2-dev-v2": {
+      "ClassIsland.PluginSdk/2.1.0.1": {
         "dependencies": {
-          "ClassIsland.Core": "1.7.106.2-dev-v2"
+          "ClassIsland.Core": "2.1.0.1"
         }
       },
-      "ClassIsland.Shared/1.7.106.2-dev-v2": {
+      "ClassIsland.Shared/2.1.0.1": {
         "dependencies": {
           "CommunityToolkit.Mvvm": "8.2.1",
           "CsesSharp": "1.0.0",
@@ -195,9 +196,9 @@
           "Microsoft.Extensions.Hosting.Abstractions": "8.0.0"
         }
       },
-      "ClassIsland.Shared.IPC/1.7.106.2-dev-v2": {
+      "ClassIsland.Shared.IPC/2.1.0.1": {
         "dependencies": {
-          "ClassIsland.Shared": "1.7.106.2-dev-v2",
+          "ClassIsland.Shared": "2.1.0.1",
           "dotnetCampus.Ipc": "2.0.0-alpha410"
         }
       },
@@ -223,10 +224,10 @@
       "Fizzler/1.2.1": {},
       "FluentAvaloniaUI/2.4.1": {
         "dependencies": {
-          "Avalonia": "11.3.6",
-          "Avalonia.Controls.ColorPicker": "11.3.6",
+          "Avalonia": "11.3.17",
+          "Avalonia.Controls.ColorPicker": "11.3.17",
           "Avalonia.Controls.DataGrid": "11.2.5",
-          "Avalonia.Skia": "11.3.6",
+          "Avalonia.Skia": "11.3.17",
           "MicroCom.Runtime": "0.11.0"
         }
       },
@@ -483,6 +484,7 @@
           "MonoMod.ILHelpers": "1.1.0"
         }
       },
+      "MoonSharp/2.0.0": {},
       "Newtonsoft.Json/13.0.2": {},
       "Octokit/9.1.0": {},
       "ReactiveUI/20.2.45": {
@@ -631,15 +633,14 @@
         }
       },
       "System.ValueTuple/4.5.0": {},
-      "Tmds.DBus.Protocol/0.21.2": {
+      "Tmds.DBus.Protocol/0.21.3": {
         "dependencies": {
           "System.IO.Pipelines": "9.0.2"
         }
       },
-      "Xaml.Behaviors/11.2.0.14": {
+      "Xaml.Behaviors/11.3.9.5": {
         "dependencies": {
-          "Avalonia": "11.3.6",
-          "System.Reactive": "6.0.1"
+          "Avalonia": "11.3.17"
         }
       },
       "YamlDotNet/16.3.0": {},
@@ -666,12 +667,12 @@
       "path": "asyncimageloader.avalonia/3.3.0",
       "hashPath": "asyncimageloader.avalonia.3.3.0.nupkg.sha512"
     },
-    "Avalonia/11.3.6": {
+    "Avalonia/11.3.17": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-h8V6Cmklaak2h+WVp5gcsprwmrCLQylfNmIQnOQyiETzOazKGmFhlcf+K9zoupxfkhOQXsbSJpb/elyCkrjlig==",
-      "path": "avalonia/11.3.6",
-      "hashPath": "avalonia.11.3.6.nupkg.sha512"
+      "sha512": "sha512-CyInPSdfighRNpso1vZfQLMNsXz1GMe+1EPbxLfnNTmu7F3uB6w/BBmvJGkCUiRyeE/HMB0SKp7DNo5AJXR78A==",
+      "path": "avalonia/11.3.17",
+      "hashPath": "avalonia.11.3.17.nupkg.sha512"
     },
     "Avalonia.Angle.Windows.Natives/2.1.25547.20250602": {
       "type": "package",
@@ -687,19 +688,19 @@
       "path": "avalonia.avaloniaedit/11.0.0",
       "hashPath": "avalonia.avaloniaedit.11.0.0.nupkg.sha512"
     },
-    "Avalonia.BuildServices/0.0.31": {
+    "Avalonia.BuildServices/11.3.2": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-KmCN6Hc+45q4OnF10ge450yVUvWuxU6bdQiyKqiSvrHKpahNrEdk0kG6Ip6GHk2SKOCttGQuA206JVdkldEENg==",
-      "path": "avalonia.buildservices/0.0.31",
-      "hashPath": "avalonia.buildservices.0.0.31.nupkg.sha512"
+      "sha512": "sha512-qHDToxto1e3hci5YqbG9n0Ty8mlp3zBUN5wT66wKqaDVzXyQ0do3EnRILd4Ke9jpvsktaPpgE0YjEk7hornryQ==",
+      "path": "avalonia.buildservices/11.3.2",
+      "hashPath": "avalonia.buildservices.11.3.2.nupkg.sha512"
     },
-    "Avalonia.Controls.ColorPicker/11.3.6": {
+    "Avalonia.Controls.ColorPicker/11.3.17": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-zgJFM7P7hOS9qcuSUqL2tjBFIsi03qiwAztYjtjtKjfBvLBOrVcmL5qHwjfjeLRLtjHprjMraAHtu3O2vi+51g==",
-      "path": "avalonia.controls.colorpicker/11.3.6",
-      "hashPath": "avalonia.controls.colorpicker.11.3.6.nupkg.sha512"
+      "sha512": "sha512-peRGekWf+tR9h/2hSGHAIIGix7S7G8t2GGVJXOIj/C0JFvp2L6BTu0adrc/rq2wdBkYRJrKDQyHZ9V29GdE8qg==",
+      "path": "avalonia.controls.colorpicker/11.3.17",
+      "hashPath": "avalonia.controls.colorpicker.11.3.17.nupkg.sha512"
     },
     "Avalonia.Controls.DataGrid/11.2.5": {
       "type": "package",
@@ -708,19 +709,19 @@
       "path": "avalonia.controls.datagrid/11.2.5",
       "hashPath": "avalonia.controls.datagrid.11.2.5.nupkg.sha512"
     },
-    "Avalonia.Desktop/11.3.6": {
+    "Avalonia.Desktop/11.3.17": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-+r/3tPkf2E7rxbKYYd5bRq9vdaPCvuhf+PAKFmKqdQrzjWPSP4/Dg0VDIcgPsv+A2Tq82x67ZUJGQyhiLfsMVQ==",
-      "path": "avalonia.desktop/11.3.6",
-      "hashPath": "avalonia.desktop.11.3.6.nupkg.sha512"
+      "sha512": "sha512-HGTZWYBe4t7Effq5CTEI7I6smoao8D1ymgTgEHgucj8O+vVI72brrNTYb/vDfBojxqzjRUcwMmU53hdf059mkw==",
+      "path": "avalonia.desktop/11.3.17",
+      "hashPath": "avalonia.desktop.11.3.17.nupkg.sha512"
     },
-    "Avalonia.FreeDesktop/11.3.6": {
+    "Avalonia.FreeDesktop/11.3.17": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-vI+m3r5GRoF0CS1EpMG+gx9qCQVkCwlsHyW6+UWxNNpL2IZ9S3zPt/GNgG6vFrhZpBTsoG+OZnZ9XPRT+KkqUw==",
-      "path": "avalonia.freedesktop/11.3.6",
-      "hashPath": "avalonia.freedesktop.11.3.6.nupkg.sha512"
+      "sha512": "sha512-soVMUGikGjjcECeAC3MLe7+g1DEyJu1a4+5wfzZc/g3fHqSXxJPo1qH/O9R4ZsnijiPaORBjf9WTVOjbDfhR3Q==",
+      "path": "avalonia.freedesktop/11.3.17",
+      "hashPath": "avalonia.freedesktop.11.3.17.nupkg.sha512"
     },
     "Avalonia.Labs.CommandManager/11.3.0": {
       "type": "package",
@@ -729,26 +730,26 @@
       "path": "avalonia.labs.commandmanager/11.3.0",
       "hashPath": "avalonia.labs.commandmanager.11.3.0.nupkg.sha512"
     },
-    "Avalonia.Native/11.3.6": {
+    "Avalonia.Native/11.3.17": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-QaIKZLfquJ12Rpwo9pQ2V24TfpJI2tQJeYe235G4cJnI3d699DvMUcntQA1VLDCwAK3xHOSTyoN737oU3f9ErQ==",
-      "path": "avalonia.native/11.3.6",
-      "hashPath": "avalonia.native.11.3.6.nupkg.sha512"
+      "sha512": "sha512-SEsOpCOrj27NKqoPFgmMH7MfqfcY0qay2e7xuNkXU1OIpRlI3kXoJFStcw9eCFqYctRIP2eNVJ/eTAT7dZ7XkQ==",
+      "path": "avalonia.native/11.3.17",
+      "hashPath": "avalonia.native.11.3.17.nupkg.sha512"
     },
-    "Avalonia.Remote.Protocol/11.3.6": {
+    "Avalonia.Remote.Protocol/11.3.17": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-i1lW1ZA5Ghe19kbPiC2pMq48P/9CcOWi8hFj0Y8UZr/czCQok3YJRwU5z8vKsJ5xsMvzpPf+GO/6Qu9Dy2yLvg==",
-      "path": "avalonia.remote.protocol/11.3.6",
-      "hashPath": "avalonia.remote.protocol.11.3.6.nupkg.sha512"
+      "sha512": "sha512-w0UZSPj2z1EjVQ7VI1i+8wO1nK+XCMMlweXFv9axHVBhRYgIuy/35sgNxbyuuldt6LGOqg2wFcYZ4jEGwfCC9A==",
+      "path": "avalonia.remote.protocol/11.3.17",
+      "hashPath": "avalonia.remote.protocol.11.3.17.nupkg.sha512"
     },
-    "Avalonia.Skia/11.3.6": {
+    "Avalonia.Skia/11.3.17": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-qM1qGCUxPpheLwQ6gr+I4h2dhFz3L9Apa1MhiUsUELzSI6FqfzX2+67M8f/6gOHAtrjwxkjpanNW6eF9zW+g7Q==",
-      "path": "avalonia.skia/11.3.6",
-      "hashPath": "avalonia.skia.11.3.6.nupkg.sha512"
+      "sha512": "sha512-czEQS0KNRphBKMb+fD2NYKlM1yMw2PzwXBsDDmn5OPLY3i1pZ7njv3+0M9SHrbjJa6mR3ze4ZgCWNGsI07GvHA==",
+      "path": "avalonia.skia/11.3.17",
+      "hashPath": "avalonia.skia.11.3.17.nupkg.sha512"
     },
     "Avalonia.Svg/11.0.0": {
       "type": "package",
@@ -757,19 +758,19 @@
       "path": "avalonia.svg/11.0.0",
       "hashPath": "avalonia.svg.11.0.0.nupkg.sha512"
     },
-    "Avalonia.Win32/11.3.6": {
+    "Avalonia.Win32/11.3.17": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-KHft8utwz5ktcwHdEAwAPfNGdwqoE0qrwVmPjGYggqJAI4PuaiATkdSObSCXfxRVs2H9aqVB8hiEVB+9rvkxYw==",
-      "path": "avalonia.win32/11.3.6",
-      "hashPath": "avalonia.win32.11.3.6.nupkg.sha512"
+      "sha512": "sha512-flO+Ncg53eeLhEsDoBFb6g2DQQMISy8NatqK2wGQfzbohOhxuCvpWWPp5F/u3z6erWjV/5b0Nwr68qdRfSvj3A==",
+      "path": "avalonia.win32/11.3.17",
+      "hashPath": "avalonia.win32.11.3.17.nupkg.sha512"
     },
-    "Avalonia.X11/11.3.6": {
+    "Avalonia.X11/11.3.17": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-6NKE1py4zbkMJg++2rMJHyjEXNo2JU0Nj9nEMnXh2gyHyfclhULIGIqmpsLvJ7Ljv1+6iLDqArCFRn+mi1hANw==",
-      "path": "avalonia.x11/11.3.6",
-      "hashPath": "avalonia.x11.11.3.6.nupkg.sha512"
+      "sha512": "sha512-Q+9JcoxiOpfZ7gMRR6pDkvcUwrBZx3Y9WLrRRr46Vg4i3ZXj9CkzNaturMqPwIW1UChESJ7GFu5q35DoRh0ypQ==",
+      "path": "avalonia.x11/11.3.17",
+      "hashPath": "avalonia.x11.11.3.17.nupkg.sha512"
     },
     "ClassIsland.ColorDocument.Avalonia/11.0.3.4": {
       "type": "package",
@@ -785,12 +786,12 @@
       "path": "classisland.colortextblock.avalonia/11.0.3.4",
       "hashPath": "classisland.colortextblock.avalonia.11.0.3.4.nupkg.sha512"
     },
-    "ClassIsland.Core/1.7.106.2-dev-v2": {
+    "ClassIsland.Core/2.1.0.1": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-3C3xdI5zuKRcDUL9bsyz7GPZGKaPp3wyabWEUmK5QkG36dcOD8SKqEmCaoVpPTTXWjCx4r1Tv9muOegmq1GwFw==",
-      "path": "classisland.core/1.7.106.2-dev-v2",
-      "hashPath": "classisland.core.1.7.106.2-dev-v2.nupkg.sha512"
+      "sha512": "sha512-tIjrxgqb41D5a/SQRoDC99CU3TR4rq6FH+t1MgbTs8Nd7diubrBitivQqANZCtWHGY4tILaLJInbbXGc2xlLVg==",
+      "path": "classisland.core/2.1.0.1",
+      "hashPath": "classisland.core.2.1.0.1.nupkg.sha512"
     },
     "ClassIsland.Markdown.Avalonia/11.0.3.4": {
       "type": "package",
@@ -827,33 +828,33 @@
       "path": "classisland.markdown.avalonia.tight/11.0.3.4",
       "hashPath": "classisland.markdown.avalonia.tight.11.0.3.4.nupkg.sha512"
     },
-    "ClassIsland.Platforms.Abstractions/1.7.106.2-dev-v2": {
+    "ClassIsland.Platforms.Abstractions/2.1.0.1": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-d3AoRRp4xobyVOSFkM3ju0DSxWEKkDSFYW5cOCrdg3bvAYufvP1D1CuEjuyjPdU9vc9XQIRmqiTzt8xCinIOng==",
-      "path": "classisland.platforms.abstractions/1.7.106.2-dev-v2",
-      "hashPath": "classisland.platforms.abstractions.1.7.106.2-dev-v2.nupkg.sha512"
+      "sha512": "sha512-dDWVWxWWQ6sfRc9tGVIaCyNbafvs4sXpygGwg5zawTXOfwl0lzYgIPYaFFaTBKGXgSeHjv8hRVPi+DemtSdHgA==",
+      "path": "classisland.platforms.abstractions/2.1.0.1",
+      "hashPath": "classisland.platforms.abstractions.2.1.0.1.nupkg.sha512"
     },
-    "ClassIsland.PluginSdk/1.7.106.2-dev-v2": {
+    "ClassIsland.PluginSdk/2.1.0.1": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-8zaGRyi6IZctoIGrfaxWvpY+q0A/2brN4Awm1N3Ba5C0KePSC3kpvLs78Gw3Qt2DD46RUIR4omYUrUxqfK0NQA==",
-      "path": "classisland.pluginsdk/1.7.106.2-dev-v2",
-      "hashPath": "classisland.pluginsdk.1.7.106.2-dev-v2.nupkg.sha512"
+      "sha512": "sha512-3t26ihaCy5zK8Tl5lSYoSi1iirt6kKc6yShDjMlApN0T8oKdnuAVHgLp28ocpUy70eJthLpknDez/LB/dN/lSA==",
+      "path": "classisland.pluginsdk/2.1.0.1",
+      "hashPath": "classisland.pluginsdk.2.1.0.1.nupkg.sha512"
     },
-    "ClassIsland.Shared/1.7.106.2-dev-v2": {
+    "ClassIsland.Shared/2.1.0.1": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-9dI0QGqXL7CYFBYwA3hSxlU3c+rS0SHE27kkOqCtmNR3Ul1+OwBPRWcESjL9eQy4F3PTr7yFbuW6rOLUB7KAkw==",
-      "path": "classisland.shared/1.7.106.2-dev-v2",
-      "hashPath": "classisland.shared.1.7.106.2-dev-v2.nupkg.sha512"
+      "sha512": "sha512-LhOFNv6FQqP9hwa0pFe7+p4rC65PHr3dqJ4DeC6fWgjdSfGF9Lq+tFRvOzi3IqVplf14+mCrT+lk+q3MrUZwpw==",
+      "path": "classisland.shared/2.1.0.1",
+      "hashPath": "classisland.shared.2.1.0.1.nupkg.sha512"
     },
-    "ClassIsland.Shared.IPC/1.7.106.2-dev-v2": {
+    "ClassIsland.Shared.IPC/2.1.0.1": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-NrfuDDfOuvbDZ6mzCD5OrwBrvrDU8zC07cpbVlp1MbEkBWyflb0NJQPG5rlszHLT23opPSS4rAH9+VQ1HoJHOw==",
-      "path": "classisland.shared.ipc/1.7.106.2-dev-v2",
-      "hashPath": "classisland.shared.ipc.1.7.106.2-dev-v2.nupkg.sha512"
+      "sha512": "sha512-xCYdNv6uuXmFJlVEqcKPQ5LA+nmkAYAYr2bYVKB5RyndBbAoJh7j4I+Z2oybgUCayOUvy0spgFdSoyg9fwSMNQ==",
+      "path": "classisland.shared.ipc/2.1.0.1",
+      "hashPath": "classisland.shared.ipc.2.1.0.1.nupkg.sha512"
     },
     "CommunityToolkit.Mvvm/8.2.1": {
       "type": "package",
@@ -1233,6 +1234,13 @@
       "path": "monomod.utils/25.0.11",
       "hashPath": "monomod.utils.25.0.11.nupkg.sha512"
     },
+    "MoonSharp/2.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-uiAcRh7d+53k3xW9pFDJfAFVw4RnjHVCJG05M3oPAVEVwPtFavhg1H/IpC6So4X1j9kJlzuLlA3OghhPcIvc5A==",
+      "path": "moonsharp/2.0.0",
+      "hashPath": "moonsharp.2.0.0.nupkg.sha512"
+    },
     "Newtonsoft.Json/13.0.2": {
       "type": "package",
       "serviceable": true,
@@ -1485,19 +1493,19 @@
       "path": "system.valuetuple/4.5.0",
       "hashPath": "system.valuetuple.4.5.0.nupkg.sha512"
     },
-    "Tmds.DBus.Protocol/0.21.2": {
+    "Tmds.DBus.Protocol/0.21.3": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-ScSMrUrrw8px4kK1Glh0fZv/HQUlg1078bNXNPfRPKQ3WbRzV9HpsydYEOgSoMK5LWICMf2bMwIFH0pGjxjcMA==",
-      "path": "tmds.dbus.protocol/0.21.2",
-      "hashPath": "tmds.dbus.protocol.0.21.2.nupkg.sha512"
+      "sha512": "sha512-hDwB8WsQoyALQKqIbwzS68UKdlnafDm4T/DkO/JrA/YIneP/rKv96SxYPVXeh3FP4i/SXfShrYftKLtciJAIlw==",
+      "path": "tmds.dbus.protocol/0.21.3",
+      "hashPath": "tmds.dbus.protocol.0.21.3.nupkg.sha512"
     },
-    "Xaml.Behaviors/11.2.0.14": {
+    "Xaml.Behaviors/11.3.9.5": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-gX9uX+u1caV6GiJtsSsyXBVDVHtUsG0o+ePoT31kergbREpQFjP7lKAt67f75psKKs7NA3wSLHwwLOPpstF1Bw==",
-      "path": "xaml.behaviors/11.2.0.14",
-      "hashPath": "xaml.behaviors.11.2.0.14.nupkg.sha512"
+      "sha512": "sha512-j00Roim34d6TffOcwHY9dYNcOHE44lViIl5NVIYku3gtQdhFuWt5/uc5IFQtP7d3LK2aL9ZKiGEJDe6nfjx90A==",
+      "path": "xaml.behaviors/11.3.9.5",
+      "hashPath": "xaml.behaviors.11.3.9.5.nupkg.sha512"
     },
     "YamlDotNet/16.3.0": {
       "type": "package",

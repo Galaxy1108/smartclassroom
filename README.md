@@ -341,6 +341,23 @@ SnowLuma 的 `config/runtime.json` 里 `hookAutoLoad` 默认是 **false**：
 
 > 之前几个版本只发布了应用、**没有发布插件** —— 所以 ClassIsland 一直是"未连接"。
 
+#### 提醒内容必须用 ClassIsland 的模板数据
+
+给 ClassIsland 发提醒时，`MaskContent`/`OverlayContent` 的 `Content` **不能塞纯字符串** ——
+那没有对应的模板，渲染出来就是"没图标、文字偏移、字号不对"。要用它的模板数据类：
+
+- 遮罩：`TwoIconsMaskTemplateData { Text, LeftIconSource, HasRightIcon }`
+- 正文：`SimpleTextTemplateData { Text }`
+- 模板**必须显式给资源键**：`ContentTemplateResourceKey = "NotificationTwoIconsMaskTemplate"`
+  （正文是 `"NotificationSimpleTextOverlayTemplate"`）。不给键的话它不按类型自动匹配，
+  直接把数据对象 `ToString()` 出来 —— 通知里会显示一长串类型名（实测踩到）。
+- 图标：`new FluentIconSource("\uF8009")`。码位要取自 **FluentAvalonia 的 `Symbol` 枚举**
+  （ClassIsland 用的就是这套 Fluent System Icons 字体）；照 Segoe MDL2 猜会错位
+  （实测 `E7E7` 在这套字体里是笑脸）。当前：召唤=`F8009`(AlertUrgent)、
+  换课=`E117`(Sync)、手动=`E171`(Important)。
+
+三个渠道各配了图标（召唤=铃铛、换课=提示、手动=警告），渠道属性里也带上了 `iconGlyph`。
+
 #### 插件踩过的四个坑
 
 1. **没发布**：打包脚本只发应用，插件一直留在源码里。
