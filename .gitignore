@@ -38,6 +38,7 @@ Thumbs.db
 
 # makepkg 构建产物
 pkg/stage/
+pkg/win-stage/
 pkg/src/
 pkg/pkg/
 *.pkg.tar.zst
