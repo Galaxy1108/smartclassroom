@@ -4,7 +4,7 @@ pkgver=0.22.0
 pkgrel=1
 pkgdesc="智慧课堂——跨平台教室增强应用（课表联动/QQ 消息/AI 整理/课件推送）"
 arch=('x86_64')
-url="https://example.com"
+url="https://github.com/Galaxy1108/smartclassroom"
 license=('MIT')
 # self-contained 发布：不依赖系统 dotnet。nodejs 供 pi-ai 边车使用（要求 ≥ 22.19）。
 depends=('gcc-libs' 'glibc' 'icu' 'openssl' 'zlib' 'nodejs')
