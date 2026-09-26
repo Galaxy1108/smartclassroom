@@ -32,11 +32,11 @@ public static class SingleInstance
     /// <summary>
     /// 抢单实例。返回 null = 抢到了；否则返回被谁挡住的说明（"mutex" / "lock"），便于排查。
     /// </summary>
-    public static string? TryAcquire(string? lockPath = null)
+    public static string? TryAcquire(string? lockPath = null, string? mutexName = null)
     {
         try
         {
-            _mutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
+            _mutex = new Mutex(initiallyOwned: true, mutexName ?? MutexName, out var createdNew);
             if (!createdNew)
                 return "mutex";
         }

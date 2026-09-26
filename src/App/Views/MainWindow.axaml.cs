@@ -35,6 +35,12 @@ public partial class MainWindow : Window
 
     private void NavView_SelectionChanged(object? sender, NavigationViewSelectionChangedEventArgs e)
     {
+        // 内置的「设置」项固定在左下角（WinUI 的惯例），它没有 Tag
+        if (e.IsSettingsSelected)
+        {
+            Navigate("settings");
+            return;
+        }
         if (e.SelectedItem is NavigationViewItem item && item.Tag is string tag)
             Navigate(tag);
     }

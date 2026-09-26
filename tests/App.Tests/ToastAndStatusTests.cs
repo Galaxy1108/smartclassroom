@@ -275,10 +275,20 @@ public sealed class ToastAndStatusTests : IDisposable
     [AvaloniaFact]
     public void SingleInstance_SecondAcquireIsBlocked()
     {
-        // 多开会抢同一个 SnowLuma 进程、同一个桥接端口、同一份 state.json
-        Assert.Null(SingleInstance.TryAcquire());                       // 第一个：抢到
-        Assert.NotNull(SingleInstance.TryAcquire());                    // 第二个：必须被挡住
-        SingleInstance.ReleaseLocks();
+        // 多开会抢同一个 SnowLuma 进程、同一个桥接端口、同一份 state.json。
+        // 用独立的锁文件与互斥量名：本机可能正跑着应用，别受它影响。
+        var lockPath = Path.Combine(Path.GetTempPath(), "sc-si-" + Guid.NewGuid().ToString("N") + ".lock");
+        var mutexName = "sc-test-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            Assert.Null(SingleInstance.TryAcquire(lockPath, mutexName));     // 第一个：抢到
+            Assert.NotNull(SingleInstance.TryAcquire(lockPath, mutexName));  // 第二个：必须被挡住
+        }
+        finally
+        {
+            SingleInstance.ReleaseLocks();
+            if (File.Exists(lockPath)) File.Delete(lockPath);
+        }
     }
 
     [AvaloniaFact]

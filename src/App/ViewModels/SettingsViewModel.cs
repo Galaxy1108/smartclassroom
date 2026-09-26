@@ -1061,9 +1061,17 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         var failure = SnowlumaManager.LastHookFailure(InstallDir);
         var ptrace = SnowlumaManager.ReadPtraceScope();
+        var qq = SnowlumaManager.ReadQqVersion();
         if (failure is not null && ptrace == 1)
             return "注入失败：Linux 的 ptrace 限制（kernel.yama.ptrace_scope=1 只允许跟踪子进程）。"
                  + "执行 sudo sysctl kernel.yama.ptrace_scope=0 后重试，或从 SnowLuma 的 WebUI 里启动 QQ。";
+        if (failure is not null && failure.Contains("COMPONENT_LOAD_FAILED", StringComparison.OrdinalIgnoreCase))
+        {
+            // 这一步已经越过 ptrace（能附加了），失败发生在 QQ 进程内部加载注入组件时
+            var ver = qq is null ? "" : $"，当前 QQ {qq}";
+            return $"注入组件在 QQ 里加载失败（COMPONENT_LOAD_FAILED{ver}）：这属于 SnowLuma 原生注入的兼容性问题。"
+                 + "确认它支持的 QQ 版本，或改用它的 Docker 部署（Linux 上更稳）；也可以带日志去它的 issue 反馈。";
+        }
         if (failure is not null)
             return $"注入失败：{Trim(failure)}（详见 SnowLuma 的日志目录）";
         if (ptrace == 1)

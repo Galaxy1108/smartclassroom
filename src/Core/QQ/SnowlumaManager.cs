@@ -176,6 +176,37 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     }
 
     /// <summary>
+    /// 本机 QQ 的版本（Linux NTQQ 把版本写在 ~/.config/QQ/versions/config.json）。
+    /// 注入失败时带上它，方便对照 SnowLuma 支持的版本或提 issue。
+    /// </summary>
+    public static string? ReadQqVersion()
+    {
+        try
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var candidates = new[]
+            {
+                Path.Combine(home, ".config", "QQ", "versions", "config.json"),
+                "/opt/QQ/resources/app/package.json"
+            };
+            foreach (var path in candidates)
+            {
+                if (!File.Exists(path))
+                    continue;
+                using var doc = JsonDocument.Parse(File.ReadAllText(path));
+                foreach (var key in new[] { "curVersion", "baseVersion", "version" })
+                {
+                    if (doc.RootElement.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String
+                        && (v.GetString()?.Length ?? 0) > 0)
+                        return v.GetString();
+                }
+            }
+        }
+        catch { /* 读不到就算了 */ }
+        return null;
+    }
+
+    /// <summary>
     /// Linux 的 ptrace 限制（/proc/sys/kernel/yama/ptrace_scope）。
     /// 值为 1 时只允许跟踪自己的子进程，而注入 QQ 是"跟踪一个已经在跑的进程" →
     /// 必然失败（日志里就是 COMPONENT_LOAD_FAILED）。返回 null = 非 Linux / 读不到。

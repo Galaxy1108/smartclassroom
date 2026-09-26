@@ -328,7 +328,9 @@ SnowLuma 的 `config/runtime.json` 里 `hookAutoLoad` 默认是 **false**：
 所以点「启动」时应用会把这个开关打开（写回 `runtime.json`，保留其它字段，原子替换），
 并在事件页记一条「已开启 SnowLuma 的自动注入」。想关掉在 WebUI 里改回去即可。
 
-### Linux 上注入还需要 ptrace 权限
+### Linux 上注入的两个关卡
+
+**第一关：ptrace 权限。**
 
 SnowLuma 的注入是"跟踪一个已经在跑的 QQ 进程"，而 Arch 默认
 `kernel.yama.ptrace_scope=1`（只允许跟踪**自己的子进程**）→ 注入必然失败，
@@ -339,8 +341,13 @@ sudo sysctl kernel.yama.ptrace_scope=0      # 临时放开（重启失效）
 # 永久：/etc/sysctl.d/99-snowluma.conf 里写 kernel.yama.ptrace_scope=0
 ```
 
-应用现在会**读 SnowLuma 的日志**把这条失败原因直接显示在「运行状态」下面，
-并给出上面这条命令（不用再去翻日志）。设置页另有「打开日志」按钮直达它的日志目录。
+**第二关：注入组件在 QQ 进程内加载失败**（`COMPONENT_LOAD_FAILED`）。
+过了 ptrace 这一关之后，如果日志变成这一条，说明**附加已经成功**、失败发生在把注入组件
+加载进 QQ 的时候 —— 这属于 SnowLuma 原生注入与具体 QQ 版本的兼容性问题，不是本应用能修的。
+界面上会连同**本机 QQ 版本**一起显示出来，便于对照 SnowLuma 支持的版本、或改用它的 Docker 部署。
+
+两种情况应用都会**读 SnowLuma 的日志**把原因直接显示在「运行状态」下面（不用翻日志），
+设置页另有「打开日志」按钮直达它的日志目录。
 
 ### 接管已在运行的实例
 
