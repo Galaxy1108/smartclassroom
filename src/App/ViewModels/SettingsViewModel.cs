@@ -17,6 +17,7 @@ public sealed record EngineOption(AiEngine Engine, string Title, string Descript
 public sealed class SettingsViewModel : ViewModelBase
 {
     private readonly SnowlumaManager _manager = new();
+    private readonly NodeManager _node = new();
     private readonly string _appDir;
     private string _log = "";
     private string _status = "未检测";
@@ -27,6 +28,8 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _pluginStatus = "未检测";
     private string _sidecarInfo = "";
     private string _aiTestResult = "";
+    private bool _isNodeReady;
+    private double _nodeProgress;
 
     public SettingsViewModel() : this(SettingsStore.DefaultPath, AppContext.BaseDirectory) { }
 
@@ -41,6 +44,7 @@ public sealed class SettingsViewModel : ViewModelBase
         LoadSettings();
         AutostartEnabled = AutostartManager.IsEnabled(InstallDir);
         RefreshSidecarInfo();
+        RefreshNodeStatus();
     }
 
     public string SettingsPath { get; }
@@ -242,6 +246,76 @@ public sealed class SettingsViewModel : ViewModelBase
         return client;
     }
 
+    // ================= Node 运行时（pi-ai 前置依赖） =================
+
+    public ObservableCollection<NodeRelease> NodeReleases { get; } = new();
+
+    private NodeRelease? _selectedNode;
+    public NodeRelease? SelectedNode { get => _selectedNode; set => Set(ref _selectedNode, value); }
+
+    private string _nodeStatusText = "";
+    public string NodeStatusText { get => _nodeStatusText; private set => Set(ref _nodeStatusText, value); }
+
+    public double NodeProgress { get => _nodeProgress; private set => Set(ref _nodeProgress, value); }
+
+    /// <summary>Node 是否可用（版本 ≥ 22.19）。</summary>
+    public bool IsNodeReady { get => _isNodeReady; private set => Set(ref _isNodeReady, value); }
+
+    /// <summary>Node 不可用时才显示提示与下载器。</summary>
+    public bool ShowNodeInstaller => !IsNodeReady;
+
+    public void RefreshNodeStatus()
+    {
+        var version = NodeRuntime.ProbeVersion(_appDir);
+        IsNodeReady = version is not null && version >= NodeRuntime.MinimumNode;
+        NodeStatusText = NodeRuntime.DescribeReadiness(_appDir);
+        OnPropertyChanged(nameof(ShowNodeInstaller));
+        OnPropertyChanged(nameof(SidecarInfo));
+        if (IsNodeReady)
+            AppendLog($"Node 就绪：v{version}");
+    }
+
+    /// <summary>拉取 nodejs.org 的 LTS 列表。</summary>
+    public async Task LoadNodeVersionsAsync()
+    {
+        try
+        {
+            NodeReleases.Clear();
+            foreach (var r in await _node.ListLtsAsync())
+                NodeReleases.Add(r);
+            SelectedNode = NodeReleases.FirstOrDefault();
+            AppendLog($"可下载 Node LTS 版本 {NodeReleases.Count} 个。");
+        }
+        catch (Exception ex) { AppendLog($"拉取 Node 版本失败：{ex.Message}"); }
+    }
+
+    /// <summary>下载并解压 Node 到用户数据目录，随后自动重新探测。</summary>
+    public async Task DownloadNodeAsync()
+    {
+        if (SelectedNode is null)
+        {
+            await LoadNodeVersionsAsync();
+            if (SelectedNode is null)
+                return;
+        }
+        var rid = NodeManager.Rid();
+        var version = SelectedNode.Version;
+        var archive = Path.Combine(NodeManager.InstallRoot + ".dl", NodeManager.ArchiveName(version, rid));
+        try
+        {
+            Busy = true;
+            AppendLog($"下载 Node {version}（{rid}）…");
+            var prog = new Progress<double>(p => NodeProgress = p * 100);
+            await _node.DownloadAsync(NodeManager.DownloadUrl(version, rid), archive, prog, CancellationToken.None);
+            AppendLog("解压 Node…");
+            await Task.Run(() => NodeManager.ExtractFlattened(archive, NodeManager.InstallRoot));
+            AppendLog("Node 安装完成。");
+            RefreshNodeStatus();
+        }
+        catch (Exception ex) { AppendLog($"Node 安装失败：{ex.Message}"); }
+        finally { Busy = false; NodeProgress = 0; }
+    }
+
     // ================= ClassIsland 集成 =================
 
     private string _pluginToken = "";
@@ -267,10 +341,24 @@ public sealed class SettingsViewModel : ViewModelBase
         catch (Exception ex) { PluginStatus = $"探测失败：{ex.Message}"; }
     }
 
-    /// <summary>说明 token 从哪里来（不去猜 ClassIsland 安装路径硬读文件）。</summary>
-    public void ShowPluginTokenHelp()
-        => AppendLog("token 位置：ClassIsland 配置目录下的 smartclassroom.bridge/bridge.token，" +
-                     "插件首次启动会自动生成；复制内容粘贴到上面的 token 输入框并保存。");
+    /// <summary>
+    /// 查找 ClassIsland 的 bridge.token。找到就自动填入并返回消息，找不到则返回探测过的位置。
+    /// 调用方负责用弹窗展示。
+    /// </summary>
+    public (bool Found, string Message) LocatePluginToken()
+    {
+        var token = ClassIslandLocator.TryReadToken();
+        var explanation = ClassIslandLocator.ExplainSearch();
+        if (token is null)
+        {
+            AppendLog(explanation);
+            return (false, explanation);
+        }
+        PluginToken = token;
+        SaveSettings();
+        AppendLog("已自动填入插件 token 并保存。");
+        return (true, explanation + "\n\ntoken 已自动填入并保存。");
+    }
 
     // ================= 教师映射 =================
 

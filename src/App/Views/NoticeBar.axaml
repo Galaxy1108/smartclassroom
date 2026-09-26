@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="SmartClassroom.App.Views.NoticeBar"
+             x:Name="Self">
+    <!-- 自绘通知条：WinUI InfoBar 外观，但换行文本的高度可靠（InfoBar 在长文本下会切底边）。 -->
+    <Border x:Name="Root" CornerRadius="6" BorderThickness="1" Padding="14,12">
+        <Grid ColumnDefinitions="Auto,*">
+            <PathIcon x:Name="Icon" Grid.Column="0" Width="18" Height="18"
+                      Margin="0,2,12,0" VerticalAlignment="Top" />
+            <StackPanel Grid.Column="1" Spacing="3">
+                <TextBlock x:Name="TitleText" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock x:Name="MessageText" TextWrapping="Wrap" Opacity="0.85" />
+                <ContentPresenter x:Name="ActionHost" Margin="0,8,0,0" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

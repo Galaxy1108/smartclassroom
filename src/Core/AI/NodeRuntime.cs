@@ -32,11 +32,16 @@ public static class NodeRuntime
     private static IEnumerable<string> Candidates(string? appDir)
     {
         var exe = NodeExeName;
+        // 1) 应用内自带（打包附带时）
         if (appDir is not null)
         {
             yield return Path.Combine(appDir, "node", exe);
             yield return Path.Combine(appDir, exe);
         }
+        // 2) 应用内下载器装到用户目录的（见 NodeManager.InstallRoot）
+        var userNode = NodeManager.InstallRoot;
+        yield return Path.Combine(userNode, exe);
+        yield return Path.Combine(userNode, "bin", exe);
         // SnowLuma 完整版内置 Node：<data>/SmartClassroom/snowluma/node[/exe]
         var data = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SmartClassroom");

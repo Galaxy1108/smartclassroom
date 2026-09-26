@@ -21,6 +21,9 @@ mkdir -p "$ROOT/pkg/stage/ai-sidecar"
 cp "$ROOT/tools/ai-sidecar/package.json" "$ROOT/tools/ai-sidecar/sidecar.mjs" "$ROOT/pkg/stage/ai-sidecar/"
 cp -a "$ROOT/tools/ai-sidecar/node_modules" "$ROOT/pkg/stage/ai-sidecar/"
 
+echo "==> 3.5/4 归一权限（工作区文件可能是 0600）"
+chmod -R a+rX "$ROOT/pkg/stage"
+
 echo "==> 4/4 makepkg"
 (cd "$ROOT/pkg" && makepkg -f)
 

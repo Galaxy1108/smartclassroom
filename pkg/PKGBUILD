@@ -1,6 +1,6 @@
 # Maintainer: Galaxy1108
 pkgname=smartclassroom
-pkgver=0.9.0
+pkgver=0.10.0
 pkgrel=1
 pkgdesc="智慧课堂——跨平台教室增强应用（课表联动/QQ 消息/AI 整理/课件推送）"
 arch=('x86_64')
@@ -27,6 +27,14 @@ package() {
     fi
     install -dm755 "$pkgdir/opt/smartclassroom"
     cp -a "$stagedir/." "$pkgdir/opt/smartclassroom/"
+
+    # 工作区/CI 的文件可能是 0600（cp -a 会原样带进来），
+    # 安装后普通用户读不了 → 边车 EACCES。这里统一归一：
+    # 目录 755，文件 644，原本带执行位的保持可执行。
+    find "$pkgdir/opt/smartclassroom" -type d -exec chmod 755 {} +
+    find "$pkgdir/opt/smartclassroom" -type f -exec chmod 644 {} +
+    find "$pkgdir/opt/smartclassroom" -type f -perm -u+x -exec chmod 755 {} +
+
     install -Dm755 "$srcdir/smartclassroom.sh" "$pkgdir/usr/bin/smartclassroom"
     install -Dm644 "$srcdir/smartclassroom.desktop" "$pkgdir/usr/share/applications/smartclassroom.desktop"
 }

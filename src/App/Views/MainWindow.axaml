@@ -24,22 +24,22 @@
             <fa:NavigationView.MenuItems>
                 <fa:NavigationViewItem Content="作业" Tag="home">
                     <fa:NavigationViewItem.IconSource>
-                        <fa:PathIconSource Data="M5,2 H15 L19,6 V22 H5 Z M8,10 H16 M8,14 H16 M8,18 H14" />
+                        <fa:PathIconSource Data="{StaticResource IconHome}" />
                     </fa:NavigationViewItem.IconSource>
                 </fa:NavigationViewItem>
                 <fa:NavigationViewItem Content="事件" Tag="events">
                     <fa:NavigationViewItem.IconSource>
-                        <fa:PathIconSource Data="M12,2 C8.5,2 6.5,5 6.5,9 L6.5,14 L4,16.5 L20,16.5 L17.5,14 L17.5,9 C17.5,5 15.5,2 12,2 Z M10,19.5 A2,2 0 0,0 14,19.5" />
+                        <fa:PathIconSource Data="{StaticResource IconAlert}" />
                     </fa:NavigationViewItem.IconSource>
                 </fa:NavigationViewItem>
                 <fa:NavigationViewItem Content="课件" Tag="courseware">
                     <fa:NavigationViewItem.IconSource>
-                        <fa:PathIconSource Data="M2,5 H9 L11,7.5 H22 V19 H2 Z" />
+                        <fa:PathIconSource Data="{StaticResource IconFolder}" />
                     </fa:NavigationViewItem.IconSource>
                 </fa:NavigationViewItem>
                 <fa:NavigationViewItem Content="设置" Tag="settings">
                     <fa:NavigationViewItem.IconSource>
-                        <fa:PathIconSource Data="M3,5 H21 V7 H3 Z M3,11 H21 V13 H3 Z M3,17 H21 V19 H3 Z" />
+                        <fa:PathIconSource Data="{StaticResource IconSettings}" />
                     </fa:NavigationViewItem.IconSource>
                 </fa:NavigationViewItem>
             </fa:NavigationView.MenuItems>

@@ -23,12 +23,22 @@ public partial class SettingsView : UserControl
     private void RefreshSidecar_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => Vm.RefreshSidecarInfo();
 
+    // ---- Node ----
+    private async void LoadNodeVersions_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Vm.LoadNodeVersionsAsync();
+
+    private async void DownloadNode_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Vm.DownloadNodeAsync();
+
     // ---- ClassIsland 集成 ----
     private async void ProbePlugin_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => await Vm.ProbePluginAsync();
 
-    private void PluginTokenHelp_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => Vm.ShowPluginTokenHelp();
+    private async void LocateToken_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var (found, message) = Vm.LocatePluginToken();
+        await Dialogs.ShowAsync(found ? "已找到插件 Token" : "未找到插件 Token", message);
+    }
 
     // ---- 教师映射 ----
     private void Save_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

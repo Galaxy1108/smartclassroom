@@ -24,6 +24,9 @@ mkdir -p "$OUT/ai-sidecar"
 cp "$ROOT/tools/ai-sidecar/package.json" "$ROOT/tools/ai-sidecar/sidecar.mjs" "$OUT/ai-sidecar/"
 cp -a "$ROOT/tools/ai-sidecar/node_modules" "$OUT/ai-sidecar/"
 
+echo "==> 3.5/4 归一权限（工作区文件可能是 0600）"
+chmod -R a+rX "$OUT"
+
 echo "==> 4/4 打 zip"
 rm -f "$ZIP"
 python3 - "$OUT" "$ZIP" <<'PY'
