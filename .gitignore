@@ -49,3 +49,4 @@ pkg/*.cipx
 tools/ai-sidecar/node_modules/
 tools/ai-sidecar/package-lock.json
 tools/*.hits.log
+pkg/smartclassroom.png

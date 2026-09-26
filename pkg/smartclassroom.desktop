@@ -1,7 +1,11 @@
 [Desktop Entry]
 Type=Application
 Name=智慧课堂
+Name[en]=SmartClassroom
 Comment=跨平台教室增强应用
+Comment[en]=Cross-platform classroom enhancement
 Exec=smartclassroom
+Icon=smartclassroom
 Terminal=false
-Categories=Education;
+Categories=Education;Utility;
+Keywords=classroom;classisland;qq;

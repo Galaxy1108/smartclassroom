@@ -24,6 +24,9 @@ cp -a "$ROOT/tools/ai-sidecar/node_modules" "$ROOT/pkg/stage/ai-sidecar/"
 echo "==> 3.5/4 归一权限（工作区文件可能是 0600）"
 chmod -R a+rX "$ROOT/pkg/stage"
 
+echo "==> 3.6/4 放置桌面图标（Avalonia 资源不进 publish 输出）"
+cp "$ROOT/src/App/Assets/app-icon-256.png" "$ROOT/pkg/smartclassroom.png"
+
 echo "==> 4/4 makepkg"
 (cd "$ROOT/pkg" && makepkg -f)
 

@@ -11,8 +11,10 @@ depends=('gcc-libs' 'glibc' 'icu' 'openssl' 'zlib' 'nodejs')
 options=('!strip')
 # 构建产物由 pkg/build-linux.sh 预生成到 pkg/stage（含 ai-sidecar/node_modules）。
 source=('smartclassroom.sh'
-        'smartclassroom.desktop')
+        'smartclassroom.desktop'
+        'smartclassroom.png')
 sha256sums=('SKIP'
+            'SKIP'
             'SKIP')
 
 package() {
@@ -32,6 +34,10 @@ package() {
     # a+rX 的语义正好：给所有人加读；只给「目录」和「原本就有执行位的文件」加执行位，
     # 所以既能修 0600，又不会破坏 SmartClassroom.App / createdump 的可执行位。
     chmod -R a+rX "$pkgdir/opt/smartclassroom"
+
+    # 桌面启动器图标（hicolor 主题）
+    install -Dm644 "$srcdir/smartclassroom.png" \
+        "$pkgdir/usr/share/icons/hicolor/256x256/apps/smartclassroom.png"
 
     install -Dm755 "$srcdir/smartclassroom.sh" "$pkgdir/usr/bin/smartclassroom"
     install -Dm644 "$srcdir/smartclassroom.desktop" "$pkgdir/usr/share/applications/smartclassroom.desktop"
