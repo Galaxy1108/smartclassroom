@@ -27,4 +27,9 @@
 
 ## Git 规范
 
-`main` + `feat/<scope>` 分支；conventional commits；里程碑 tag：`v0.1-app-shell`、`v0.2-qq-ai`、`v0.3-plugin`、`v0.4-courseware`。
+`main` + `feat/<scope>` 分支；conventional commits；里程碑 tag（`v0.1`→`v0.7` 见 `git tag`）。
+
+## UI 说明
+
+WinUI3 外观来自 [FluentAvaloniaUI](https://github.com/amwx/FluentAvalonia)（MIT，与 ClassIsland 同款控件库：NavigationView、SettingsExpander、Win11 控件样式），Avalonia 钉在 ClassIsland 同款 11.3.17。
+已知差距：设置行暂未配图标（Segoe 图标字体 Linux 下无系统 fallback，为防 tofu 先空着；后续方案：内嵌开源图标字体如 Lucide，ClassIsland 也是这么干的）。
