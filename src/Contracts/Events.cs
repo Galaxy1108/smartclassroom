@@ -27,6 +27,29 @@ public sealed record SummonEvent
         : !string.IsNullOrWhiteSpace(Sender.TeacherName) ? Sender.TeacherName!
         : "老师";
 
+    /// <summary>AI 生成的通知标题（大字）。为空则用本地模板。</summary>
+    public string? AiTitle { get; init; }
+
+    /// <summary>AI 生成的通知正文（小字）。为空则用本地模板。</summary>
+    public string? AiBody { get; init; }
+
+    /// <summary>
+    /// 通知的遮罩大字。发送者与被叫的人**同名**时不写两遍
+    /// （实测出现过"王子诚请（现在）王子诚过去"这种蠢话）。
+    /// </summary>
+    public string MaskText
+        => !string.IsNullOrWhiteSpace(AiTitle) ? AiTitle!.Trim()
+        : TeacherLabel == Target
+            ? $"{(Urgent ? "现在" : "")}请{Target}过去"
+            : $"{TeacherLabel}请{(Urgent ? "（现在）" : "")}{Target}过去";
+
+    /// <summary>通知的正文（谁、哪一科、原话）。</summary>
+    public string OverlayText
+        => !string.IsNullOrWhiteSpace(AiBody) ? AiBody!.Trim()
+        : TeacherLabel == Target
+            ? $"{Target}{SubjectLabel}：{Reason}"
+            : $"{TeacherLabel}{SubjectLabel}：{Reason}";
+
     /// <summary>通知里显示的科目后缀（如"（数学）"；未知则空）。</summary>
     public string SubjectLabel
     {

@@ -43,15 +43,12 @@ public sealed class ScheduleGate(IClassStatusProvider status)
         {
             // 通知里写清"哪个老师、哪一科" —— 原消息常只说"老师叫你过去"，
             // 不带上科任信息，看通知的人根本不知道是谁叫的。
-            await send(NotifyChannels.Summon,
-                $"{summon.TeacherLabel}请{(summon.Urgent ? "（现在）" : "")}{summon.Target}过去",
-                $"{summon.TeacherLabel}{summon.SubjectLabel}：{summon.Reason}", cancel).ConfigureAwait(false);
+            await send(NotifyChannels.Summon, summon.MaskText, summon.OverlayText, cancel).ConfigureAwait(false);
             return GateDecision.SentNow;
         }
         var key = SummonGate.DedupKey(summon.Target, summon.ReceivedAt);
         _queue[key] = new QueuedNotification(key, NotifyChannels.Summon,
-            $"{summon.TeacherLabel}请{summon.Target}过去",
-            $"{summon.TeacherLabel}{summon.SubjectLabel}：{summon.Reason}", summon.ReceivedAt);
+            summon.MaskText, summon.OverlayText, summon.ReceivedAt);
         return GateDecision.Queued;
     }
 

@@ -66,16 +66,66 @@ public sealed class HomeworkStore
 public sealed class ActivityFeed(int capacity = 200)
 {
     private readonly LinkedList<ActivityEntry> _entries = new();
+    private readonly Dictionary<Guid, LinkedListNode<ActivityEntry>> _byId = new();
 
     public IReadOnlyList<ActivityEntry> Entries => _entries.ToList();
+
+    /// <summary>是否还有"进行中"的条目（界面据此加快刷新，实时显示处理状态）。</summary>
+    public bool HasInProgress => _entries.Any(e => e.InProgress);
 
     public void Append(string kind, string title, string detail,
         ActivitySeverity severity = ActivitySeverity.Info)
     {
         _entries.AddFirst(new ActivityEntry(DateTimeOffset.Now, kind, title, detail, severity));
         while (_entries.Count > capacity)
+        {
+            var last = _entries.Last!;
+            _byId.Remove(last.Value.Id);
             _entries.RemoveLast();
+        }
     }
+
+    /// <summary>
+    /// 开一条"进行中"的条目（例如"正在处理 QQ 消息"），返回它的 id。
+    /// 处理过程中用 <see cref="Update"/> 改状态，结束时用 <see cref="Complete"/> 收尾 ——
+    /// 用户要的是"实时看到处理到哪一步了"，而不是只在结束后看到一条结果。
+    /// </summary>
+    public Guid Begin(string kind, string title, string detail = "")
+    {
+        var entry = new ActivityEntry(DateTimeOffset.Now, kind, title, detail, ActivitySeverity.Info)
+        {
+            InProgress = true
+        };
+        var node = _entries.AddFirst(entry);
+        _byId[entry.Id] = node;
+        while (_entries.Count > capacity)
+        {
+            var last = _entries.Last!;
+            _byId.Remove(last.Value.Id);
+            _entries.RemoveLast();
+        }
+        return entry.Id;
+    }
+
+    /// <summary>更新进行中条目的状态（标题/细节/级别）。找不到就忽略（可能已被清空）。</summary>
+    public void Update(Guid id, string? title = null, string? detail = null,
+        ActivitySeverity? severity = null)
+    {
+        if (!_byId.TryGetValue(id, out var node))
+            return;
+        var e = node.Value;
+        node.Value = e with
+        {
+            Title = title ?? e.Title,
+            Detail = detail ?? e.Detail,
+            Severity = severity ?? e.Severity
+        };
+    }
+
+    /// <summary>结束一条进行中条目（就地变成结果行，不再转圈）。</summary>
+    public void Complete(Guid id, string title, string detail,
+        ActivitySeverity severity = ActivitySeverity.Success)
+        => Update(id, title, detail, severity);
 
     /// <summary>清空时间线（界面上的「清空」按钮；持久化由 App 层的下一次落盘完成）。</summary>
     public void Clear() => _entries.Clear();
@@ -84,6 +134,7 @@ public sealed class ActivityFeed(int capacity = 200)
     public void ReplaceAll(IEnumerable<ActivityEntry> entries)
     {
         _entries.Clear();
+        _byId.Clear();
         foreach (var e in entries.OrderByDescending(x => x.At))
             _entries.AddLast(e);
         while (_entries.Count > capacity)
@@ -115,4 +166,11 @@ public sealed record ActivityEntry(
     string Kind,
     string Title,
     string Detail,
-    ActivitySeverity Severity = ActivitySeverity.Info);
+    ActivitySeverity Severity = ActivitySeverity.Info)
+{
+    /// <summary>条目标识（进行中的条目靠它就地更新）。</summary>
+    public Guid Id { get; init; } = Guid.NewGuid();
+
+    /// <summary>true = 正在处理（界面显示转圈 + 已用时间）。</summary>
+    public bool InProgress { get; init; }
+}

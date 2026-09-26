@@ -37,6 +37,33 @@ public sealed class PipelineTests
     private int _exchangeCalls;
     private readonly TeacherMap _teachers = new([new Teacher { Qq = 10001, Name = "张老师", Subject = "数学" }]);
 
+    /// <summary>AI 按队列依次回复的管线（第一条给分类，第二条给结构化结果）。</summary>
+    private PipelineService BuildQueue(Queue<string> replies, bool inClass)
+    {
+        var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
+            new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(ChatReply(replies.Count > 0 ? replies.Dequeue() : "{}"))
+            })));
+        var plugin = new PluginLink("http://p", "tok", new HttpClient(new StubHandler(req =>
+        {
+            var body = req.Content!.ReadAsStringAsync().Result;
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            string Prop(params string[] names)
+                => names.Select(n => root.TryGetProperty(n, out var v) ? v.GetString() : null)
+                    .FirstOrDefault(v => v is not null) ?? "";
+            _sent.Add((Prop("channel", "Channel"), Prop("title", "Title")));
+            return Json(new { });
+        })));
+        return new PipelineService(_teachers, new AiAnalyzer(ai),
+            new ScheduleGate(new FakeStatus(inClass)), plugin,
+            new OneBotClient("http://q", "ws://q"),
+            new FileArchive(new ArchiveOptions { Root = Path.GetTempPath() }),
+            new CoursewareService(), new HomeworkStore(), new ActivityFeed(), new PendingStore(),
+            TestFlags.AllOn);
+    }
+
     private PipelineService Build(
         string aiReply,
         bool inClass,
@@ -140,6 +167,35 @@ public sealed class PipelineTests
     }
 
     [Fact]
+    public async Task Summon_UsesAiGeneratedTitleAndBody()
+    {
+        // 用户："我说给几个例子让 AI 生成标题与内容得了" —— AI 给的就直接用。
+        // 这条消息里带"作业"二字，本地关键词会错判成作业，所以必须 AI 先分类成 summon。
+        var replies = new Queue<string>([
+            """{"category":"summon"}""",
+            """{"is_summon":true,"target":"王子诚","teacher":"","urgent":true,"title":"请王子诚上来发作业","body":"王子诚（信息）：王子诚你上来把作业发一下","confidence":0.9}"""
+        ]);
+        var p = BuildQueue(replies, inClass: true);   // urgent=true → 上课时也立刻发
+
+        await p.OnGroupMessageAsync(Msg("王子诚你上来把作业发一下"));
+
+        Assert.Single(_sent);
+        Assert.Equal("请王子诚上来发作业", _sent[0].Title);
+    }
+
+    [Fact]
+    public async Task Summon_WithoutAiTitle_FallsBackToTemplate()
+    {
+        var p = Build("""{"is_summon":true,"target":"小明","teacher":"","urgent":true,"confidence":0.9}""",
+            inClass: true);
+
+        await p.OnGroupMessageAsync(Msg("小明现在来一下"));
+
+        Assert.Single(_sent);
+        Assert.Contains("小明", _sent[0].Title);   // 本地模板兜底
+    }
+
+    [Fact]
     public async Task Summon_NotificationNamesTheTeacherAndSubject()
     {
         // 消息只说"老师叫你过去" —— 通知里必须写清是哪个老师、哪一科
@@ -183,6 +239,58 @@ public sealed class PipelineTests
         Assert.Empty(_sent);
         await p.OnClassEndedAsync();
         Assert.Single(_sent);
+    }
+
+    /// <summary>
+    /// 没命中本地关键词的消息也必须进 AI —— 实测老师发
+    /// "今天你们把那个大培优什么第二章全部写完啊，后天交"，
+    /// 关键词（作业/练习/背诵…）一个都不命中，整条消息在进 AI 之前就被丢掉，
+    /// 用户看到的就是"没有被解析"。现在先花一次调用分类，再走对应流程。
+    /// </summary>
+    [Fact]
+    public async Task Homework_WithoutKeywords_IsClassifiedByAi()
+    {
+        var replies = new Queue<string>([
+            """{"category":"homework"}""",
+            """{"is_homework":true,"subject":"数学","date":"2026-09-26","items":["大培优第二章全部写完"],"due":"后天交","confidence":0.9}"""
+        ]);
+        var store = new HomeworkStore();
+        var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
+            new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new StringContent(ChatReply(replies.Count > 0 ? replies.Dequeue() : "{}")) })));
+        var pipe = new PipelineService(_teachers, new AiAnalyzer(ai),
+            new ScheduleGate(new FakeStatus(false)),
+            new PluginLink("http://p", "t", new HttpClient(new StubHandler(_ => Json(new { })))),
+            new OneBotClient("http://q", "ws://q"),
+            new FileArchive(new ArchiveOptions { Root = Path.GetTempPath() }),
+            new CoursewareService(), store, new ActivityFeed(), new PendingStore(), TestFlags.AllOn);
+
+        await pipe.OnGroupMessageAsync(Msg("今天你们把那个大培优什么第二章全部写完啊，后天交"));
+
+        var item = Assert.Single(store.All);
+        Assert.Contains("大培优第二章", string.Join("；", item.Items));
+    }
+
+    [Fact]
+    public async Task ShortChatter_IsNotSentToAi()
+    {
+        var calls = 0;
+        var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
+            new HttpClient(new StubHandler(_ =>
+            {
+                calls++;
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(ChatReply("""{"category":"none"}""")) };
+            })));
+        var pipe = new PipelineService(_teachers, new AiAnalyzer(ai),
+            new ScheduleGate(new FakeStatus(false)),
+            new PluginLink("http://p", "t", new HttpClient(new StubHandler(_ => Json(new { })))),
+            new OneBotClient("http://q", "ws://q"),
+            new FileArchive(new ArchiveOptions { Root = Path.GetTempPath() }),
+            new CoursewareService(), new HomeworkStore(), new ActivityFeed(), new PendingStore(), TestFlags.AllOn);
+
+        await pipe.OnGroupMessageAsync(Msg("好的"));   // 4 字以下：直接跳过，不花调用
+
+        Assert.Equal(0, calls);
     }
 
     [Fact]

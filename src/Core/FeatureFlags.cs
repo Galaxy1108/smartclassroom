@@ -22,6 +22,13 @@ public sealed record FeatureFlags
     public bool CoursewarePopup { get; init; }
 
     /// <summary>
+    /// 老师名单里的人发的消息，即使没命中本地关键词也交给 AI 判断（默认开启）。
+    /// 关键词表永远穷举不完（"把第二章写完，后天交"就不命中），
+    /// 关掉它可以省 AI 调用，但会漏掉这类口语化布置。
+    /// </summary>
+    public bool AiDecidesTeacherMessages { get; init; } = true;
+
+    /// <summary>
     /// 只处理**老师名单里**的人发的消息（默认开启）。
     /// 名单外的人发的换课/作业/召唤不自动执行，转人工确认 ——
     /// 否则群里任何人都能让课表被改掉。

@@ -57,8 +57,15 @@ public sealed class AiAnalyzer(IAiClient ai)
     {
         var ctx = context ?? SummonContext.Empty;
         var system = $$"""
-            你分析班级QQ群里的消息，判断是否为"叫某人过去"类召唤。
-            只输出 JSON：{"is_summon":true/false,"target":"被叫的人名，无则空字符串","teacher":"叫人的老师姓名，能确定才填，否则空字符串","urgent":true/false,"confidence":0-1}
+            你分析班级QQ群里的消息，判断是否为"叫某人过去/上来"类召唤。
+            只输出 JSON：{"is_summon":true/false,"target":"被叫的人名，无则空字符串","teacher":"叫人的老师姓名，能确定才填，否则空字符串","urgent":true/false,"title":"通知标题","body":"通知正文","confidence":0-1}
+
+            title 是通知里的大字，要求：不超过 12 个字、说清"叫谁做什么"、不要重复人名。
+            body 是通知里的小字，格式：老师（科目）：原话摘要。
+            例子：
+              消息"小明现在来一下" → {"is_summon":true,"target":"小明","urgent":true,"title":"现在请小明过去","body":"张老师（数学）：小明现在来一下"}
+              消息"王子诚你上来把作业发一下" → {"is_summon":true,"target":"王子诚","urgent":false,"title":"请王子诚上来发作业","body":"李老师（语文）：王子诚你上来把作业发一下"}
+              消息"张三来办公室一趟" → {"is_summon":true,"target":"张三","urgent":false,"title":"请张三去办公室","body":"王老师：张三来办公室一趟"}
             urgent 仅当出现"现在/立刻/马上/立即/赶紧"等要求立即过去的词时为 true。
 
             【上下文】
@@ -71,6 +78,55 @@ public sealed class AiAnalyzer(IAiClient ai)
         var raw = await ai.AskAsync(system, text, cancel).ConfigureAwait(false);
         var d = JsonSerializer.Deserialize<SummonDraft>(AiGateway.ExtractJson(raw), Json);
         return d ?? throw new AiException("召唤解析为空");
+    }
+
+    /// <summary>
+    /// 轻量分类：老师消息**没命中本地关键词**时用它判断该走哪条流程。
+    /// 本地关键词表永远不可能穷举（实测"…第二章全部写完啊，后天交"一条都不命中），
+    /// 但直接把每条消息都跑三遍结构化解析又太贵，所以先花一次调用分类。
+    /// 返回 "homework" / "exchange" / "summon" / "none"。
+    /// </summary>
+    public async Task<string?> AnalyzeKindAsync(string text, string? senderSubject,
+        CancellationToken cancel = default)
+    {
+        var system = $$"""
+            你是班级群消息分类器。只输出 JSON：{"category":"homework|exchange|summon|none"}
+
+            summon：叫某个人过去/上来/去某处（**即使句子里出现"作业"，只要重点是人过去，就是 summon**）
+              例："小明现在来一下" → summon
+              例："王子诚你上来把作业发一下" → summon（重点是人上来）
+              例："张三来办公室" → summon
+            homework：老师布置/要求学生完成的学习任务（不一定出现"作业"二字）
+              例："今天数学作业：练习册P10" → homework
+              例："把第二章写完，后天交" → homework
+            exchange：调课/换课/代课/串课/改到别的节次
+              例："第三节和第五节换一下" → exchange
+            none：闲聊、提问、通知等
+              例："中午吃什么" → none
+
+            发送者科目：{{senderSubject ?? "未知"}}
+            """;
+        try
+        {
+            var raw = await ai.AskAsync(system, text, cancel).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(AiGateway.ExtractJson(raw));
+            // 拿不到 kind 字段（模型没按格式答 / 调用失败）→ 返回 null，
+            // 由上层回退到本地关键词，而不是把消息当"无关"丢掉。
+            // 字段名用 category：**不能用 kind** —— 换课请求的 JSON 里也有 kind（Swap/Replace），
+            // 撞名会把换课消息误判成"无关"丢掉（实测踩到）。
+            if (!doc.RootElement.TryGetProperty("category", out var c))
+                return null;
+            var value = (c.GetString() ?? "").Trim().ToLowerInvariant();
+            return value switch
+            {
+                "homework" or "exchange" or "summon" or "none" => value,
+                _ => null       // 模型答了别的词 → 交给本地关键词兜底
+            };
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     public async Task<HomeworkDraft> AnalyzeHomeworkAsync(string text, string? senderSubject, CancellationToken cancel = default)
@@ -103,6 +159,8 @@ public sealed record SummonDraft(
     [property: JsonPropertyName("target")] string Target,
     [property: JsonPropertyName("teacher")] string? Teacher,
     [property: JsonPropertyName("urgent")] bool Urgent,
+    [property: JsonPropertyName("title")] string? Title,
+    [property: JsonPropertyName("body")] string? Body,
     [property: JsonPropertyName("confidence")] double Confidence);
 
 /// <summary>召唤解析的上下文（消息里常只说"老师"，得靠这些信息落到具体的人）。</summary>

@@ -28,6 +28,7 @@ public sealed class PendingActionTests : IDisposable
         public readonly PendingStore Pending = new();
         public readonly ActivityFeed Feed = new();
         public readonly Queue<string> AiReplies = new();
+        private string? _lastAiReply;
 
         /// <summary>非 null 时 AI 一律返回 500（模拟失败）。</summary>
         public bool AiFails;
@@ -42,7 +43,9 @@ public sealed class PendingActionTests : IDisposable
                 {
                     if (AiFails)
                         return new HttpResponseMessage(HttpStatusCode.InternalServerError) { Content = new StringContent("boom") };
-                    var content = AiReplies.Count > 0 ? AiReplies.Dequeue() : "{}";
+                    // 队列空了就重复最后一条：分类调用会先吃掉一条，
+                    // 若只准备了一条结构化回复，后面的解析调用还得能用上它。
+                    var content = AiReplies.Count > 0 ? (_lastAiReply = AiReplies.Dequeue()) : (_lastAiReply ?? "{}");
                     return new HttpResponseMessage(HttpStatusCode.OK)
                     { Content = new StringContent(ChatReply(content)) };
                 })));

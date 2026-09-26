@@ -222,6 +222,9 @@ public sealed class EventsViewModel : ViewModelBase
     public ObservableCollection<ActivityRow> Entries { get; } = new();
 
     public bool HasEntries => Entries.Count > 0;
+
+    /// <summary>还有进行中的条目（界面可以据此显示"正在处理…"）。</summary>
+    public bool HasInProgress => _feed.HasInProgress;
     public bool IsEmptyTimeline => Entries.Count == 0;
 
     private string _entriesSignature = "";
@@ -307,6 +310,7 @@ public sealed class EventsViewModel : ViewModelBase
                 Entries.Add(new ActivityRow(e));
             OnPropertyChanged(nameof(HasEntries));
             OnPropertyChanged(nameof(IsEmptyTimeline));
+            OnPropertyChanged(nameof(HasInProgress));
         }
 
         Pending.Clear();
@@ -321,8 +325,14 @@ public sealed class EventsViewModel : ViewModelBase
     {
         var sb = new System.Text.StringBuilder();
         foreach (var e in _feed.Entries)
+        {
             sb.Append(e.At.Ticks).Append('|').Append(e.Kind).Append('|').Append(e.Title)
-              .Append('|').Append(e.Detail).Append('|').Append((int)e.Severity).Append('\u0002');
+              .Append('|').Append(e.Detail).Append('|').Append((int)e.Severity);
+            if (e.InProgress)
+                // 进行中的条目把"已用秒数"也放进签名：这样每秒都会重建，时间实时跳
+                sb.Append("|run").Append((int)(DateTimeOffset.Now - e.At).TotalSeconds);
+            sb.Append('\u0002');
+        }
         return sb.ToString();
     }
 
@@ -453,6 +463,15 @@ public sealed class ActivityRow(ActivityEntry entry)
     public ActivitySeverity Severity => entry.Severity;
 
     public string Time => entry.At.ToString("MM-dd HH:mm:ss");
+
+    /// <summary>正在处理（界面显示转圈 + 已用时间，实时反映处理进度）。</summary>
+    public bool InProgress => entry.InProgress;
+
+    /// <summary>已用时间文本（仅进行中的条目显示）。</summary>
+    public string ElapsedText
+        => entry.InProgress
+            ? $"处理中 {(DateTimeOffset.Now - entry.At).TotalSeconds:F1}s"
+            : "";
 
     public bool IsInfo => entry.Severity == ActivitySeverity.Info;
     public bool IsSuccess => entry.Severity == ActivitySeverity.Success;

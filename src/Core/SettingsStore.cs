@@ -49,6 +49,11 @@ public sealed class AppSettings
     public bool ListenTeacherPrivate { get; set; } = false;
 
     /// <summary>
+    /// 老师名单里的人发的消息，没命中关键词也交给 AI 判断（默认 true）。
+    /// </summary>
+    public bool AiDecidesTeacherMessages { get; set; } = true;
+
+    /// <summary>
     /// 只处理老师名单里的人发的消息（默认 true）。
     /// 关掉它，群里任何人都能触发换课/作业/召唤。
     /// </summary>
@@ -120,6 +125,7 @@ public sealed class AppSettings
         ListenAllGroups = false;
         ListenTeacherPrivate = false;
         RequireKnownTeacher = true;
+        AiDecidesTeacherMessages = true;
         QqAccount = 0;
         QqAccounts = [];
         SnowLumaAgreementsVersion = "";
@@ -148,7 +154,8 @@ public sealed class AppSettings
         Exchange = FeatureExchange,
         FileArchive = FeatureFileArchive,
         CoursewarePopup = FeatureCoursewarePopup,
-        RequireKnownTeacher = RequireKnownTeacher
+        RequireKnownTeacher = RequireKnownTeacher,
+        AiDecidesTeacherMessages = AiDecidesTeacherMessages
     };
 }
 

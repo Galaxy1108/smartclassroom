@@ -1240,6 +1240,17 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// 没命中关键词的消息也交给 AI 分类（默认开启）。关掉可省 AI 调用。
+    /// </summary>
+    public bool AiDecidesTeacherMessages
+    {
+        get => _aiDecides;
+        set { if (Set(ref _aiDecides, value)) SaveSettings(); }
+    }
+
+    private bool _aiDecides = true;
+
+    /// <summary>
     /// 只处理老师名单里的人发的消息（默认开启）。
     /// 关掉它，群里任何人都能触发换课/作业/召唤 —— 换课会真的改课表，慎关。
     /// </summary>
@@ -2246,6 +2257,7 @@ public sealed class SettingsViewModel : ViewModelBase
             _listenAllGroups = s.ListenAllGroups;
             _listenTeacherPrivate = s.ListenTeacherPrivate;
             _requireKnownTeacher = s.RequireKnownTeacher;
+            _aiDecides = s.AiDecidesTeacherMessages;
             _qqAccount = s.QqAccount;
             QqCandidates.Clear();
             foreach (var a in s.QqAccounts)
@@ -2298,6 +2310,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.ListenAllGroups = ListenAllGroups;
         s.ListenTeacherPrivate = ListenTeacherPrivate;
         s.RequireKnownTeacher = RequireKnownTeacher;
+        s.AiDecidesTeacherMessages = AiDecidesTeacherMessages;
         s.QqAccount = QqAccount;
         s.QqAccounts = QqCandidates.ToList();
         s.Teachers = Teachers.Select(t => new Teacher

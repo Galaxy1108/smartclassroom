@@ -34,12 +34,38 @@ public sealed class PipelineService(
     public async Task OnGroupMessageAsync(GroupMessageEvent ev, CancellationToken cancel = default)
     {
         var sender = teachers.ToSender(ev.UserId, ev.Card, ev.Nickname);
-        var kind = RuleEngine.ClassifyLocal(ev.Text);
-        if (kind == RuleEngine.Kind.None)
-            return;
-        if (kind != RuleEngine.Kind.None && !SenderAllowed(sender, ev, kind))
-            return;
+        var who = sender.Card ?? sender.Nickname ?? $"QQ{sender.UserId}";
+        // 进行中的条目：用户要的是"实时看到处理到哪一步"，而不是只在结束后看到结果
+        var id = feed.Begin("qq", "正在处理消息", $"{who}：{Trim(ev.Text)}");
+        try
+        {
+            feed.Update(id, "正在处理消息", $"{who}：{Trim(ev.Text)} · 本地分流…");
+            var kind = await ClassifyAsync(ev, sender, cancel, id).ConfigureAwait(false);
+            if (kind == RuleEngine.Kind.None)
+            {
+                feed.Complete(id, "已忽略（与三个功能都无关）", Trim(ev.Text), ActivitySeverity.Info);
+                return;
+            }
+            feed.Update(id, $"正在处理：{FeatureName(kind)}", $"{who}：{Trim(ev.Text)}");
+            if (!SenderAllowed(sender, ev, kind))
+            {
+                feed.Complete(id, "已忽略（发送者不在老师名单里）", Trim(ev.Text), ActivitySeverity.Warning);
+                return;
+            }
+            await DispatchGroupAsync(ev, sender, kind, cancel).ConfigureAwait(false);
+            feed.Complete(id, $"已处理：{FeatureName(kind)}", Trim(ev.Text));
+        }
+        catch (Exception ex)
+        {
+            feed.Complete(id, "处理失败", ex.Message, ActivitySeverity.Error);
+            throw;
+        }
+    }
 
+    /// <summary>按判定结果分发到对应处理流程（群消息）。</summary>
+    private async Task DispatchGroupAsync(GroupMessageEvent ev, SenderInfo sender,
+        RuleEngine.Kind kind, CancellationToken cancel)
+    {
         if (kind.HasFlag(RuleEngine.Kind.Summon))
         {
             if (flags.Summon)
@@ -63,6 +89,15 @@ public sealed class PipelineService(
         }
     }
 
+    private static string FeatureName(RuleEngine.Kind kind)
+        => kind.HasFlag(RuleEngine.Kind.Exchange) ? "换课"
+           : kind.HasFlag(RuleEngine.Kind.Homework) ? "作业"
+           : kind.HasFlag(RuleEngine.Kind.Summon) ? "召唤"
+           : "未知";
+
+    private static string Trim(string text)
+        => text.Length <= 40 ? text : text[..40] + "…";
+
     /// <summary>
     /// 私聊入口：老师私聊也可能发"来一下"或作业，所以走同一套判定。
     /// 只认老师名单里的人 —— 陌生人私聊一律忽略（不然谁发都触发）。
@@ -79,9 +114,15 @@ public sealed class PipelineService(
             return;
         }
         var sender = teachers.ToSender(ev.UserId, null, ev.Nickname);
-        var kind = RuleEngine.ClassifyLocal(ev.Text);
+        var who = sender.Card ?? sender.Nickname ?? $"QQ{ev.UserId}";
+        var id = feed.Begin("qq", "正在处理私聊", $"{who}：{Trim(ev.Text)}");
+        var kind = await ClassifyAsync(ev, sender, cancel, id).ConfigureAwait(false);
         if (kind == RuleEngine.Kind.None)
+        {
+            feed.Complete(id, "已忽略（与三个功能都无关）", Trim(ev.Text), ActivitySeverity.Info);
             return;
+        }
+        feed.Update(id, $"正在处理：{FeatureName(kind)}", $"{who}：{Trim(ev.Text)}");
 
         if (kind.HasFlag(RuleEngine.Kind.Summon) && flags.Summon)
             await HandleSummonAsync(ev, sender, cancel).ConfigureAwait(false);
@@ -97,6 +138,40 @@ public sealed class PipelineService(
             await HandleExchangeAsync(ev, sender, cancel).ConfigureAwait(false);
         else if (kind.HasFlag(RuleEngine.Kind.Exchange))
             NoteDisabled("exchange", "换课自动处理");
+    }
+
+    /// <summary>
+    /// 判断这条消息该走哪条流程。
+    ///
+    /// **不再用关键词把消息挡在 AI 之外**：关键词表永远穷举不完
+    /// （实测"你们把那个大培优第二章全部写完啊，后天交"一个词都不命中，
+    /// 于是整条消息被丢掉，用户看到的就是"没有被解析"）。
+    /// 现在本地关键词只当**快速通道**（命中就省一次 AI 调用），
+    /// 其余消息一律交给 AI 分类（只跳过 4 字以下的短句，比如"好的""收到"）。
+    /// </summary>
+    private async Task<RuleEngine.Kind> ClassifyAsync(IIncomingMessage ev, SenderInfo sender,
+        CancellationToken cancel, Guid? progressId = null)
+    {
+        // 本地关键词只当兜底：它会把"你上来把作业发一下"错判成作业（其实是召唤），
+        // 所以能用 AI 就让 AI 分类。
+        if (!flags.AiDecidesTeacherMessages || ev.Text.Trim().Length < 4)
+            return RuleEngine.ClassifyLocal(ev.Text);
+
+        if (progressId is { } pid)
+            feed.Update(pid, "正在处理消息", $"本地关键词未命中 · 交给 AI 分类…");
+        var kind = await ai.AnalyzeKindAsync(ev.Text, sender.Subject, cancel).ConfigureAwait(false);
+        var mapped = kind switch
+        {
+            "homework" => RuleEngine.Kind.Homework,
+            "exchange" => RuleEngine.Kind.Exchange,
+            "summon" => RuleEngine.Kind.Summon,
+            "none" => RuleEngine.Kind.None,
+            // AI 没给出结论（调用失败/格式不对）→ 回退到本地关键词，别把消息丢掉
+            _ => RuleEngine.ClassifyLocal(ev.Text)
+        };
+        if (mapped != RuleEngine.Kind.None)
+            feed.Append("ai", $"AI 判定为{mapped}（未命中关键词）", ev.Text, ActivitySeverity.Info);
+        return mapped;
     }
 
     /// <summary>
@@ -444,6 +519,8 @@ public sealed class PipelineService(
             Target = d.Target,
             Urgent = d.Urgent,
             Teacher = string.IsNullOrWhiteSpace(d.Teacher) ? null : d.Teacher!.Trim(),
+            AiTitle = d.Title,
+            AiBody = d.Body,
             Subject = sender.Subject
                       ?? (await gate.CurrentLessonAsync(cancel).ConfigureAwait(false))?.Subject,
             Reason = ev.Text,
