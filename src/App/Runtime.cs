@@ -47,12 +47,17 @@ public static class Runtime
         Settings = SettingsStore.Load();
         SettingsLoaded = true;
         LoadState();
+        PruneExpiredHomework();   // 过期作业直接删掉（不保留历史）
         if (Settings.ArchiveRoot.Length > 0)
             Courseware.RebuildFromArchive(Settings.ArchiveRoot);
 
         // 周期性落盘 + 退出时落盘（数据量小，直接整体写）。
         _saveTimer = new System.Timers.Timer(30_000) { AutoReset = true };
-        _saveTimer.Elapsed += (_, _) => SaveState();
+        _saveTimer.Elapsed += (_, _) =>
+        {
+            PruneExpiredHomework();   // 跨天之后也会被清掉，不用等重启
+            SaveState();
+        };
         _saveTimer.Start();
 
         var configured = Settings.GroupIds.Count > 0
@@ -166,6 +171,27 @@ public static class Runtime
             try { SettingsStore.Save(Settings); } catch { /* 落盘失败不影响运行 */ }
         };
         _scaleSaveTimer.Start();
+    }
+
+    /// <summary>
+    /// 清理过期作业：date &lt; 今天的一律删除（含 state.json，下次落盘时生效）。
+    /// 会记一条时间线，避免"作业怎么没了"无从查证。
+    /// </summary>
+    public static int PruneExpiredHomework()
+    {
+        try
+        {
+            var removed = Homework.PruneExpired(DateOnly.FromDateTime(DateTime.Now));
+            if (removed.Count == 0)
+                return 0;
+            var subjects = string.Join("、", removed.Select(h => h.Subject).Distinct());
+            Feed.Append("homework", $"已删除 {removed.Count} 条过期作业", subjects);
+            return removed.Count;
+        }
+        catch
+        {
+            return 0;   // 清理失败不影响运行
+        }
     }
 
     /// <summary>落盘（原子替换，见 AppStateStore）。</summary>

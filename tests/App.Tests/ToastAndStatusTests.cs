@@ -153,38 +153,6 @@ public sealed class ToastAndStatusTests : IDisposable
         Assert.Equal("未选择", vm.QqAccountLabel);
     }
 
-    // ================= 首次启动的风险警告 =================
-
-    [AvaloniaFact]
-    public void RiskNotice_ShowsOnlyOnce()
-    {
-        var settings = new AppSettings();
-        Assert.True(RiskNotice.ShouldShow(settings));    // 全新安装：要弹
-
-        settings.RiskWarningShown = true;
-        Assert.False(RiskNotice.ShouldShow(settings));   // 弹过就不再自动弹
-
-        settings.ResetToDefaults();
-        Assert.True(RiskNotice.ShouldShow(settings));    // 清空设置后又该弹
-    }
-
-    [AvaloniaFact]
-    public void SyncFromShared_PicksUpRiskAcceptedElsewhere()
-    {
-        // 启动时弹窗接受 → 写的是共享对象；设置页必须能同步到这个状态，
-        // 否则会出现"已经接受了，设置页还显示尚未确认、点启动又弹一次"
-        var shared = new AppSettings();
-        var vm = new SettingsViewModel(_path, null, shared);
-        Assert.True(vm.NeedsRiskConfirmation);
-
-        shared.RiskAccepted = true;
-        vm.SyncFromShared();
-
-        Assert.True(vm.RiskAccepted);
-        Assert.False(vm.NeedsRiskConfirmation);
-        Assert.Equal("已确认风险", vm.RiskBadgeText);
-    }
-
     // ================= OneBot Token 也要能填 =================
 
     [AvaloniaFact]

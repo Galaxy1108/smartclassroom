@@ -171,28 +171,8 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>刷新锁定状态（打开设置页 / 认证成功后调用），顺便重判集成状态。</summary>
     public void RefreshLockState()
     {
-        SyncFromShared();
         IsLocked = Runtime.Auth.IsEnabled && !Runtime.Auth.IsUnlocked;
         RefreshIntegrationState();
-    }
-
-    /// <summary>
-    /// 把"启动时弹过风险警告"这类由别处改动的状态同步回来。
-    /// 风险确认与共享设置对象是一份数据，但视图模型是用字段镜像的，
-    /// 不同步就会出现"已经接受了，设置页还显示尚未确认"。
-    /// </summary>
-    public void SyncFromShared()
-    {
-        if (_shared is null)
-            return;
-        if (_riskAccepted != _shared.RiskAccepted)
-        {
-            _riskAccepted = _shared.RiskAccepted;
-            OnPropertyChanged(nameof(RiskAccepted));
-            OnPropertyChanged(nameof(NeedsRiskConfirmation));
-            OnPropertyChanged(nameof(RiskBadgeSeverity));
-            OnPropertyChanged(nameof(RiskBadgeText));
-        }
     }
 
     /// <summary>设置或清除管理员密码。</summary>

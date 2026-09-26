@@ -31,6 +31,18 @@ public sealed class HomeworkStore
         _items.AddRange(items);
     }
 
+    /// <summary>
+    /// 删除已过期的作业（date &lt; today），返回被删掉的条目。
+    /// 作业的 date 语义是"哪一天的作业"：过了那天就不再是"今天的作业"，留着只会越积越多。
+    /// </summary>
+    public IReadOnlyList<HomeworkItem> PruneExpired(DateOnly today)
+    {
+        var removed = _items.Where(h => h.Date < today).ToList();
+        if (removed.Count > 0)
+            _items.RemoveAll(h => h.Date < today);
+        return removed;
+    }
+
     public IReadOnlyList<HomeworkItem> ForDate(DateOnly date)
         => _items.Where(h => h.Date == date).OrderBy(h => h.Subject).ToList();
 

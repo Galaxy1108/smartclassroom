@@ -21,58 +21,17 @@ public sealed class HomeworkViewModel : ViewModelBase
 
     public bool IsEmpty => Items.Count == 0;
 
-    // ---------- 过期作业：默认收起（不删除） ----------
+    // ---------- 过期作业 ----------
     //
-    // 作业一旦上墙就永久保留在 state.json 里；但"上个月数学作业"一直占着墙没意义，
-    // 所以默认只显示今天及以后的，过期的收起来并给出提示，随时可以勾选查看。
+    // 过期即删除（Runtime.PruneExpiredHomework：启动时 + 每 30 秒一次，连带 state.json）。
+    // 这里再挡一道：万一清理还没跑到（例如刚跨过零点），过期卡片也不会闪在墙上。
 
-    /// <summary>可见卡片 → 存储下标。拖拽必须按它换算，否则收起过期项后会把别的卡片挪走。</summary>
+    /// <summary>可见卡片 → 存储下标。拖拽必须按它换算，否则有卡片被挡掉时会把别的卡片挪走。</summary>
     private readonly List<int> _visibleStoreIndex = new();
-
-    private bool _showExpired = ReadShowExpired();
-
-    /// <summary>显示已过期作业（偏好持久化在 settings.json）。</summary>
-    public bool ShowExpired
-    {
-        get => _showExpired;
-        set
-        {
-            if (!Set(ref _showExpired, value))
-                return;
-            PersistShowExpired(value);
-            Refresh(force: true);
-        }
-    }
-
-    private static bool ReadShowExpired()
-    {
-        try { return Runtime.Settings.ShowExpiredHomework; }
-        catch { return false; }
-    }
-
-    private static void PersistShowExpired(bool value)
-    {
-        try
-        {
-            Runtime.Settings.ShowExpiredHomework = value;
-            // 只有真实运行时才落盘：测试里 SettingsLoaded 为 false，避免写到用户的真实配置
-            if (Runtime.SettingsLoaded)
-                SettingsStore.Save(Runtime.Settings);
-        }
-        catch { /* 落盘失败不影响使用 */ }
-    }
-
-    /// <summary>被收起的过期作业条数。</summary>
-    public int HiddenExpiredCount { get; private set; }
-
-    public bool HasHiddenExpired => HiddenExpiredCount > 0;
 
     public int TotalCount => _store.All.Count;
 
-    /// <summary>空状态文案：区分"真没作业"和"只剩过期作业被收起"。</summary>
-    public string EmptyHint => HasHiddenExpired
-        ? $"今天没有作业，另有 {HiddenExpiredCount} 条已过期（勾选「显示已过期」查看）"
-        : "暂无作业";
+    public string EmptyHint => "暂无作业";
 
     // ---------- 手动添加 ----------
     private bool _isAdding;
@@ -161,7 +120,7 @@ public sealed class HomeworkViewModel : ViewModelBase
         return true;
     }
 
-    /// <summary>按当前过滤条件重算"可见项 → 存储下标"。</summary>
+    /// <summary>重算"可见项 → 存储下标"（过期项被挡掉，下标会错位）。</summary>
     private void RecomputeVisibleMap()
     {
         var today = DateOnly.FromDateTime(DateTime.Now);
@@ -169,7 +128,7 @@ public sealed class HomeworkViewModel : ViewModelBase
         _visibleStoreIndex.Clear();
         for (var i = 0; i < all.Count; i++)
         {
-            if (!_showExpired && all[i].Date < today)
+            if (all[i].Date < today)
                 continue;
             _visibleStoreIndex.Add(i);
         }
@@ -202,22 +161,15 @@ public sealed class HomeworkViewModel : ViewModelBase
         var now = DateTime.Now;
         Items.Clear();
         _visibleStoreIndex.Clear();
-        var hidden = 0;
         var all = _store.All;
         for (var i = 0; i < all.Count; i++)
         {
-            if (!_showExpired && all[i].Date < today)
-            {
-                hidden++;
-                continue;
-            }
+            if (all[i].Date < today)
+                continue;   // 过期项（正常情况下已被清理）
             Items.Add(new HomeworkCard(all[i], now));
             _visibleStoreIndex.Add(i);
         }
-        HiddenExpiredCount = hidden;
         OnPropertyChanged(nameof(IsEmpty));
-        OnPropertyChanged(nameof(HiddenExpiredCount));
-        OnPropertyChanged(nameof(HasHiddenExpired));
         OnPropertyChanged(nameof(TotalCount));
         OnPropertyChanged(nameof(EmptyHint));
     }
@@ -226,7 +178,6 @@ public sealed class HomeworkViewModel : ViewModelBase
     private string Signature()
     {
         var sb = new System.Text.StringBuilder();
-        sb.Append(_showExpired ? '1' : '0').Append('\u0003');
         foreach (var h in _store.All)
         {
             sb.Append(h.Subject).Append('|').Append(h.Date).Append('|')
