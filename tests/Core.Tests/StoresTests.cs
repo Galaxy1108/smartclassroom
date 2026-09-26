@@ -90,6 +90,30 @@ public sealed class StoresTests
     }
 
     [Fact]
+    public void SettingsStore_SaveIsAtomic_AndCorruptFileIsBackedUp()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "sc-settings-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            SettingsStore.Save(new AppSettings { AiApiKey = "sk-1" }, path);
+            Assert.True(File.Exists(path));
+            Assert.False(File.Exists(path + ".tmp"), "临时文件应已被原子替换掉");
+
+            // 坏文件不能默默当"没配过"：那会把 API Key 一起丢掉，用户只会看到"配置又没了"
+            File.WriteAllText(path, "{ 这不是 json");
+            var back = SettingsStore.Load(path);
+            Assert.Equal("", back.AiApiKey);
+            Assert.True(File.Exists(path + ".bad"));
+            Assert.Contains("这不是 json", File.ReadAllText(path + ".bad"));   // 坏文件原样留档
+        }
+        finally
+        {
+            foreach (var p in new[] { path, path + ".tmp", path + ".bad" })
+                if (File.Exists(p)) File.Delete(p);
+        }
+    }
+
+    [Fact]
     public void SettingsStore_MissingFile_ReturnsDefaults()
     {
         var s = SettingsStore.Load("/nonexistent/sc-settings.json");

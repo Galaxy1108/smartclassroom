@@ -22,12 +22,15 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var vm = new MainViewModel();
+            // 先 Start（它会把 settings.json 装进 Runtime.Settings），再建主窗口——
+            // 设置页与 Runtime 必须共用同一个设置对象，否则退出时 Runtime 会用启动快照
+            // 把设置页刚保存的值（API Key 等）覆盖回去。
+            desktop.Exit += (_, _) => Runtime.Stop();
+            Runtime.Start(vm);
             desktop.MainWindow = new MainWindow
             {
                 DataContext = vm,
             };
-            desktop.Exit += (_, _) => Runtime.Stop();
-            Runtime.Start(vm);
             AppShell.Setup(desktop);   // 托盘 + 关闭到托盘 + 受密码保护的退出
         }
 

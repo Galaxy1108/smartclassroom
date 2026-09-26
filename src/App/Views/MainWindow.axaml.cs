@@ -25,6 +25,9 @@ public partial class MainWindow : Window
         _refreshTimer = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background,
             (_, _) => RefreshActive());
         _refreshTimer.Start();
+        // 关闭/退出前把设置页里还没落盘的输入（服务地址、API Key…）存掉。
+        // 否则"打完 key 直接关窗口"就会白打——用户看到的现象是"更新后 key 又没了"。
+        Closing += (_, _) => _settingsVm.FlushPendingSaves();
         Closed += (_, _) => _refreshTimer.Stop();
     }
 
@@ -37,6 +40,7 @@ public partial class MainWindow : Window
 
     public void Navigate(string tag)
     {
+        _settingsVm.FlushPendingSaves();   // 离开设置页也立刻落盘
         switch (tag)
         {
             case "home":

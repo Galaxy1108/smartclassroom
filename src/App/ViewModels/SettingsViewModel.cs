@@ -19,6 +19,12 @@ public sealed class SettingsViewModel : ViewModelBase
     private readonly SnowlumaManager _manager = new();
     private readonly NodeManager _node = new();
     private readonly string _appDir;
+
+    /// <summary>与 Runtime 共用的设置对象（测试里为 null）。见构造函数注释。</summary>
+    private readonly AppSettings? _shared;
+
+    /// <summary>正在从文件/共享对象装载设置：此时不允许任何自动落盘，避免写回半截数据。</summary>
+    private bool _loading;
     private string _log = "";
     private string _status = "未检测";
     private double _progress;
@@ -43,12 +49,19 @@ public sealed class SettingsViewModel : ViewModelBase
     private bool _featureCoursewarePopup;
     private double _nodeProgress;
 
-    public SettingsViewModel() : this(SettingsStore.DefaultPath, AppContext.BaseDirectory) { }
+    public SettingsViewModel() : this(SettingsStore.DefaultPath, AppContext.BaseDirectory, Runtime.Settings) { }
 
-    public SettingsViewModel(string settingsPath, string? appDir = null)
+    /// <param name="shared">
+    /// 真实运行时传入 <see cref="Runtime.Settings"/>：设置页与 Runtime 必须操作**同一个对象**。
+    /// 否则会出现"设置页存了 API Key，退出时 Runtime 又拿启动时的旧快照覆盖一遍"，
+    /// 结果每次重启/更新后配置都回到原样（用户看到的就是"key 又没了"）。
+    /// 传 null（测试用临时文件）时退化为"自己读自己写"。
+    /// </param>
+    public SettingsViewModel(string settingsPath, string? appDir = null, AppSettings? shared = null)
     {
         SettingsPath = settingsPath;
         _appDir = appDir ?? AppContext.BaseDirectory;
+        _shared = shared;
         _manager.OnLog += line => AppendLog(line);
         InstallDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -478,17 +491,21 @@ public sealed class SettingsViewModel : ViewModelBase
     public string AiBaseUrl
     {
         get => _aiBaseUrl;
-        set { if (Set(ref _aiBaseUrl, value)) RefreshFeatureGates(); }
+        set { if (Set(ref _aiBaseUrl, value)) { RefreshFeatureGates(); AutoSaveSoon(); } }
     }
 
     private string _aiApiKey = "";
-    public string AiApiKey { get => _aiApiKey; set => Set(ref _aiApiKey, value); }
+    public string AiApiKey
+    {
+        get => _aiApiKey;
+        set { if (Set(ref _aiApiKey, value)) AutoSaveSoon(); }
+    }
 
     private string _aiModel = "";
     public string AiModel
     {
         get => _aiModel;
-        set { if (Set(ref _aiModel, value)) RefreshFeatureGates(); }
+        set { if (Set(ref _aiModel, value)) { RefreshFeatureGates(); AutoSaveSoon(); } }
     }
 
     public string AiTestResult { get => _aiTestResult; private set => Set(ref _aiTestResult, value); }
@@ -726,11 +743,15 @@ public sealed class SettingsViewModel : ViewModelBase
     public string PluginToken
     {
         get => _pluginToken;
-        set { if (Set(ref _pluginToken, value)) RefreshIntegrationState(); }
+        set { if (Set(ref _pluginToken, value)) { RefreshIntegrationState(); AutoSaveSoon(); } }
     }
 
     private int _pluginPort = 5199;
-    public int PluginPort { get => _pluginPort; set => Set(ref _pluginPort, value); }
+    public int PluginPort
+    {
+        get => _pluginPort;
+        set { if (Set(ref _pluginPort, value)) AutoSaveSoon(); }
+    }
 
     public string PluginStatus { get => _pluginStatus; private set => Set(ref _pluginStatus, value); }
 
@@ -827,21 +848,21 @@ public sealed class SettingsViewModel : ViewModelBase
     public string OneBotHttp
     {
         get => _oneBotHttp;
-        set { if (Set(ref _oneBotHttp, value)) RefreshFeatureGates(); }
+        set { if (Set(ref _oneBotHttp, value)) { RefreshFeatureGates(); AutoSaveSoon(); } }
     }
 
     private string _oneBotWs = "ws://127.0.0.1:3001";
     public string OneBotWs
     {
         get => _oneBotWs;
-        set { if (Set(ref _oneBotWs, value)) RefreshFeatureGates(); }
+        set { if (Set(ref _oneBotWs, value)) { RefreshFeatureGates(); AutoSaveSoon(); } }
     }
 
     private string _groupIds = "";
     public string GroupIdsText
     {
         get => _groupIds;
-        set { if (Set(ref _groupIds, value)) RefreshFeatureGates(); }
+        set { if (Set(ref _groupIds, value)) { RefreshFeatureGates(); AutoSaveSoon(); } }
     }
 
     private bool _autostart;
@@ -954,70 +975,126 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public void LoadSettings()
     {
-        var s = SettingsStore.Load(SettingsPath);
-        AiBaseUrl = s.AiBaseUrl;
-        AiApiKey = s.AiApiKey;
-        AiModel = s.AiModel;
-        AiModelProviderHint = s.AiProvider.Length > 0 ? s.AiProvider : "deepseek";
-        _aiReasoning = s.AiReasoning.Length > 0 ? s.AiReasoning : "minimal";
-        _archiveRoot = s.ArchiveRoot;
-        _archiveDownloadAll = s.ArchiveDownloadAll;
-        OneBotHttp = s.OneBotHttp;
-        OneBotWs = s.OneBotWs;
-        GroupIdsText = string.Join(",", s.GroupIds);
-        PluginToken = s.PluginToken;
-        PluginPort = s.PluginPort;
-        _riskAccepted = s.RiskAccepted;
-        _adminHash = s.AdminPasswordHash;
-        _minimizeToTray = s.MinimizeToTray;
-        _uiScale = ContentZoom.Clamp(s.UiScale);
-        _featureSummon = s.FeatureSummon;
-        _featureHomework = s.FeatureHomework;
-        _featureExchange = s.FeatureExchange;
-        _featureFileArchive = s.FeatureFileArchive;
-        _featureCoursewarePopup = s.FeatureCoursewarePopup;
-        _engineOption = Engines.FirstOrDefault(e => e.Engine == AiEngineParser.Parse(s.AiEngine)) ?? Engines[0];
-        Teachers.Clear();
-        foreach (var t in s.Teachers)
-            Teachers.Add(new TeacherRow(t.Qq.ToString(), t.Name, t.Subject));
-        _aiProvider = AiProviders.FirstOrDefault(p => p.BaseUrl == s.AiBaseUrl && p.Name != "自定义")
-            ?? AiProviders[^1];
+        // 有共享对象时以它为准（Runtime 启动时已从同一个文件装载过），
+        // 这样"设置页看到的值"和"Runtime 手里那份"永远是同一份。
+        var s = _shared ?? SettingsStore.Load(SettingsPath);
+        _loading = true;
+        try
+        {
+            AiBaseUrl = s.AiBaseUrl;
+            AiApiKey = s.AiApiKey;
+            AiModel = s.AiModel;
+            AiModelProviderHint = s.AiProvider.Length > 0 ? s.AiProvider : "deepseek";
+            _aiReasoning = s.AiReasoning.Length > 0 ? s.AiReasoning : "minimal";
+            _archiveRoot = s.ArchiveRoot;
+            _archiveDownloadAll = s.ArchiveDownloadAll;
+            OneBotHttp = s.OneBotHttp;
+            OneBotWs = s.OneBotWs;
+            GroupIdsText = string.Join(",", s.GroupIds);
+            PluginToken = s.PluginToken;
+            PluginPort = s.PluginPort;
+            _riskAccepted = s.RiskAccepted;
+            _adminHash = s.AdminPasswordHash;
+            _minimizeToTray = s.MinimizeToTray;
+            _uiScale = ContentZoom.Clamp(s.UiScale);
+            _featureSummon = s.FeatureSummon;
+            _featureHomework = s.FeatureHomework;
+            _featureExchange = s.FeatureExchange;
+            _featureFileArchive = s.FeatureFileArchive;
+            _featureCoursewarePopup = s.FeatureCoursewarePopup;
+            _engineOption = Engines.FirstOrDefault(e => e.Engine == AiEngineParser.Parse(s.AiEngine)) ?? Engines[0];
+            Teachers.Clear();
+            foreach (var t in s.Teachers)
+                Teachers.Add(new TeacherRow(t.Qq.ToString(), t.Name, t.Subject));
+            _aiProvider = AiProviders.FirstOrDefault(p => p.BaseUrl == s.AiBaseUrl && p.Name != "自定义")
+                ?? AiProviders[^1];
+        }
+        finally { _loading = false; }
     }
 
-    public void SaveSettings()
+    /// <summary>
+    /// 落盘。有共享对象时**写进那个对象再存**——Runtime 退出时还会用它再存一次，
+    /// 两者必须是同一份数据，否则设置页的改动会被启动快照覆盖（API Key 就是这样丢的）。
+    /// </summary>
+    /// <param name="quiet">true = 自动保存（不写"设置已保存"日志，避免每敲一个字刷一行）。</param>
+    public void SaveSettings(bool quiet = false)
     {
         var groups = ParseGroupIds();
-        SettingsStore.Save(new AppSettings
+        var s = _shared ?? new AppSettings();
+        s.AiEngine = AiEngine.ToStorage();
+        s.AiProvider = SelectedProvider?.Id ?? AiModelProviderHint;
+        s.AiReasoning = AiReasoning;
+        s.ArchiveRoot = ArchiveRoot;
+        s.ArchiveDownloadAll = ArchiveDownloadAll;
+        s.AiBaseUrl = AiBaseUrl;
+        s.AiApiKey = AiApiKey;
+        s.AiModel = AiModel;
+        s.OneBotHttp = OneBotHttp;
+        s.OneBotWs = OneBotWs;
+        s.GroupIds = groups;
+        s.PluginToken = PluginToken;
+        s.PluginPort = PluginPort;
+        s.Teachers = Teachers.Select(t => new Teacher
         {
-            AiEngine = AiEngine.ToStorage(),
-            AiProvider = SelectedProvider?.Id ?? AiModelProviderHint,
-            AiReasoning = AiReasoning,
-            ArchiveRoot = ArchiveRoot,
-            ArchiveDownloadAll = ArchiveDownloadAll,
-            AiBaseUrl = AiBaseUrl,
-            AiApiKey = AiApiKey,
-            AiModel = AiModel,
-            OneBotHttp = OneBotHttp,
-            OneBotWs = OneBotWs,
-            GroupIds = groups,
-            PluginToken = PluginToken,
-            PluginPort = PluginPort,
-            Teachers = Teachers.Select(t => new Teacher
-            {
-                Qq = long.TryParse(t.Qq, out var n) ? n : 0,
-                Name = t.Name,
-                Subject = t.Subject
-            }).ToList(),
-            RiskAccepted = RiskAccepted,
-            FeatureSummon = FeatureSummon,
-            FeatureHomework = FeatureHomework,
-            FeatureExchange = FeatureExchange,
-            FeatureFileArchive = FeatureFileArchive,
-            FeatureCoursewarePopup = FeatureCoursewarePopup,
-            AdminPasswordHash = _adminHash,
-            MinimizeToTray = MinimizeToTray,
-            UiScale = UiScale
-        }, SettingsPath);
-        AppendLog("设置已保存。");
+            Qq = long.TryParse(t.Qq, out var n) ? n : 0,
+            Name = t.Name,
+            Subject = t.Subject
+        }).ToList();
+        s.RiskAccepted = RiskAccepted;
+        s.FeatureSummon = FeatureSummon;
+        s.FeatureHomework = FeatureHomework;
+        s.FeatureExchange = FeatureExchange;
+        s.FeatureFileArchive = FeatureFileArchive;
+        s.FeatureCoursewarePopup = FeatureCoursewarePopup;
+        s.AdminPasswordHash = _adminHash;
+        s.MinimizeToTray = MinimizeToTray;
+        s.UiScale = UiScale;
+
+        SettingsStore.Save(s, SettingsPath);
+        _pendingAutoSave = false;
+        if (!quiet)
+            AppendLog("设置已保存。");
+    }
+
+    // ================= 文本框的自动保存 =================
+    //
+    // 服务地址 / API Key / 模型 / 群号这些是**手打**的。以前它们只在
+    // "碰巧触发了别的保存动作"（切开关、点保存设置）时才落盘，
+    // 打完 key 直接退出/更新就白打了。这里给它们一个防抖自动保存。
+
+    private System.Timers.Timer? _autoSaveTimer;
+    private bool _pendingAutoSave;
+
+    /// <summary>改动后延迟落盘（连续输入只写最后一次）。</summary>
+    private void AutoSaveSoon()
+    {
+        if (_loading)
+            return;
+        _pendingAutoSave = true;
+        if (_shared is null)
+        {
+            // 测试用临时文件：没有 UI 事件循环，直接落盘，行为可预期。
+            SaveSettings(quiet: true);
+            return;
+        }
+        _autoSaveTimer?.Stop();
+        _autoSaveTimer?.Dispose();
+        _autoSaveTimer = new System.Timers.Timer(600) { AutoReset = false };
+        _autoSaveTimer.Elapsed += (_, _) =>
+        {
+            try { SaveSettings(quiet: true); } catch { /* 自动保存失败不打断输入 */ }
+        };
+        _autoSaveTimer.Start();
+    }
+
+    /// <summary>立刻落盘还没写完的改动（切页、关闭窗口、退出前调用）。</summary>
+    public void FlushPendingSaves()
+    {
+        _autoSaveTimer?.Stop();
+        _autoSaveTimer?.Dispose();
+        _autoSaveTimer = null;
+        if (!_pendingAutoSave)
+            return;
+        try { SaveSettings(quiet: true); } catch { /* 退出路径不抛 */ }
     }
 }

@@ -89,7 +89,12 @@ public static class SettingsStore
             if (File.Exists(path))
                 return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path), Json) ?? new AppSettings();
         }
-        catch { /* 损坏则回默认 */ }
+        catch
+        {
+            // 坏文件不能默默当"没配过"——那会把 API Key 之类的配置一起丢掉。
+            // 留一份 .bad 供排查，同时照常返回默认值让应用能起来。
+            TryBackup(path);
+        }
         return new AppSettings();
     }
 
@@ -97,6 +102,19 @@ public static class SettingsStore
     {
         path ??= DefaultPath;
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(settings, Json));
+        // 原子替换：写临时文件再覆盖，避免写一半断电留下坏文件（坏文件 = 配置全丢）。
+        var tmp = path + ".tmp";
+        File.WriteAllText(tmp, JsonSerializer.Serialize(settings, Json));
+        File.Move(tmp, path, overwrite: true);
+    }
+
+    private static void TryBackup(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Copy(path, path + ".bad", overwrite: true);
+        }
+        catch { /* 备份失败不影响启动 */ }
     }
 }
