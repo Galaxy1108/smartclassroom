@@ -366,3 +366,7 @@ minimal/low/medium/high）。我们的任务是"把群消息整理成 JSON"，�
   因为目录不再按日期分层，**发送时间要看 meta.json 或文件修改时间**；
   不同天的同名文件会得到 `(1)`、`(2)` 后缀。
 - 同一个 `file_id` 不会重复下载；重名自动加序号。
+
+## License
+
+MIT（见 [LICENSE](LICENSE)）
