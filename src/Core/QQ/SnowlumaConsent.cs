@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text;
 
 namespace SmartClassroom.Core.QQ;
@@ -64,16 +65,50 @@ public static class SnowlumaAgreements
         return id == "eula" ? "用户协议" : "隐私政策";
     }
 
-    /// <summary>协议内容指纹（内容变了就得重新同意）。</summary>
-    public static string Fingerprint(IReadOnlyList<SnowlumaAgreement> docs)
+    /// <summary>
+    /// 协议版本号 —— 与 SnowLuma 内部算法**逐字节一致**：
+    /// sha256( id + "\0" + text + "\0" ... ) 的十六进制前 16 位。
+    /// 用它的算法而不是自己另算一个，才能直接和它写下的 config/consent.json 对照，
+    /// 从而认出"用户已经在 WebUI 里同意过"。
+    /// </summary>
+    public static string ComputeVersion(IReadOnlyList<SnowlumaAgreement> docs)
     {
         if (docs.Count == 0)
             return "";
-        var sb = new StringBuilder();
+        using var sha = SHA256.Create();
+        var buffer = new List<byte>();
         foreach (var d in docs)
-            sb.Append(d.Id).Append('\u0001').Append(d.Text).Append('\u0002');
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
+        {
+            buffer.AddRange(Encoding.UTF8.GetBytes(d.Id));
+            buffer.Add(0);
+            buffer.AddRange(Encoding.UTF8.GetBytes(d.Text));
+            buffer.Add(0);
+        }
+        var hash = sha.ComputeHash(buffer.ToArray());
         return Convert.ToHexString(hash)[..16].ToLowerInvariant();
+    }
+
+    /// <summary>SnowLuma 自己记下的同意记录（它在 WebUI 同意、或上次应用带环境变量启动后写的）。</summary>
+    public static string? ReadConsentVersion(string installDir)
+    {
+        try
+        {
+            var path = Path.Combine(installDir, "config", "consent.json");
+            if (!File.Exists(path))
+                return null;
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            return doc.RootElement.TryGetProperty("version", out var v) && v.ValueKind == JsonValueKind.String
+                ? v.GetString()
+                : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>SnowLuma 那边已经同意过当前版本的协议（不用再问用户一次）。</summary>
+    public static bool AlreadyConsented(string installDir, IReadOnlyList<SnowlumaAgreement> docs)
+    {
+        var current = ComputeVersion(docs);
+        return current.Length > 0 && ReadConsentVersion(installDir) == current;
     }
 
     /// <summary>同意后传给 SnowLuma 的环境变量（两个必须同时给）。</summary>

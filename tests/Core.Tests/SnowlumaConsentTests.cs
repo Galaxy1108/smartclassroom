@@ -45,23 +45,58 @@ public sealed class SnowlumaConsentTests : IDisposable
         Assert.Empty(SnowlumaAgreements.ReadFrom(Path.Combine(_dir, "not-there")));
     }
 
+    /// <summary>
+    /// 版本号必须与 SnowLuma 自己的算法逐字节一致（sha256 over id\0text\0 的 hex 前 16 位），
+    /// 否则没法拿它去对照 SnowLuma 写下的 consent.json。
+    /// 参照值 5fae99504fe135b3 是用 node 按它源码里的 computeAgreementsVersion 独立算出来的。
+    /// </summary>
     [Fact]
-    public void Fingerprint_IsStable_AndChangesWithText()
+    public void ComputeVersion_MatchesSnowLumaAlgorithm()
     {
-        WriteDocs();
-        var a = SnowlumaAgreements.Fingerprint(SnowlumaAgreements.ReadFrom(_dir));
-        var again = SnowlumaAgreements.Fingerprint(SnowlumaAgreements.ReadFrom(_dir));
-        Assert.Equal(a, again);
-        Assert.Equal(16, a.Length);
+        var docs = new List<SnowlumaAgreement>
+        {
+            new("eula", "用户协议", "hello"),
+            new("privacy", "隐私政策", "world")
+        };
 
-        // 协议文本一改（SnowLuma 更新条款）→ 指纹必须变，好重新征得同意
-        WriteDocs(eula: "# SnowLuma 用户协议\n\n第一条：别干坏事。第二条：新增条款。");
-        Assert.NotEqual(a, SnowlumaAgreements.Fingerprint(SnowlumaAgreements.ReadFrom(_dir)));
+        Assert.Equal("5fae99504fe135b3", SnowlumaAgreements.ComputeVersion(docs));
     }
 
     [Fact]
-    public void Fingerprint_EmptyDocs_IsEmpty()
-        => Assert.Equal("", SnowlumaAgreements.Fingerprint([]));
+    public void ComputeVersion_IsStable_AndChangesWithText()
+    {
+        WriteDocs();
+        var a = SnowlumaAgreements.ComputeVersion(SnowlumaAgreements.ReadFrom(_dir));
+        var again = SnowlumaAgreements.ComputeVersion(SnowlumaAgreements.ReadFrom(_dir));
+        Assert.Equal(a, again);
+        Assert.Equal(16, a.Length);
+
+        // 协议文本一改（SnowLuma 更新条款）→ 版本必须变，好重新征得同意
+        WriteDocs(eula: "# SnowLuma 用户协议\n\n第一条：别干坏事。第二条：新增条款。");
+        Assert.NotEqual(a, SnowlumaAgreements.ComputeVersion(SnowlumaAgreements.ReadFrom(_dir)));
+    }
+
+    [Fact]
+    public void ComputeVersion_EmptyDocs_IsEmpty()
+        => Assert.Equal("", SnowlumaAgreements.ComputeVersion([]));
+
+    [Fact]
+    public void AlreadyConsented_ReadsSnowLumaOwnRecord()
+    {
+        WriteDocs();
+        var docs = SnowlumaAgreements.ReadFrom(_dir);
+        var version = SnowlumaAgreements.ComputeVersion(docs);
+        Assert.False(SnowlumaAgreements.AlreadyConsented(_dir, docs));   // 还没记录
+
+        Directory.CreateDirectory(Path.Combine(_dir, "config"));
+        File.WriteAllText(Path.Combine(_dir, "config", "consent.json"),
+            $$"""{"version":"{{version}}","acceptedAt":"2026-09-26T10:00:00.000Z"}""");
+        Assert.True(SnowlumaAgreements.AlreadyConsented(_dir, docs));    // 用户已在 WebUI 同意过
+
+        // 协议改了 → 旧记录不算数
+        WriteDocs(eula: "# 用户协议\n\n改了。");
+        Assert.False(SnowlumaAgreements.AlreadyConsented(_dir, SnowlumaAgreements.ReadFrom(_dir)));
+    }
 
     [Fact]
     public void AcceptanceEnvironment_SetsBothSwitches()

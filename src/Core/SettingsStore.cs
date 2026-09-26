@@ -25,10 +25,10 @@ public sealed class AppSettings
     public List<long> GroupIds { get; set; } = [];
 
     /// <summary>
-    /// 已同意的 SnowLuma 协议指纹（空 = 没同意过）。
-    /// 协议文本一改指纹就变，会重新征得同意。
+    /// 已同意的 SnowLuma 协议版本号（空 = 没同意过）。
+    /// 就是 SnowLuma 自己算的那个内容哈希：协议文本一改版本就变，会重新征得同意。
     /// </summary>
-    public string SnowLumaAgreementsFingerprint { get; set; } = "";
+    public string SnowLumaAgreementsVersion { get; set; } = "";
 
     /// <summary>选定的班级 QQ 账号（0 = 未指定）。一台机器上登过好几个号时用它区分。</summary>
     public long QqAccount { get; set; }
@@ -91,7 +91,7 @@ public sealed class AppSettings
         GroupIds = [];
         QqAccount = 0;
         QqAccounts = [];
-        SnowLumaAgreementsFingerprint = "";
+        SnowLumaAgreementsVersion = "";
         ArchiveRoot = d.ArchiveRoot;
         ArchiveDownloadAll = d.ArchiveDownloadAll;
         PluginToken = d.PluginToken;

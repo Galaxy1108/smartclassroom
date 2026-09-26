@@ -399,22 +399,6 @@
             <ProgressBar Value="{Binding Progress}" Minimum="0" Maximum="100" Height="6"
                          IsVisible="{Binding Busy}" Margin="0,4" />
 
-            <local:NoticeBar Severity="Error" IsVisible="{Binding IsInstalled}"
-                             Title="风险警告"
-                             Message="{Binding RiskWarningMessage}" />
-            <fa:SettingsExpander Header="风险确认" IsVisible="{Binding IsInstalled}"
-                                 Description="启动前需确认">
-                <fa:SettingsExpander.Footer>
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <local:StatusBadge Severity="{Binding RiskBadgeSeverity}"
-                                           Text="{Binding RiskBadgeText}" VerticalAlignment="Center" />
-                        <Button Content="我已知晓风险" Click="AcceptRisk_Click"
-                                IsVisible="{Binding NeedsRiskConfirmation}" />
-                        <Button Content="重新查看" Click="ReviewRisk_Click"
-                                IsVisible="{Binding RiskAccepted}" />
-                    </StackPanel>
-                </fa:SettingsExpander.Footer>
-            </fa:SettingsExpander>
             <fa:SettingsExpander Header="运行状态" IsVisible="{Binding IsInstalled}"
                                 >
                 <fa:SettingsExpander.Footer>

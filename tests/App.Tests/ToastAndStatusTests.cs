@@ -100,17 +100,11 @@ public sealed class ToastAndStatusTests : IDisposable
     {
         var vm = new SettingsViewModel(_path);
         Assert.False(vm.RiskAccepted);
-        Assert.True(vm.NeedsRiskConfirmation);
-        Assert.Equal(NoticeSeverity.Warning, vm.RiskBadgeSeverity);
-        Assert.Contains("尚未确认", vm.RiskBadgeText);
 
         vm.AcceptRisk();
 
         Assert.True(vm.RiskAccepted);
-        Assert.False(vm.NeedsRiskConfirmation);
-        Assert.Equal(NoticeSeverity.Success, vm.RiskBadgeSeverity);
-        Assert.Equal("已确认风险", vm.RiskBadgeText);
-        Assert.True(new SettingsViewModel(_path).RiskAccepted);
+        Assert.True(new SettingsViewModel(_path).RiskAccepted);   // 落盘，重启不再问
     }
 
     // ================= QQ 账号选择 =================

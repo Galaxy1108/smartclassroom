@@ -180,19 +180,6 @@ public partial class SettingsView : UserControl
         await Vm.StartAsync();
     }
 
-    /// <summary>风险确认按钮（弹窗展示完整警告）。</summary>
-    private async void AcceptRisk_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        var ok = await Dialogs.ConfirmAsync("风险警告", SettingsViewModel.RiskWarningText,
-            "我已知晓并接受", "取消");
-        if (ok)
-            Vm.AcceptRisk();
-    }
-
-    /// <summary>已确认过，再查看一次警告原文。</summary>
-    private async void ReviewRisk_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => await Dialogs.ShowAsync("风险警告", SettingsViewModel.RiskWarningText, "知道了");
-
     /// <summary>检测在线 QQ 并弹窗让用户选一个账号。</summary>
     private async void PickQqAccount_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {

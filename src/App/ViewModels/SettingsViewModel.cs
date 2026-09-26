@@ -947,28 +947,13 @@ public sealed class SettingsViewModel : ViewModelBase
             if (!Set(ref _riskAccepted, value))
                 return;
             SaveSettings();
-            OnPropertyChanged(nameof(NeedsRiskConfirmation));
-            OnPropertyChanged(nameof(RiskBadgeSeverity));
-            OnPropertyChanged(nameof(RiskBadgeText));
         }
     }
-
-    /// <summary>还没确认风险（启动注入前要先弹窗确认）。</summary>
-    public bool NeedsRiskConfirmation => !RiskAccepted;
 
     /// <summary>风险提示原文（弹窗与横幅共用一份，避免两处说法不一致）。</summary>
     public const string RiskWarningText =
         "QQ 官方可能检测到第三方登录方式并封禁账号。强烈建议不要使用全新注册的 QQ 号操作；" +
         "班级号请确认可以接受该风险后再启动注入。";
-
-    /// <summary>风险提示原文（弹窗与横幅共用一份，避免两处说法不一致）。</summary>
-    public string RiskWarningMessage => RiskWarningText;
-
-    /// <summary>风险确认状态徽标（未确认=感叹号，已确认=对钩）。</summary>
-    public NoticeSeverity RiskBadgeSeverity =>
-        RiskAccepted ? NoticeSeverity.Success : NoticeSeverity.Warning;
-
-    public string RiskBadgeText => RiskAccepted ? "已确认风险" : "尚未确认风险";
 
     /// <summary>用户在弹窗里确认风险后调用。</summary>
     public void AcceptRisk()
@@ -985,8 +970,8 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>候选账号（检测到的 + 以前选过的）。</summary>
     public ObservableCollection<QqAccount> QqCandidates { get; } = new();
 
-    /// <summary>已同意的 SnowLuma 协议指纹（空 = 没同意过）。</summary>
-    private string _agreementsFingerprint = "";
+    /// <summary>已同意的 SnowLuma 协议版本号（空 = 没同意过）。</summary>
+    private string _agreementsVersion = "";
 
     private long _qqAccount;
     public long QqAccount
@@ -1280,11 +1265,22 @@ public sealed class SettingsViewModel : ViewModelBase
             return false;
         }
 
-        var fingerprint = SnowlumaAgreements.Fingerprint(docs);
-        if (fingerprint == _agreementsFingerprint)
+        var version = SnowlumaAgreements.ComputeVersion(docs);
+
+        // 已经在 WebUI 里同意过（SnowLuma 自己记着 consent.json）→ 不用再问用户一次
+        if (SnowlumaAgreements.AlreadyConsented(InstallDir, docs))
+        {
+            _agreementsVersion = version;
+            SaveSettings();
+            NeedsWebUiSetup = false;
+            AppendLog("SnowLuma 已记录过协议同意，跳过征询");
+            return true;
+        }
+
+        if (version == _agreementsVersion)
         {
             NeedsWebUiSetup = false;
-            return true;   // 这个版本已经同意过
+            return true;   // 这个版本我们已经征得过同意
         }
 
         NeedsWebUiSetup = true;
@@ -1292,7 +1288,8 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             // 界面没接上（测试/无主窗口）：别静默失败，告诉用户手动出口
             AppendLog("没有可用的协议弹窗，请点「打开 WebUI」同意协议");
-            Toasts.Warn("需要在 WebUI 同意协议", $"打开 {WebUiUrl} 同意后才会注入。");
+            Toasts.Warn("需要同意 SnowLuma 的协议",
+                $"这是 SnowLuma 自己的用户协议与隐私政策（与封号风险提示是两回事）：打开 {WebUiUrl} 同意后才会注入。");
             return false;
         }
 
@@ -1303,7 +1300,7 @@ public sealed class SettingsViewModel : ViewModelBase
             return false;
         }
 
-        _agreementsFingerprint = fingerprint;
+        _agreementsVersion = version;
         SaveSettings();
         NeedsWebUiSetup = false;
         AppendLog("已同意 SnowLuma 用户协议/隐私政策");
@@ -1640,7 +1637,7 @@ public sealed class SettingsViewModel : ViewModelBase
             OneBotToken = s.OneBotToken;
             PluginToken = s.PluginToken;
             PluginPort = s.PluginPort;
-            _agreementsFingerprint = s.SnowLumaAgreementsFingerprint;
+            _agreementsVersion = s.SnowLumaAgreementsVersion;
             _qqAccount = s.QqAccount;
             QqCandidates.Clear();
             foreach (var a in s.QqAccounts)
@@ -1687,7 +1684,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.OneBotToken = OneBotToken;
         s.PluginToken = PluginToken;
         s.PluginPort = PluginPort;
-        s.SnowLumaAgreementsFingerprint = _agreementsFingerprint;
+        s.SnowLumaAgreementsVersion = _agreementsVersion;
         s.QqAccount = QqAccount;
         s.QqAccounts = QqCandidates.ToList();
         s.Teachers = Teachers.Select(t => new Teacher
