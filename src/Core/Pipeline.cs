@@ -107,7 +107,8 @@ public sealed class PipelineService(
                     Source = new MessageRef { GroupId = ev.GroupId, MessageId = 0 },
                     LocalPath = outcome.LocalPath,
                     Subject = sender.Subject,
-                    ClassDate = DateOnly.FromDateTime(DateTime.Now)
+                    ClassDate = DateOnly.FromDateTime(DateTime.Now),
+                    ArchivedAt = DateTimeOffset.Now
                 });
                 feed.Append("file", $"已归档：{ev.File.Name}", $"来自{sender.TeacherName ?? "未知发送者"}",
                     ActivitySeverity.Success);

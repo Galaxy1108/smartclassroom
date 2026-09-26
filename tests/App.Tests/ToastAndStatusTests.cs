@@ -1,4 +1,5 @@
 using Avalonia.Headless.XUnit;
+using SmartClassroom.App;
 using SmartClassroom.App.ViewModels;
 using SmartClassroom.App.Views;
 using SmartClassroom.Core;
@@ -247,6 +248,33 @@ public sealed class ToastAndStatusTests : IDisposable
             Assert.True(vm.NeedsWebUiSetup);
         }
         finally { Directory.Delete(dir, true); }
+    }
+
+    /// <summary>
+    /// 协议弹窗必须接到**真实的**视图模型上。
+    /// 踩过的坑：接线写在 SettingsView 构造函数里，而外部是
+    /// `new SettingsView { DataContext = vm }`——构造时 DataContext 还是 null，
+    /// 接线接到了兜底的临时实例上，结果点「启动」根本不弹窗，只显示"未同意协议"。
+    /// </summary>
+    [AvaloniaFact]
+    public void SettingsView_WiresConsentPromptToTheRealViewModel()
+    {
+        var vm = new SettingsViewModel(_path);
+        Assert.Null(vm.ConsentPrompt);
+
+        _ = new SettingsView { DataContext = vm };
+
+        Assert.NotNull(vm.ConsentPrompt);
+    }
+
+    // ================= 单实例 =================
+
+    [AvaloniaFact]
+    public void SingleInstance_SecondAcquireFails()
+    {
+        // 多开会抢同一个 SnowLuma 进程、同一个桥接端口、同一份 state.json
+        Assert.True(SingleInstance.TryAcquire());
+        Assert.False(SingleInstance.TryAcquire());   // 第二个实例必须被挡住
     }
 
     // ================= OneBot Token 也要能填 =================

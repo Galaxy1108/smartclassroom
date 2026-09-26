@@ -63,8 +63,6 @@ public sealed class UpdateAndDebugTests : IDisposable
         Assert.Equal(NoticeSeverity.Warning, vm.UpdateSeverity);
         Assert.Contains("发现新版本 9.9.9", vm.UpdateStatusText);
         Assert.Contains("9.9.9", vm.LatestVersionText);
-        Assert.Equal("新版本说明", vm.UpdateNotes);
-        Assert.True(vm.HasUpdateNotes);
         Assert.True(vm.HasReleasePage);
         Assert.Contains(Toasts.Items, t => t.Title == "发现新版本");
     }
@@ -106,7 +104,7 @@ public sealed class UpdateAndDebugTests : IDisposable
         // Linux：应用由包管理器安装，绝不允许自己替换 /opt 下的文件
         Assert.False(vm.CanSelfUpdate);
         Assert.False(vm.CanInstallUpdate);
-        Assert.Contains("包管理器", vm.UpdatePlatformHint);
+        Assert.Equal("Linux 平台暂不支持应用内自动更新", vm.UpdatePlatformHint);
     }
 
     [AvaloniaFact]

@@ -30,6 +30,8 @@ Application.Current!.Resources["SymbolThemeFontFamily"] = new FontFamily("DejaVu
 Render("timeline-light.png", TimelineView(), ThemeVariant.Light, 920, 560);
 RenderShell();
 Render("settings-full.png", SettingsView(), ThemeVariant.Light, 920, 4200);   // 整页一图，方便逐段检查
+Render("courseware-subjects.png", CoursewareSubjects(), ThemeVariant.Dark, 920, 340);
+Render("courseware-timeline.png", CoursewareTimeline(), ThemeVariant.Dark, 920, 520);
 Render("timeline-dark.png", TimelineView(), ThemeVariant.Dark, 920, 560);
 Render("settings-gating.png", SettingsView(), ThemeVariant.Light, 920, 620);
 Render("settings-narrow.png", SettingsView(), ThemeVariant.Light, 620, 620);
@@ -97,6 +99,56 @@ Control TimelineView()
         "InvalidOperationException: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable",
         ActivitySeverity.Error);
     return new EventsView { DataContext = new EventsViewModel(feed, new PendingStore(), null) };
+}
+
+Control CoursewareSubjects()
+{
+    var vm = BuildCoursewareVm();
+    return new CoursewareListView { DataContext = vm };
+}
+
+Control CoursewareTimeline()
+{
+    var vm = BuildCoursewareVm();
+    vm.OpenSubject("数学");
+    return new CoursewareListView { DataContext = vm };
+}
+
+/// <summary>造一份真实的归档目录（含 meta.json），走 RebuildFromArchive 建索引。</summary>
+CoursewareViewModel BuildCoursewareVm()
+{
+    var root = Path.Combine(Path.GetTempPath(), "ui-preview-archive");
+    if (Directory.Exists(root)) Directory.Delete(root, true);
+    var seed = new (string Subject, string Teacher, string Name, string At)[]
+    {
+        ("数学", "张老师", "第3章 函数.pptx", "2026-09-26T10:05:00+08:00"),
+        ("数学", "张老师", "第3章 函数（答案）.pdf", "2026-09-26T08:30:00+08:00"),
+        ("数学", "张老师", "第2章 数列.pptx", "2026-09-24T15:20:00+08:00"),
+        ("语文", "李老师", "古诗默写范围.docx", "2026-09-26T14:10:00+08:00"),
+        ("物理", "王老师", "实验报告模板.docx", "2026-09-25T11:00:00+08:00")
+    };
+    var i = 0;
+    foreach (var (subject, teacher, name, at) in seed)
+    {
+        var dir = Path.Combine(root, subject);
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, name);
+        File.WriteAllBytes(path, [1, 2, 3]);
+        var time = DateTimeOffset.Parse(at);
+        // 用真实的 ArchiveMeta + 默认序列化（FileArchive 写出来就是这样，大小写要一致）
+        File.WriteAllText(path + ".meta.json", System.Text.Json.JsonSerializer.Serialize(new ArchiveMeta
+        {
+            FileId = "f" + (++i), FileName = name, Size = 2_400_000 + i * 120_000,
+            GroupId = 123456, SenderQq = 10001, SenderName = teacher, Subject = subject,
+            Time = time, LocalPath = path
+        }));
+    }
+    SmartClassroom.App.Runtime.Courseware.RebuildFromArchive(root);
+    var vm = new CoursewareViewModel();
+    vm.GroupBySubject(SmartClassroom.App.Runtime.Courseware.QueryAll()
+        .Where(f => f.LocalPath is not null)
+        .Select(f => (f.Subject ?? "", f.FileName, f.LocalPath!, f.Size, f.ArchivedAt)));
+    return vm;
 }
 
 Control SettingsView(double scrollTo = 0)

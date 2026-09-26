@@ -39,14 +39,22 @@ public sealed class CoursewareService
                     Source = new MessageRef { GroupId = meta.GroupId, MessageId = 0 },
                     LocalPath = meta.LocalPath,
                     Subject = meta.Subject.Length > 0 ? meta.Subject : null,
-                    ClassDate = DateOnly.FromDateTime(meta.Time.LocalDateTime)
+                    ClassDate = DateOnly.FromDateTime(meta.Time.LocalDateTime),
+                    ArchivedAt = meta.Time
                 });
             }
             catch { /* 坏 meta 跳过 */ }
         }
     }
 
-    /// <summary>某日全部课件（「课件」页列表用）。</summary>
+    /// <summary>全部课件（「课件」页按科目分组用），按归档时间倒序。</summary>
+    public IReadOnlyList<CoursewareFile> QueryAll()
+        => _files.Where(f => f.LocalPath is not null && File.Exists(f.LocalPath))
+            .OrderByDescending(f => f.ArchivedAt ?? DateTimeOffset.MinValue)
+            .ThenBy(f => f.FileName)
+            .ToList();
+
+    /// <summary>某日全部课件（上课弹窗的预览用）。</summary>
     public IReadOnlyList<CoursewareFile> QueryDay(DateOnly date)
         => _files.Where(f => f.ClassDate == date && f.LocalPath is not null && File.Exists(f.LocalPath))
             .OrderBy(f => f.FileName).ToList();

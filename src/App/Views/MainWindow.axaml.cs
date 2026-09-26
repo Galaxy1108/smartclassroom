@@ -76,16 +76,12 @@ public partial class MainWindow : Window
             RebuildCourseware();
     }
 
+    /// <summary>课件页：全部归档文件按科目分组（第一层），点进科目看时间轴。</summary>
     private void RebuildCourseware()
     {
-        var today = DateOnly.FromDateTime(DateTime.Now);
-        _coursewareVm.Items.Clear();
-        foreach (var f in Runtime.Courseware.QueryDay(today))
-        {
-            if (f.LocalPath is null)
-                continue;
-            _coursewareVm.Items.Add(CoursewareViewModel.CreateItem(f.FileName, f.LocalPath, f.Size));
-        }
+        _coursewareVm.GroupBySubject(Runtime.Courseware.QueryAll()
+            .Where(f => f.LocalPath is not null)
+            .Select(f => (f.Subject ?? "", f.FileName, f.LocalPath!, f.Size, f.ArchivedAt)));
     }
 
     /// <summary>关掉一条通知（不等它自动消失）。</summary>

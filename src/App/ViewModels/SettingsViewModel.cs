@@ -1289,7 +1289,12 @@ public sealed class SettingsViewModel : ViewModelBase
 
         NeedsWebUiSetup = true;
         if (ConsentPrompt is null)
-            return false;   // 没有界面（测试/无主窗口）
+        {
+            // 界面没接上（测试/无主窗口）：别静默失败，告诉用户手动出口
+            AppendLog("没有可用的协议弹窗，请点「打开 WebUI」同意协议");
+            Toasts.Warn("需要在 WebUI 同意协议", $"打开 {WebUiUrl} 同意后才会注入。");
+            return false;
+        }
 
         if (!await ConsentPrompt(docs))
         {
@@ -1425,11 +1430,6 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _updateStatusText = "尚未检查更新";
     public string UpdateStatusText { get => _updateStatusText; private set => Set(ref _updateStatusText, value); }
 
-    private string _updateNotes = "";
-    public string UpdateNotes { get => _updateNotes; private set => Set(ref _updateNotes, value); }
-
-    public bool HasUpdateNotes => UpdateNotes.Length > 0;
-
     private bool _hasUpdate;
     public bool HasUpdate
     {
@@ -1484,8 +1484,8 @@ public sealed class SettingsViewModel : ViewModelBase
 
     /// <summary>Linux 下的说明（为什么按钮是灰的）。</summary>
     public string UpdatePlatformHint => CanSelfUpdate
-        ? "支持自动更新"
-        : "由系统包管理器更新";
+        ? "支持应用内自动更新"
+        : "Linux 平台暂不支持应用内自动更新";
 
     public bool HasReleasePage => _releaseUrl is not null;
 
@@ -1519,8 +1519,6 @@ public sealed class SettingsViewModel : ViewModelBase
             var info = await _updates.CheckAsync(AppVersion.Current, assetPattern: pattern);
             _assetUrl = info.AssetUrl;
             _releaseUrl = info.ReleaseUrl;
-            UpdateNotes = info.Notes ?? "";
-            OnPropertyChanged(nameof(HasUpdateNotes));
             OnPropertyChanged(nameof(HasReleasePage));
 
             if (!info.RemoteReachable)

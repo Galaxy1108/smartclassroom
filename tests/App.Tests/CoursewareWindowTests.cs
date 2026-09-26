@@ -49,3 +49,93 @@ public sealed class CoursewareTests
         Assert.Contains("归档", vm.EmptyHint);
     }
 }
+
+/// <summary>
+/// 课件页：先按科目分类，点进科目后按时间轴（天分组、天内按时间倒序）。
+/// </summary>
+public sealed class CoursewareTimelineTests
+{
+    private static (string Subject, string FileName, string LocalPath, long Size, DateTimeOffset? At) F(
+        string subject, string name, string at)
+        => (subject, name, "/tmp/" + name, 100,
+            at.Length == 0 ? null : DateTimeOffset.Parse(at));
+
+    [AvaloniaFact]
+    public void Subjects_AreGroupedAndSortedByLatest()
+    {
+        var vm = new CoursewareViewModel();
+        vm.GroupBySubject([
+            F("数学", "函数.pptx", "2026-09-26T10:00:00+08:00"),
+            F("数学", "数列.pptx", "2026-09-25T09:00:00+08:00"),
+            F("语文", "古诗.pptx", "2026-09-26T14:00:00+08:00"),
+            F("", "说明.pdf", "2026-09-24T08:00:00+08:00")
+        ]);
+
+        Assert.Equal(["语文", "数学", "未分类"], vm.Subjects.Select(s => s.Name));   // 最近有更新的在前
+        Assert.Equal(2, vm.Subjects[1].Count);
+        Assert.Equal("2 个文件", vm.Subjects[1].CountText);
+        Assert.Contains("09-26", vm.Subjects[1].LatestText);
+        Assert.False(vm.IsEmpty);
+    }
+
+    [AvaloniaFact]
+    public void OpenSubject_BuildsTimelineGroupedByDay_NewestFirst()
+    {
+        var vm = new CoursewareViewModel();
+        vm.GroupBySubject([
+            F("数学", "函数.pptx", "2026-09-26T10:00:00+08:00"),
+            F("数学", "数列.pptx", "2026-09-26T08:30:00+08:00"),
+            F("数学", "旧课件.pptx", "2026-09-20T15:00:00+08:00"),
+            F("语文", "古诗.pptx", "2026-09-26T14:00:00+08:00")
+        ]);
+
+        Assert.True(vm.IsSubjectList);
+        vm.OpenSubject("数学");
+
+        Assert.True(vm.IsTimeline);
+        Assert.False(vm.IsSubjectList);
+        Assert.Equal("数学", vm.SubjectTitle);
+        Assert.Equal(2, vm.Timeline.Count);                       // 两天
+        Assert.StartsWith("2026-09-26", vm.Timeline[0].DateLabel);
+        Assert.Contains("周六", vm.Timeline[0].DateLabel);
+        Assert.Equal(["10:00", "08:30"], vm.Timeline[0].Rows.Select(r => r.TimeLabel));   // 天内倒序
+        Assert.Equal("函数.pptx", vm.Timeline[0].Rows[0].FileName);
+        Assert.Equal("旧课件.pptx", Assert.Single(vm.Timeline[1].Rows).FileName);
+    }
+
+    [AvaloniaFact]
+    public void Back_ReturnsToSubjectList()
+    {
+        var vm = new CoursewareViewModel();
+        vm.GroupBySubject([F("数学", "函数.pptx", "2026-09-26T10:00:00+08:00")]);
+        vm.OpenSubject("数学");
+
+        vm.BackToSubjects();
+
+        Assert.True(vm.IsSubjectList);
+        Assert.Empty(vm.Timeline);
+    }
+
+    [AvaloniaFact]
+    public void NoTimeRecord_FallsIntoOneGroup()
+    {
+        var vm = new CoursewareViewModel();
+        vm.GroupBySubject([F("数学", "无时间.pptx", "")]);
+        vm.OpenSubject("数学");
+
+        var day = Assert.Single(vm.Timeline);
+        Assert.Equal("无时间记录", day.DateLabel);
+        Assert.Equal("--:--", Assert.Single(day.Rows).TimeLabel);
+    }
+
+    [AvaloniaFact]
+    public void EmptyArchive_ShowsHint()
+    {
+        var vm = new CoursewareViewModel();
+        vm.GroupBySubject([]);
+
+        Assert.True(vm.IsEmpty);
+        Assert.Contains("群文件自动归档", vm.EmptyHint);
+        Assert.Empty(vm.Subjects);
+    }
+}

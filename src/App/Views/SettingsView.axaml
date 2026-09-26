@@ -570,9 +570,6 @@
             </fa:SettingsExpander>
             <ProgressBar Value="{Binding UpdateProgress}" Minimum="0" Maximum="100" Height="6"
                          IsVisible="{Binding IsDownloadingUpdate}" Margin="0,4" />
-            <ScrollViewer MaxHeight="140" IsVisible="{Binding HasUpdateNotes}" Margin="2,4,0,0">
-                <TextBlock Text="{Binding UpdateNotes}" FontSize="12" Opacity="0.75" TextWrapping="Wrap" />
-            </ScrollViewer>
 
             <!-- ================= 调试 ================= -->
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">

@@ -11,11 +11,23 @@ public partial class SettingsView : UserControl
     {
         InitializeComponent();
         DataContext ??= new SettingsViewModel();
-        // SnowLuma 的协议同意弹窗（视图模型不直接碰 UI）
-        Vm.ConsentPrompt = async docs => await Dialogs.ConsentAsync(docs);
     }
 
     private SettingsViewModel Vm => (SettingsViewModel)DataContext!;
+
+    /// <summary>
+    /// 接线 SnowLuma 的协议同意弹窗。
+    /// **必须放在这里**：外部是 `new SettingsView { DataContext = vm }`，
+    /// 构造期间 DataContext 还是 null（会被兜底成另一个临时视图模型），
+    /// 那时接线等于接到了一个马上被丢掉的实例上——真实例永远拿不到弹窗，
+    /// 表现就是"点启动没看到弹窗，只显示未同意协议"。
+    /// </summary>
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        if (DataContext is SettingsViewModel vm)
+            vm.ConsentPrompt = async docs => await Dialogs.ConsentAsync(docs);
+    }
 
     protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {

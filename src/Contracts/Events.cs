@@ -109,6 +109,9 @@ public sealed record CoursewareFile
     public string? Subject { get; init; }
 
     public required DateOnly ClassDate { get; init; }
+
+    /// <summary>归档时间（时间轴排序用）。老的记录可能没有。</summary>
+    public DateTimeOffset? ArchivedAt { get; init; }
 }
 
 /// <summary>QQ 发送者信息（教师映射命中结果）。</summary>

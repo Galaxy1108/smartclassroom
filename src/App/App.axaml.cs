@@ -21,6 +21,15 @@ public partial class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // 单实例：第二个实例只给提示，不初始化（否则会抢 SnowLuma/端口/state.json）
+            if (!SingleInstance.TryAcquire())
+            {
+                SingleInstance.ShowAlreadyRunningNotice();
+                DispatcherTimer.RunOnce(() => desktop.Shutdown(), TimeSpan.FromSeconds(6));
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
+
             var vm = new MainViewModel();
             // 先 Start（它会把 settings.json 装进 Runtime.Settings），再建主窗口——
             // 设置页与 Runtime 必须共用同一个设置对象，否则退出时 Runtime 会用启动快照

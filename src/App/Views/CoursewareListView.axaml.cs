@@ -13,15 +13,39 @@ public partial class CoursewareListView : UserControl
         DataContext ??= new CoursewareViewModel();
     }
 
+    private CoursewareViewModel Vm => (CoursewareViewModel)DataContext!;
+
     private void Card_DoubleTapped(object? sender, TappedEventArgs e)
     {
-        if ((sender as Border)?.DataContext is CoursewareItem item
-            && File.Exists(item.LocalPath))
+        // 时间轴一行是 CoursewareTimelineRow（里面才是 CoursewareItem），老卡片直接是 Item
+        var path = (sender as Border)?.DataContext switch
         {
-            try { CoursewareViewModel.Open(item.LocalPath); }
+            CoursewareTimelineRow row => row.Item.LocalPath,
+            CoursewareItem item => item.LocalPath,
+            _ => null
+        };
+        if (path is not null && File.Exists(path))
+        {
+            try { CoursewareViewModel.Open(path); }
             catch { }
         }
     }
+
+    /// <summary>点科目卡片进入时间轴（双击也走这里，避免重复打开）。</summary>
+    private void Subject_Tapped(object? sender, TappedEventArgs e)
+        => OpenSubject(sender);
+
+    private void Subject_DoubleTapped(object? sender, TappedEventArgs e)
+        => OpenSubject(sender);
+
+    private void OpenSubject(object? sender)
+    {
+        if ((sender as Border)?.DataContext is CoursewareSubject subject)
+            Vm.OpenSubject(subject.Name);
+    }
+
+    private void Back_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => Vm.BackToSubjects();
 
     /// <summary>
     /// 预览上课时的推荐弹窗（真实触发走上课事件 + 功能开关）。
