@@ -36,8 +36,17 @@ public enum SnowlumaStatus
     Online
 }
 
-/// <summary>SnowLuma 给某个账号开的 OneBot 接入点（地址 + access token）。</summary>
-public sealed record OneBotEndpoint(string Http, string Ws, string Token, long Uin);
+/// <summary>
+/// SnowLuma 给某个账号开的 OneBot 接入点。
+/// 注意：**HTTP 与 WS 各有一个 access token**（实测两者不同），
+/// 只填 HTTP 那个会让 WS 升级被拒（401 / "rejected unauthorized WebSocket upgrade"），
+/// 表现就是"QQ 未连接（重连中…）"、消息事件一条都收不到。
+/// </summary>
+public sealed record OneBotEndpoint(string Http, string Ws, string Token, long Uin)
+{
+    /// <summary>WS 服务端的 token（可能与 <see cref="Token"/> 不同）。</summary>
+    public string WsToken { get; init; } = "";
+}
 
 /// <summary>
 /// SnowLuma 管理器：版本查询（SnowLuma/SnowLuma releases）→ 下载解压 →
@@ -246,7 +255,10 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
                 $"http://{host}:{httpPort}",
                 $"ws://{host}:{wsPort}",
                 Str(http.Value, "accessToken") ?? "",
-                uin);
+                uin)
+            {
+                WsToken = ws is null ? "" : Str(ws.Value, "accessToken") ?? ""
+            };
         }
         catch { return null; }
     }

@@ -499,7 +499,13 @@ SnowLuma 的 OneBot HTTP/WS **默认要求鉴权**：不带 token 的请求一�
 表现就是应用"检测不到账号 / 看不到在线"。
 
 token 就写在它的配置里：`config/onebot_<uin>.json` → `networks.httpServers[0].accessToken`
-（43 位随机串，每个账号一份）。应用会**自己读出来**（地址、端口、token 一起），
+（43 位随机串，每个账号一份）。
+
+> ⚠️ **HTTP 与 WS 是两个不同的 token**：`httpServers[0].accessToken` 与
+> `wsServers[0].accessToken` 各一个（实测不同）。只填 HTTP 那个时，HTTP 调用能通、
+> **WS 升级会被拒 401**（SnowLuma 日志：`rejected unauthorized WebSocket upgrade`），
+> 表现是应用一直"QQ 未连接（重连中…）"、**消息事件一条都收不到**。
+> 应用点「检测并选择账号」会把两个 token 都填上（设置页有单独一行「OneBot WS Token」）。应用会**自己读出来**（地址、端口、token 一起），
 并逐个账号试到能应答为止——**3000/3001 归哪个账号取决于 SnowLuma 启动时谁先登录**，
 所以不能假定是哪一个，也不能让用户手抄 token。
 

@@ -493,6 +493,12 @@
                     <TextBox Text="{Binding OneBotToken}" PasswordChar="•" MinWidth="280" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
+            <fa:SettingsExpander Header="OneBot WS Token"
+                                 Description="SnowLuma 的 HTTP 与 WS 是两个 token（点「检测并选择账号」会自动填）；留空则与上面相同">
+                <fa:SettingsExpander.Footer>
+                    <TextBox Text="{Binding OneBotWsToken}" MinWidth="280" PasswordChar="•" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
             <fa:SettingsExpander Header="监听群号"
                                  Description="只处理这些群的消息；可点「选择群…」从账号所在的群列表里勾选">
                 <fa:SettingsExpander.Footer>

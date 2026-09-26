@@ -79,7 +79,8 @@ public static class Runtime
         }
 
         var teachers = new TeacherMap(Settings.Teachers);
-        var oneBot = new OneBotClient(Settings.OneBotHttp, Settings.OneBotWs, Settings.OneBotToken);
+        var oneBot = new OneBotClient(Settings.OneBotHttp, Settings.OneBotWs, Settings.OneBotToken,
+            wsToken: Settings.OneBotWsToken);
         var plugin = new PluginLink($"http://127.0.0.1:{Settings.PluginPort}", Settings.PluginToken);
 
         // AI 引擎二选一：内置直连（零依赖）或 pi-ai Node 边车。

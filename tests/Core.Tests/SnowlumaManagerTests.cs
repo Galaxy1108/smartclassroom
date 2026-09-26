@@ -207,6 +207,26 @@ public sealed class SnowlumaManagerTests : IDisposable
     }
 
     [Fact]
+    public void ReadOneBotEndpoint_KeepsWsTokenSeparate()
+    {
+        // 实测：SnowLuma 的 HTTP 与 WS 是两个不同的 token，只填 HTTP 那个会让 WS 升级 401
+        var dir = InstallDir();
+        Directory.CreateDirectory(Path.Combine(dir, "config"));
+        File.WriteAllText(Path.Combine(dir, "config", "onebot_100000001.json"),
+            """
+            {"networks":{"httpServers":[{"host":"127.0.0.1","port":3000,"accessToken":"http-tok"}],
+                         "wsServers":[{"host":"127.0.0.1","port":3001,"accessToken":"ws-tok"}]}}
+            """);
+
+        var ep = SnowlumaManager.ReadOneBotEndpoint(dir, 100000001);
+
+        Assert.NotNull(ep);
+        Assert.Equal("http-tok", ep!.Token);
+        Assert.Equal("ws-tok", ep.WsToken);
+        Assert.NotEqual(ep.Token, ep.WsToken);
+    }
+
+    [Fact]
     public void ReadOneBotAccounts_ListsConfiguredUins()
     {
         var dir = InstallDir();

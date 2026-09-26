@@ -1189,10 +1189,12 @@ public sealed class SettingsViewModel : ViewModelBase
             if (endpoint is null || !await OneBotRespondsAsync(endpoint))
                 continue;
 
-            var changed = OneBotHttp != endpoint.Http || OneBotWs != endpoint.Ws || OneBotToken != endpoint.Token;
+            var changed = OneBotHttp != endpoint.Http || OneBotWs != endpoint.Ws
+                          || OneBotToken != endpoint.Token || OneBotWsToken != endpoint.WsToken;
             OneBotHttp = endpoint.Http;
             OneBotWs = endpoint.Ws;
             OneBotToken = endpoint.Token;
+            OneBotWsToken = endpoint.WsToken;   // SnowLuma 的 WS 是另一个 token
             if (QqAccount <= 0)
             {
                 QqAccount = endpoint.Uin;   // 没选过就选上这个真能连的
@@ -1214,7 +1216,8 @@ public sealed class SettingsViewModel : ViewModelBase
         try
         {
             await using var client = new OneBotClient(endpoint.Http, endpoint.Ws,
-                endpoint.Token.Length > 0 ? endpoint.Token : null);
+                endpoint.Token.Length > 0 ? endpoint.Token : null,
+                wsToken: endpoint.WsToken.Length > 0 ? endpoint.WsToken : null);
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
             await client.GetLoginInfoAsync(cts.Token);
             return true;
@@ -1293,7 +1296,8 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             await TryAdoptOneBotEndpointAsync();   // 先保证地址/token 是对的
             await using var oneBot = new OneBotClient(OneBotHttp, OneBotWs,
-                OneBotToken.Length > 0 ? OneBotToken : null);
+                OneBotToken.Length > 0 ? OneBotToken : null,
+                wsToken: OneBotWsToken.Length > 0 ? OneBotWsToken : null);
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var groups = await oneBot.GetGroupListAsync(cts.Token) ?? [];
             AppendLog($"读到 {groups.Count} 个群");
@@ -1497,7 +1501,8 @@ public sealed class SettingsViewModel : ViewModelBase
         try
         {
             await using var oneBot = new OneBotClient(OneBotHttp, OneBotWs,
-                OneBotToken.Length > 0 ? OneBotToken : null);
+                OneBotToken.Length > 0 ? OneBotToken : null,
+                wsToken: OneBotWsToken.Length > 0 ? OneBotWsToken : null);
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
             var info = await oneBot.GetLoginInfoAsync(cts.Token);
             if (info is { UserId: > 0 })
@@ -1609,7 +1614,8 @@ public sealed class SettingsViewModel : ViewModelBase
         OneBotHttp = endpoint.Http;
         OneBotWs = endpoint.Ws;
         OneBotToken = endpoint.Token;
-        AppendLog($"已按账号 {uin} 填入 OneBot 地址与 token");
+        OneBotWsToken = endpoint.WsToken;
+        AppendLog($"已按账号 {uin} 填入 OneBot 地址与 token（HTTP/WS 各一个）");
     }
 
     /// <summary>用户选定了账号。</summary>
@@ -1618,6 +1624,7 @@ public sealed class SettingsViewModel : ViewModelBase
         MergeCandidate(account);
         QqAccount = account.Uin;
         ApplyEndpointForAccount(account.Uin);
+        _ = ProbeAsync();   // 顺手刷新状态，别让状态栏停在旧的"未注入"
         OnPropertyChanged(nameof(QqAccountLabel));
         SaveSettings();
         var label = string.IsNullOrWhiteSpace(account.Nickname)
@@ -1648,6 +1655,17 @@ public sealed class SettingsViewModel : ViewModelBase
 
     private string _oneBotToken = "";
     /// <summary>OneBot 访问令牌（SnowLuma 配了 token 时必填，否则连不上）。</summary>
+    /// <summary>
+    /// OneBot **WS** token（与 HTTP token 通常不同）。留空则退回用 HTTP 那个。
+    /// </summary>
+    public string OneBotWsToken
+    {
+        get => _oneBotWsToken;
+        set { if (Set(ref _oneBotWsToken, value)) AutoSaveSoon(); }
+    }
+
+    private string _oneBotWsToken = "";
+
     public string OneBotToken
     {
         get => _oneBotToken;
@@ -1910,7 +1928,8 @@ public sealed class SettingsViewModel : ViewModelBase
         try
         {
             await using var oneBot = new OneBotClient(OneBotHttp, OneBotWs,
-                OneBotToken.Length > 0 ? OneBotToken : null);
+                OneBotToken.Length > 0 ? OneBotToken : null,
+                wsToken: OneBotWsToken.Length > 0 ? OneBotWsToken : null);
             var s = await _manager.ProbeAsync(InstallDir, oneBot);
             (QqStatusSeverity, QqStatusText) = s switch
             {
@@ -2228,6 +2247,7 @@ public sealed class SettingsViewModel : ViewModelBase
             OneBotWs = s.OneBotWs;
             GroupIdsText = string.Join(",", s.GroupIds);
             OneBotToken = s.OneBotToken;
+            OneBotWsToken = s.OneBotWsToken;
             PluginToken = s.PluginToken;
             PluginPort = s.PluginPort;
             _agreementsVersion = s.SnowLumaAgreementsVersion;
@@ -2280,6 +2300,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.OneBotWs = OneBotWs;
         s.GroupIds = groups;
         s.OneBotToken = OneBotToken;
+        s.OneBotWsToken = OneBotWsToken;
         s.PluginToken = PluginToken;
         s.PluginPort = PluginPort;
         s.SnowLumaAgreementsVersion = _agreementsVersion;

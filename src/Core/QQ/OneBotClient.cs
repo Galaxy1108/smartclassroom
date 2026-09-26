@@ -12,16 +12,37 @@ public sealed class OneBotClient : IAsyncDisposable
 {
     private readonly HttpClient _http;
     private readonly Uri _wsUri;
+    private readonly string? _token;
     private ClientWebSocket? _ws;
 
-    public OneBotClient(string httpBase, string wsUrl, string? accessToken = null, HttpClient? http = null)
+    /// <param name="wsToken">
+    /// WS 专用 token。SnowLuma 的 HTTP 与 WS 是两个 token，只传 <paramref name="accessToken"/>
+    /// 会让 WS 升级被拒（401）。留空则退回用 <paramref name="accessToken"/>。
+    /// </param>
+    public OneBotClient(string httpBase, string wsUrl, string? accessToken = null,
+        HttpClient? http = null, string? wsToken = null)
     {
         _http = http ?? new HttpClient();
         _http.BaseAddress ??= new Uri(httpBase.TrimEnd('/') + "/");
         if (accessToken is not null && _http.DefaultRequestHeaders.Authorization is null)
             _http.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        _token = string.IsNullOrWhiteSpace(wsToken) ? accessToken : wsToken;
         _wsUri = new Uri(wsUrl);
+    }
+
+    /// <summary>
+    /// 带 token 的 WS 地址。**必须带**：SnowLuma 的 WS 服务同样要求鉴权，
+    /// 不带 token 的连接会被直接拒绝（表现是 WebUI 里"ws-default 0 个客户端"，
+    /// 应用侧则一直"QQ 未连接（重连中…）"，消息事件一条都收不到）。
+    /// 有的实现只认 query 参数，所以 query 和 Authorization 头都带上。
+    /// </summary>
+    internal static Uri BuildWsUri(string wsUrl, string? token)
+    {
+        if (string.IsNullOrEmpty(token))
+            return new Uri(wsUrl);
+        var sep = wsUrl.Contains('?') ? '&' : '?';
+        return new Uri(wsUrl + sep + "access_token=" + Uri.EscapeDataString(token));
     }
 
     /// <summary>连接正向 WS 并循环投递事件；cancel 后返回。断线抛异常，由上层重连。</summary>
@@ -30,7 +51,9 @@ public sealed class OneBotClient : IAsyncDisposable
         CancellationToken cancel)
     {
         _ws = new ClientWebSocket();
-        await _ws.ConnectAsync(_wsUri, cancel).ConfigureAwait(false);
+        if (_token is not null)
+            _ws.Options.SetRequestHeader("Authorization", $"Bearer {_token}");
+        await _ws.ConnectAsync(BuildWsUri(_wsUri.ToString(), _token), cancel).ConfigureAwait(false);
 
         var buffer = new byte[64 * 1024];
         var sb = new StringBuilder();

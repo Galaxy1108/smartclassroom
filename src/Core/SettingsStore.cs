@@ -22,6 +22,12 @@ public sealed class AppSettings
     public string OneBotHttp { get; set; } = "http://127.0.0.1:3000";
     public string OneBotWs { get; set; } = "ws://127.0.0.1:3001";
     public string OneBotToken { get; set; } = "";
+
+    /// <summary>
+    /// OneBot **WS** token。SnowLuma 给 HTTP 与 WS 各发一个 token（实测不同），
+    /// 只填 HTTP 那个会让 WS 升级被拒（401）→ 事件收不到。留空则退回用 <see cref="OneBotToken"/>。
+    /// </summary>
+    public string OneBotWsToken { get; set; } = "";
     public List<long> GroupIds { get; set; } = [];
 
     /// <summary>
@@ -109,6 +115,7 @@ public sealed class AppSettings
         OneBotHttp = d.OneBotHttp;
         OneBotWs = d.OneBotWs;
         OneBotToken = d.OneBotToken;
+        OneBotWsToken = d.OneBotWsToken;
         GroupIds = [];
         ListenAllGroups = false;
         ListenTeacherPrivate = false;

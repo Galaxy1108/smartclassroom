@@ -14,4 +14,12 @@
     <PackageReference Include="ClassIsland.Shared.Ipc" Version="2.1.0" />
   </ItemGroup>
 
+
+  <ItemGroup>
+    <!-- 让 Core 的测试能验证 internal 辅助方法（例如 WS 地址拼装） -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>SmartClassroom.Core.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
 </Project>

@@ -115,3 +115,41 @@ public sealed class OneBotActionModelTests
         Assert.Equal("http://x/f", envelope!.Data!.Url);
     }
 }
+
+/// <summary>
+/// WS 连接必须带 token：SnowLuma 的 WS 服务同样要求鉴权，不带会被直接拒绝
+/// （实测表现：WebUI 里"ws-default 0 个客户端"，应用一直"QQ 未连接（重连中…）"，
+/// 消息事件一条都收不到）。
+/// </summary>
+public sealed class OneBotWsUriTests
+{
+    [Fact]
+    public void BuildWsUri_AppendsAccessToken()
+    {
+        var uri = OneBotClient.BuildWsUri("ws://127.0.0.1:3011", "abc-123");
+
+        Assert.Equal("ws://127.0.0.1:3011/?access_token=abc-123", uri.ToString());
+    }
+
+    [Fact]
+    public void BuildWsUri_KeepsExistingQuery()
+    {
+        var uri = OneBotClient.BuildWsUri("ws://127.0.0.1:3011/ws?x=1", "tok");
+
+        Assert.Contains("x=1", uri.ToString());
+        Assert.Contains("access_token=tok", uri.ToString());
+    }
+
+    [Fact]
+    public void BuildWsUri_NoToken_LeavesUrlAlone()
+    {
+        var uri = OneBotClient.BuildWsUri("ws://127.0.0.1:3011", null);
+        Assert.DoesNotContain("access_token", uri.ToString());
+        Assert.Equal("127.0.0.1", uri.Host);
+        Assert.Equal(3011, uri.Port);
+    }
+
+    [Fact]
+    public void BuildWsUri_EscapesToken()
+        => Assert.Contains("access_token=a%2Bb", OneBotClient.BuildWsUri("ws://x/", "a+b").ToString());
+}
