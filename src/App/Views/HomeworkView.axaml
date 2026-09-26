@@ -1,13 +1,14 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:SmartClassroom.App.ViewModels"
+             xmlns:local="using:SmartClassroom.App"
              x:Class="SmartClassroom.App.Views.HomeworkView"
              x:DataType="vm:HomeworkViewModel">
 
     <UserControl.Resources>
         <!-- 卡片外观抽成资源：列表和拖拽时的"虚"卡片共用同一模板，保证长得一样 -->
         <DataTemplate x:Key="HomeworkCardTemplate" x:DataType="vm:HomeworkCard">
-            <Border Classes="hwcard" Width="344" MinHeight="132" Margin="0,0,10,10"
+            <Border Classes="hwcard" MinHeight="120"
                     CornerRadius="8" BorderThickness="1" ClipToBounds="True"
                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
@@ -93,7 +94,8 @@
                                       ItemTemplate="{StaticResource HomeworkCardTemplate}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <WrapPanel Orientation="Horizontal" />
+                                    <!-- 瀑布流：列数随宽度自适应，卡片拉伸填满，每列独立堆叠 -->
+                                    <local:MasonryPanel MinItemWidth="300" Gap="10" MaxColumns="4" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                         </ItemsControl>
