@@ -8,6 +8,7 @@ public sealed class ScheduleGateTests
     private sealed class FakeStatus(bool inClass) : IClassStatusProvider
     {
         public Task<bool> IsInClassAsync(CancellationToken cancel = default) => Task.FromResult(inClass);
+        public Task<CurrentLesson?> GetCurrentLessonAsync(CancellationToken cancel = default) => Task.FromResult<CurrentLesson?>(null);
     }
 
     private static SummonEvent Summon(string target, bool urgent) => new()

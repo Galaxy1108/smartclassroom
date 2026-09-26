@@ -2,12 +2,18 @@ using SmartClassroom.Contracts;
 
 namespace SmartClassroom.Core;
 
-/// <summary>课表状态源（生产实现走 ClassIsland IPC，v0.3 接入；单测用假实现）。</summary>
+/// <summary>课表状态源（生产实现走 ClassIsland IPC；单测用假实现）。</summary>
 public interface IClassStatusProvider
 {
     /// <summary>当前是否在上课中（含课表未加载返回 false，由调用方标注未知）。</summary>
     Task<bool> IsInClassAsync(CancellationToken cancel = default);
+
+    /// <summary>当前课程（上课中才有；未连接/无课表返回 null）。</summary>
+    Task<CurrentLesson?> GetCurrentLessonAsync(CancellationToken cancel = default);
 }
+
+/// <summary>当前课程快照。</summary>
+public sealed record CurrentLesson(string Subject, string? Teacher);
 
 /// <summary>
 /// 通知调度门：上课中非紧急召唤排队，下课 flush；紧急或空闲立刻发。
