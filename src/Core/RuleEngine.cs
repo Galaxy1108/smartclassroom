@@ -45,7 +45,13 @@ public static class RuleEngine
 /// <summary>AI 结构化调用：三任务专用 prompt + JSON 解析。失败抛 AiException，上层降级。</summary>
 public sealed class AiAnalyzer(IAiClient ai)
 {
-    private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions Json = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        // 模型偶尔把数字写成字符串（"period":"3"）；不放开的话反序列化会抛异常，
+        // 实测直接把 WS 事件循环掀翻，状态栏变成"QQ 未连接"。
+        NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
+    };
 
     /// <summary>
     /// 召唤解析。**必须带上下文**：消息里常只说"老师叫你过去一趟"，
@@ -134,7 +140,12 @@ public sealed class AiAnalyzer(IAiClient ai)
         var system = $$"""
             你整理老师布置的作业。发送者科目为"{{senderSubject ?? "未知"}}"（可作参考，以消息内容为准）。
             只输出 JSON：{"is_homework":true/false,"subject":"科目","date":"yyyy-MM-dd，当日作业则为今天","items":["作业条目1","作业条目2"],"due":"截止说明，无则空字符串","confidence":0-1}
-            今天是 {{DateTime.Now:yyyy-MM-dd}}。
+            今天是 {{DateTime.Now:yyyy-MM-dd}}（{{DateTime.Now:dddd}}）。
+
+            due 要**把相对时间换算成具体日期**，并保留原话，例如：
+              消息里"后天交"、今天是 2026-09-26 → due = "2026-09-28（后天交）"
+              消息里"明天上课前交"、今天是 2026-09-26 → due = "2026-09-27（明天上课前交）"
+              没提截止 → due = ""
             """;
         var raw = await ai.AskAsync(system, text, cancel, onProgress).ConfigureAwait(false);
         var d = JsonSerializer.Deserialize<HomeworkDraft>(AiGateway.ExtractJson(raw), Json);
@@ -181,13 +192,13 @@ public sealed record HomeworkDraft(
     [property: JsonPropertyName("due")] string Due,
     [property: JsonPropertyName("confidence")] double Confidence);
 public sealed record SlotDraft(
-    [property: JsonPropertyName("date")] string Date,
-    [property: JsonPropertyName("period")] int Period,
+    [property: JsonPropertyName("date")] string? Date,
+    [property: JsonPropertyName("period")] int? Period,
     [property: JsonPropertyName("subject")] string? Subject);
 public sealed record ExchangeDraft(
     [property: JsonPropertyName("is_exchange")] bool IsExchange,
     [property: JsonPropertyName("kind")] string Kind,
-    [property: JsonPropertyName("from")] SlotDraft From,
+    [property: JsonPropertyName("from")] SlotDraft? From,
     [property: JsonPropertyName("to")] SlotDraft? To,
     [property: JsonPropertyName("new_subject")] string NewSubject,
     [property: JsonPropertyName("confidence")] double Confidence);

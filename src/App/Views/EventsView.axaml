@@ -26,6 +26,20 @@
             <Setter Property="Foreground" Value="{DynamicResource SeverityInfoAccentBrush}" />
         </Style>
 
+        <Style Selector="Border.tlrow.muted">
+            <Setter Property="Background" Value="{DynamicResource SeverityMutedFillBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SeverityMutedStrokeBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow.muted Border.tlstrip">
+            <Setter Property="Background" Value="{DynamicResource SeverityMutedAccentBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow.muted PathIcon">
+            <Setter Property="Foreground" Value="{DynamicResource SeverityMutedAccentBrush}" />
+        </Style>
+        <Style Selector="Border.tlrow.muted TextBlock.tlseverity">
+            <Setter Property="Foreground" Value="{DynamicResource SeverityMutedAccentBrush}" />
+        </Style>
+
         <Style Selector="Border.tlrow.success">
             <Setter Property="Background" Value="{DynamicResource SeveritySuccessFillBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource SeveritySuccessStrokeBrush}" />
@@ -197,6 +211,7 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ActivityRow">
                         <Border Classes="tlrow"
+                                Classes.muted="{Binding IsMuted}"
                                 Classes.success="{Binding IsSuccess}"
                                 Classes.warning="{Binding IsWarning}"
                                 Classes.error="{Binding IsError}">

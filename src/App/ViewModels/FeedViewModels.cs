@@ -473,6 +473,9 @@ public sealed class ActivityRow(ActivityEntry entry)
             ? $"处理中 {(DateTimeOffset.Now - entry.At).TotalSeconds:F1}s"
             : "";
 
+    /// <summary>"已忽略"这类没有发生任何事的结果：灰色，不抢眼也不报警。</summary>
+    public bool IsMuted => entry.Severity == ActivitySeverity.Muted;
+
     public bool IsInfo => entry.Severity == ActivitySeverity.Info;
     public bool IsSuccess => entry.Severity == ActivitySeverity.Success;
     public bool IsWarning => entry.Severity == ActivitySeverity.Warning;
@@ -480,6 +483,7 @@ public sealed class ActivityRow(ActivityEntry entry)
 
     public string SeverityLabel => entry.Severity switch
     {
+        ActivitySeverity.Muted => "已忽略",
         ActivitySeverity.Success => "成功",
         ActivitySeverity.Warning => "警告",
         ActivitySeverity.Error => "错误",

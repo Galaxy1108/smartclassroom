@@ -125,7 +125,20 @@ public sealed class ActivityFeed(int capacity = 200)
     /// <summary>结束一条进行中条目（就地变成结果行，不再转圈）。</summary>
     public void Complete(Guid id, string title, string detail,
         ActivitySeverity severity = ActivitySeverity.Success)
-        => Update(id, title, detail, severity);
+    {
+        if (!_byId.TryGetValue(id, out var node))
+            return;
+        var e = node.Value;
+        // 关键：把 InProgress 置回 false —— 否则界面上的转圈与秒表永远不停
+        //（实测"已执行：作业已上墙 处理中 81.0s"这种鬼东西）。
+        node.Value = e with
+        {
+            Title = title,
+            Detail = detail,
+            Severity = severity,
+            InProgress = false
+        };
+    }
 
     /// <summary>清空时间线（界面上的「清空」按钮；持久化由 App 层的下一次落盘完成）。</summary>
     public void Clear() => _entries.Clear();
@@ -150,6 +163,12 @@ public enum ActivitySeverity
 {
     /// <summary>中性记录（正常流程、恢复状态、AI 判定后跳过）。</summary>
     Info,
+
+    /// <summary>
+    /// "已忽略"这类**没有发生任何事**的结果：界面用灰色，
+    /// 不抢眼也不报警（用户明确要求：已忽略应该是灰色）。
+    /// </summary>
+    Muted,
 
     /// <summary>按预期完成的副作用（已归档、已上墙、已发通知）。</summary>
     Success,

@@ -346,7 +346,28 @@ public static class Runtime
                             }
                             break;
                         case GroupUploadEvent u when wanted || groups.Contains(u.GroupId):
-                            await pipeline.OnGroupUploadAsync(u, ct);
+                        {
+                            var row = Feed.Begin("qq", "收到群文件",
+                                $"{u.File.Name}（{u.File.Size / 1024 / 1024}MB）");
+                            await pipeline.OnGroupUploadAsync(u, ct, row);
+                            break;
+                        }
+                        case GroupUploadEvent privateFile when privateFile.GroupId == 0
+                                                              && Settings.ListenTeacherPrivate:
+                        {
+                            // 私聊文件：行里直接显示文件名（跟消息内容一样）
+                            var row = Feed.Begin("qq", "收到文件",
+                                $"{privateFile.File.Name}（{privateFile.File.Size / 1024 / 1024}MB）");
+                            await pipeline.OnGroupUploadAsync(privateFile, ct, row);
+                            break;
+                        }
+                        case GroupUploadEvent ignoredFile:
+                            // 没监听的群里的文件同样要给结果，并且**写出文件名**（否则只有一片空白）
+                            var fileRow = Feed.Begin("qq", "收到群文件",
+                                $"{ignoredFile.File.Name}（{ignoredFile.File.Size / 1024 / 1024}MB）");
+                            Feed.Complete(fileRow, "已忽略（该群没有监听）",
+                                $"群 {ignoredFile.GroupId} 不在监听列表里；在「监听群号」里点「选择群…」把它加上",
+                                ActivitySeverity.Muted);
                             break;
                         case PrivateMessageEvent p when Settings.ListenTeacherPrivate:
                         {
@@ -356,8 +377,14 @@ public static class Runtime
                             break;
                         }
                     }
-                }, cancel);
-                Dispatcher.UIThread.Post(() => status.StatusText = "QQ 已连接");
+                }, cancel,
+                onHandlerError: (ev, ex) =>
+                {
+                    // 单条消息处理出错：写一条"出现错误"的结果行，连接保持不动
+                    Feed.Append("qq", "出现错误：处理消息失败",
+                        $"{ex.GetType().Name}：{ex.Message}", ActivitySeverity.Error);
+                },
+                onConnected: () => Dispatcher.UIThread.Post(() => status.StatusText = "QQ 已连接"));
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)

@@ -42,9 +42,47 @@ public static class OneBotParser
             ev.Card = sender.GetStringOrNull("card");
             ev.Nickname = sender.GetStringOrNull("nickname");
         }
+        // 群里直接发文件时也是一个 file 段 —— 当作上传事件处理（否则会变成一条空文本消息）
+        if (ExtractFile(root) is { } groupFile)
+            return ToFileEvent(root, groupFile, ev.GroupId, ev.UserId);
         (ev.RawMessage, ev.Text) = ExtractText(root);
         return ev;
     }
+
+    /// <summary>
+    /// 消息里的 file 段（SnowLuma 对私聊/群文件都会给：
+    /// data = { file, file_id, name, size, url, file_hash }）。
+    /// </summary>
+    private static UploadedFile? ExtractFile(JsonElement root)
+    {
+        if (!root.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Array)
+            return null;
+        foreach (var seg in message.EnumerateArray())
+        {
+            if (seg.GetStringOrNull("type") != "file" || !seg.TryGetProperty("data", out var data))
+                continue;
+            var name = data.GetStringOrNull("name") ?? data.GetStringOrNull("file") ?? "";
+            var id = data.GetStringOrNull("id") ?? data.GetStringOrNull("file_id") ?? "";
+            var url = data.GetStringOrNull("url") ?? "";
+            long size = 0;
+            if (data.TryGetProperty("size", out var s) && s.TryGetInt64(out var sv)) size = sv;
+            else if (data.TryGetProperty("file_size", out var fs) && fs.TryGetInt64(out var fsv)) size = fsv;
+            return new UploadedFile { Id = id, Name = name, Size = size, Url = url };
+        }
+        return null;
+    }
+
+    private static GroupUploadEvent ToFileEvent(JsonElement root, UploadedFile file, long groupId, long userId)
+        => new()
+        {
+            PostType = "message",
+            NoticeType = "group_upload",
+            Time = root.GetInt64OrZero("time"),
+            SelfId = root.GetInt64OrZero("self_id"),
+            GroupId = groupId,          // 私聊为 0
+            UserId = userId,
+            File = file
+        };
 
     private static OneBotEvent? ParsePrivateMessage(JsonElement root)
     {
@@ -59,6 +97,10 @@ public static class OneBotParser
         };
         if (root.TryGetProperty("sender", out var sender))
             ev.Nickname = sender.GetStringOrNull("nickname");
+        // 私聊文件：SnowLuma 发的是带 file 段的消息（不是 notice），必须在这里认出来，
+        // 否则整条消息会被当成"没有内容的文本"丢掉 —— 用户看到的就是"文件没保存"。
+        if (ExtractFile(root) is { } privateFile)
+            return ToFileEvent(root, privateFile, 0, ev.UserId);
         (ev.RawMessage, ev.Text) = ExtractText(root);
         return ev;
     }

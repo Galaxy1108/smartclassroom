@@ -45,13 +45,13 @@ public sealed class PipelineService(
             var kind = await ClassifyAsync(ev, sender, cancel, id).ConfigureAwait(false);
             if (kind == RuleEngine.Kind.None)
             {
-                feed.Complete(id, "已忽略（与三个功能都无关）", Trim(ev.Text), ActivitySeverity.Info);
+                feed.Complete(id, "已忽略（与三个功能都无关）", Trim(ev.Text), ActivitySeverity.Muted);
                 return;
             }
             feed.Update(id, $"正在处理：{FeatureName(kind)}", $"{who}：{Trim(ev.Text)}");
             if (!SenderAllowed(sender, ev, kind))
             {
-                feed.Complete(id, "已忽略（发送者不在老师名单里）", Trim(ev.Text), ActivitySeverity.Warning);
+                feed.Complete(id, "已忽略（发送者不在老师名单里）", Trim(ev.Text), ActivitySeverity.Muted);
                 return;
             }
             await DispatchGroupAsync(ev, sender, kind, cancel, id).ConfigureAwait(false);
@@ -141,7 +141,7 @@ public sealed class PipelineService(
         var kind = await ClassifyAsync(ev, sender, cancel, id).ConfigureAwait(false);
         if (kind == RuleEngine.Kind.None)
         {
-            feed.Complete(id, "已忽略（与三个功能都无关）", Trim(ev.Text), ActivitySeverity.Info);
+            feed.Complete(id, "已忽略（与三个功能都无关）", Trim(ev.Text), ActivitySeverity.Muted);
             return;
         }
         feed.Update(id, $"正在处理：{FeatureName(kind)}", $"{who}：{Trim(ev.Text)}");
@@ -240,26 +240,38 @@ public sealed class PipelineService(
     }
 
     /// <summary>群文件上传入口。</summary>
-    public async Task OnGroupUploadAsync(GroupUploadEvent ev, CancellationToken cancel = default)
+    public async Task OnGroupUploadAsync(GroupUploadEvent ev, CancellationToken cancel = default,
+        Guid? rowId = null)
     {
+        var fileName = string.IsNullOrWhiteSpace(ev.File.Name) ? "(未命名文件)" : ev.File.Name;
         if (!flags.FileArchive)
         {
+            Finish(rowId, "已忽略（群文件自动归档未开启）", fileName, ActivitySeverity.Muted);
             NoteDisabled("file", "群文件自动归档");
             return;
         }
         var sender = teachers.ToSender(ev.UserId, null, null);
+        if (!SenderAllowed(sender, ev, RuleEngine.Kind.None))
+        {
+            Finish(rowId, "已忽略（发送者不在老师名单里）", fileName, ActivitySeverity.Muted);
+            return;
+        }
         ArchiveOutcome outcome;
         try
         {
             outcome = await archive.HandleAsync(ev, sender, async (e, ct) =>
             {
+                // 文件段自带直链（私聊文件就是这种情况）就直接用；
+                // 群文件没带 url 时才去调 get_group_file_url。
+                if (e.File.HasUrl)
+                    return e.File.Url;
                 try { return (await oneBot.GetGroupFileUrlAsync(e.GroupId, e.File.Id, e.File.Busid, ct))?.Url; }
                 catch { return null; }
             }, cancel).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            feed.Append("file", $"文件归档失败：{ev.File.Name}", ex.Message, ActivitySeverity.Error);
+            Finish(rowId, "出现错误：文件归档失败", $"{fileName} · {ex.Message}", ActivitySeverity.Error);
             return;
         }
         switch (outcome.Result)
@@ -277,16 +289,15 @@ public sealed class PipelineService(
                     ClassDate = DateOnly.FromDateTime(DateTime.Now),
                     ArchivedAt = DateTimeOffset.Now
                 });
-                feed.Append("file", $"已归档：{ev.File.Name}", $"来自{sender.TeacherName ?? "未知发送者"}",
-                    ActivitySeverity.Success);
+                Finish(rowId, "已执行：已归档", $"{fileName} · 来自{sender.TeacherName ?? "未知发送者"}");
                 break;
             case ArchiveResult.PendingConfirm:
-                feed.Append("file", $"大文件待确认：{ev.File.Name}",
-                    $"{ev.File.Size / 1024 / 1024}MB，来自{sender.TeacherName ?? "未知发送者"}",
-                    ActivitySeverity.Warning);
+                Finish(rowId, "已忽略：大文件待确认",
+                    $"{fileName}（{ev.File.Size / 1024 / 1024}MB，来自{sender.TeacherName ?? "未知发送者"}）",
+                    ActivitySeverity.Muted);
                 break;
             case ArchiveResult.Failed:
-                feed.Append("file", $"文件归档失败：{ev.File.Name}", outcome.Error ?? "",
+                Finish(rowId, "出现错误：文件归档失败", $"{fileName} · {outcome.Error}",
                     ActivitySeverity.Error);
                 break;
         }
@@ -537,7 +548,7 @@ public sealed class PipelineService(
         {
             if (resolvePendingId is not null)
                 pending.Remove(resolvePendingId);
-            Finish(rowId, "已忽略（AI 判定不是召唤）", ev.Text, ActivitySeverity.Info);
+            Finish(rowId, "已忽略（AI 判定不是召唤）", ev.Text, ActivitySeverity.Muted);
             return;
         }
         var summon = new SummonEvent
@@ -632,12 +643,23 @@ public sealed class PipelineService(
                     new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
             return;
         }
+        // 节次缺失（模型没给 / 给了非数字）就转人工，别拿 0 去查课表
+        var fromPeriod = d.From?.Period ?? 0;
+        if (d.From is null || fromPeriod <= 0)
+        {
+            if (!keepOnFailure)
+                AddPending("exchange", "换课缺少节次，需人工补录", ev.Text, "AI 没给出具体第几节", sender,
+                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
+            return;
+        }
         var req = new ExchangeRequest
         {
             RequestId = Guid.NewGuid().ToString(),
             Kind = kind,
-            From = new ClassSlot { Date = ParseDate(d.From.Date), PeriodIndex = d.From.Period },
-            To = d.To is null ? null : new ClassSlot { Date = ParseDate(d.To.Date), PeriodIndex = d.To.Period },
+            From = new ClassSlot { Date = ParseDate(d.From.Date), PeriodIndex = fromPeriod },
+            To = d.To?.Period is { } toPeriod and > 0
+                ? new ClassSlot { Date = ParseDate(d.To.Date), PeriodIndex = toPeriod }
+                : null,
             NewSubject = d.NewSubject,
             RawText = ev.Text,
             Sender = sender,
@@ -658,7 +680,7 @@ public sealed class PipelineService(
         Finish(rowId,
             verdict.Legal ? "已执行：换课" : "已忽略：换课非法（已转人工）",
             $"{verdict.Message} · {ev.Text}",
-            verdict.Legal ? ActivitySeverity.Success : ActivitySeverity.Warning);
+            verdict.Legal ? ActivitySeverity.Success : ActivitySeverity.Muted);
         if (!verdict.Legal)
             gate.EnqueueManual("需手动换课", verdict.Message);
     }

@@ -153,3 +153,62 @@ public sealed class OneBotWsUriTests
     public void BuildWsUri_EscapesToken()
         => Assert.Contains("access_token=a%2Bb", OneBotClient.BuildWsUri("ws://x/", "a+b").ToString());
 }
+
+/// <summary>
+/// 私聊/群里的文件段。实测踩到：SnowLuma 把私聊文件转成**带 file 段的消息**（不是 notice），
+/// 而解析器只认文本段 → 整条消息被当成空文本丢掉，用户看到的就是"文件没保存"。
+/// </summary>
+public sealed class OneBotFileSegmentTests
+{
+    [Fact]
+    public void Parse_PrivateFileSegment_ReturnsFileEvent()
+    {
+        // SnowLuma 的转换结果：data = { file, file_id, name, size, url, file_hash }
+        var json = """
+            {"post_type":"message","message_type":"private","time":1,"self_id":2,"user_id":10001,
+             "message_id":9,
+             "message":[{"type":"file","data":{"file":"cherenkov_animation.html","file_id":"abc",
+                        "name":"cherenkov_animation.html","size":7414272,
+                        "url":"http://127.0.0.1:3000/get_file?x=1","file_hash":"h"}}],
+             "sender":{"nickname":"张老师"}}
+            """;
+
+        var ev = Assert.IsType<GroupUploadEvent>(OneBotParser.Parse(json));
+
+        Assert.Equal(0L, ev.GroupId);                       // 私聊：GroupId 为 0
+        Assert.Equal(10001L, ev.UserId);
+        Assert.Equal("cherenkov_animation.html", ev.File.Name);
+        Assert.Equal(7414272, ev.File.Size);
+        Assert.True(ev.File.HasUrl);                        // 私聊文件靠这个直链下载
+    }
+
+    [Fact]
+    public void Parse_GroupFileSegment_ReturnsFileEvent()
+    {
+        var json = """
+            {"post_type":"message","message_type":"group","time":1,"self_id":2,"group_id":100200300,
+             "user_id":10001,"message_id":7,
+             "message":[{"type":"file","data":{"name":"第三章课件.pptx","size":1024,"file_id":"f1"}}],
+             "sender":{"card":"张老师"}}
+            """;
+
+        var ev = Assert.IsType<GroupUploadEvent>(OneBotParser.Parse(json));
+
+        Assert.Equal(100200300L, ev.GroupId);
+        Assert.Equal("第三章课件.pptx", ev.File.Name);
+        Assert.False(ev.File.HasUrl);                       // 群文件没带 url → 走 get_group_file_url
+    }
+
+    [Fact]
+    public void Parse_TextMessage_StillWorks()
+    {
+        var json = """
+            {"post_type":"message","message_type":"private","time":1,"self_id":2,"user_id":10001,
+             "message_id":9,"message":[{"type":"text","data":{"text":"小明来一下"}}],
+             "sender":{"nickname":"张老师"}}
+            """;
+
+        var ev = Assert.IsType<PrivateMessageEvent>(OneBotParser.Parse(json));
+        Assert.Equal("小明来一下", ev.Text);
+    }
+}

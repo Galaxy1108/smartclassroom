@@ -40,6 +40,10 @@
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <TextBlock Text="{Binding Sender}" FontSize="11" Opacity="0.5" />
                             <TextBlock Text="{Binding ItemCountLabel}" FontSize="11" Opacity="0.5" />
+                            <!-- 截止时间：AI 会把"后天交"换算成具体日期，这里显示出来 -->
+                            <TextBlock Text="{Binding Due, StringFormat='截止：{0}'}" FontSize="11"
+                                       IsVisible="{Binding HasDue}"
+                                       Foreground="{DynamicResource SeverityWarningAccentBrush}" />
                         </StackPanel>
                     </StackPanel>
                 </Grid>

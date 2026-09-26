@@ -67,11 +67,15 @@ public sealed class PrivateMessageEvent : OneBotEvent, IIncomingMessage
 }
 
 /// <summary>群文件上传通知（notice.group_upload）。</summary>
-public sealed class GroupUploadEvent : OneBotEvent
+public sealed class GroupUploadEvent : OneBotEvent, IIncomingMessage
 {
     public long GroupId { get; set; }
     public long UserId { get; set; }
+    public long MessageId { get; set; }
     public UploadedFile File { get; set; } = new();
+
+    /// <summary>文件名当作"文本"，便于统一走发送者闸门与记录。</summary>
+    public string Text => File.Name;
 }
 
 public sealed class UploadedFile
@@ -80,6 +84,14 @@ public sealed class UploadedFile
     public string Name { get; set; } = "";
     public long Size { get; set; }
     public long Busid { get; set; }
+
+    /// <summary>
+    /// 直链。**私聊文件就靠它**：SnowLuma 把私聊文件转成消息里的 file 段并带上 url，
+    /// 而群文件才需要另外调 get_group_file_url。
+    /// </summary>
+    public string Url { get; set; } = "";
+
+    public bool HasUrl => Url.Length > 0;
 }
 
 /// <summary>动作调用通用信封。HTTP 200 且 retcode==0 才算成功。</summary>

@@ -46,14 +46,21 @@ public sealed class OneBotClient : IAsyncDisposable
     }
 
     /// <summary>连接正向 WS 并循环投递事件；cancel 后返回。断线抛异常，由上层重连。</summary>
+    /// <param name="onEvent">事件处理。**它抛异常不会断连接**（见下），连接类错误才由上层重连。</param>
+    /// <param name="onHandlerError">处理某条事件出错时的回调（记日志用），不传则忽略。</param>
     public async Task RunEventLoopAsync(
         Func<OneBotEvent, CancellationToken, Task> onEvent,
-        CancellationToken cancel)
+        CancellationToken cancel,
+        Action<OneBotEvent, Exception>? onHandlerError = null,
+        Action? onConnected = null)
     {
         _ws = new ClientWebSocket();
         if (_token is not null)
             _ws.Options.SetRequestHeader("Authorization", $"Bearer {_token}");
         await _ws.ConnectAsync(BuildWsUri(_wsUri.ToString(), _token), cancel).ConfigureAwait(false);
+        // 连上就通知上层 —— 状态栏的"已连接"必须在这里更新，
+        // 写在循环之后的话，只有断开时才会执行（实测一直显示"正在连接 QQ…"）。
+        onConnected?.Invoke();
 
         var buffer = new byte[64 * 1024];
         var sb = new StringBuilder();
@@ -72,8 +79,23 @@ public sealed class OneBotClient : IAsyncDisposable
             OneBotEvent? ev;
             try { ev = OneBotParser.Parse(sb.ToString()); }
             catch (JsonException) { continue; }
-            if (ev is not null)
+            if (ev is null)
+                continue;
+            try
+            {
                 await onEvent(ev, cancel).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                // 一条消息处理失败（AI 解析、反序列化…）**不能**把整个事件循环掀翻：
+                // 实测换课 JSON 反序列化异常会冒到这里，被当成"连接断开"，
+                // 于是状态栏显示"QQ 未连接（重连中…）"，而消息其实一直在收。
+                onHandlerError?.Invoke(ev, ex);
+            }
         }
     }
 
