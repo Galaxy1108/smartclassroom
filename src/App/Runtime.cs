@@ -79,6 +79,7 @@ public static class Runtime
         }
 
         var teachers = new TeacherMap(Settings.Teachers);
+        RepairOneBotEndpoint();   // 地址与 token 可能来自不同账号（手工改过就会这样）
         var oneBot = new OneBotClient(Settings.OneBotHttp, Settings.OneBotWs, Settings.OneBotToken,
             wsToken: Settings.OneBotWsToken);
         var plugin = new PluginLink($"http://127.0.0.1:{Settings.PluginPort}", Settings.PluginToken);
@@ -148,6 +149,68 @@ public static class Runtime
         return missing.Count == 0
             ? (true, "正在连接 QQ…")
             : (false, "未配置：" + string.Join("、", missing) + "（在设置页填好后重启生效）");
+    }
+
+    /// <summary>
+    /// 校验并纠正 OneBot 连接信息：**地址与 token 必须是同一个账号的组合**。
+    /// 实测踩到：URL 指着 3000/3001（班级号）而 token 是另一个号的，
+    /// 于是 WS 升级 401、事件收不到（HTTP 探活能过、WS 过不了，很容易看错）。
+    /// 这里的做法与设置页「检测并选择账号」一致：逐个账号试，用第一个能应答的组合覆盖。
+    /// </summary>
+    private static void RepairOneBotEndpoint()
+    {
+        var installDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "SmartClassroom", "snowluma");
+        try
+        {
+            if (SnowlumaManager.ReadOneBotAccounts(installDir).Count == 0)
+                return;
+
+            // 现组合能应答就不用动（本地调用很快）
+            if (EndpointResponds(Settings.OneBotHttp, Settings.OneBotWs,
+                    Settings.OneBotToken, Settings.OneBotWsToken))
+                return;
+
+            var order = SnowlumaManager.ReadOneBotAccounts(installDir)
+                .OrderByDescending(u => u == Settings.QqAccount);   // 选中的账号优先
+            foreach (var uin in order)
+            {
+                var ep = SnowlumaManager.ReadOneBotEndpoint(installDir, uin);
+                if (ep is null || !EndpointResponds(ep.Http, ep.Ws, ep.Token, ep.WsToken))
+                    continue;
+
+                Feed.Append("qq", $"已按账号 {uin} 纠正 OneBot 连接信息",
+                    $"{Settings.OneBotHttp} → {ep.Http}（地址与 token 必须是同一个账号的）",
+                    ActivitySeverity.Warning);
+                Settings.OneBotHttp = ep.Http;
+                Settings.OneBotWs = ep.Ws;
+                Settings.OneBotToken = ep.Token;
+                Settings.OneBotWsToken = ep.WsToken;
+                if (Settings.QqAccount <= 0)
+                    Settings.QqAccount = uin;
+                SettingsStore.Save(Settings, SettingsStore.DefaultPath);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Feed.Append("qq", "校验 OneBot 连接信息时出错", ex.Message, ActivitySeverity.Warning);
+        }
+    }
+
+    private static bool EndpointResponds(string http, string ws, string token, string wsToken)
+    {
+        try
+        {
+            var client = new OneBotClient(http, ws, token,
+                wsToken: wsToken.Length > 0 ? wsToken : null);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            client.GetLoginInfoAsync(cts.Token).GetAwaiter().GetResult();
+            client.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            return true;
+        }
+        catch { return false; }
     }
 
     public static void Stop()
@@ -280,7 +343,11 @@ public static class Runtime
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
-                Feed.Append("qq", "QQ 连接断开，5 秒后重连", ex.Message, ActivitySeverity.Warning);
+                var hint = ex.Message.Contains("401")
+                    ? "（401 = token 不对：SnowLuma 的 HTTP 与 WS 是两个 token，"
+                      + "且地址与 token 必须是同一个账号的 —— 点「检测并选择账号」会自动配好）"
+                    : "";
+                Feed.Append("qq", "QQ 连接断开，5 秒后重连", ex.Message + hint, ActivitySeverity.Warning);
                 Dispatcher.UIThread.Post(() => status.StatusText = "QQ 未连接（重连中…）");
                 try { await Task.Delay(5000, cancel); } catch { break; }
             }

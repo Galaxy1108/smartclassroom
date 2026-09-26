@@ -505,7 +505,10 @@ token 就写在它的配置里：`config/onebot_<uin>.json` → `networks.httpSe
 > `wsServers[0].accessToken` 各一个（实测不同）。只填 HTTP 那个时，HTTP 调用能通、
 > **WS 升级会被拒 401**（SnowLuma 日志：`rejected unauthorized WebSocket upgrade`），
 > 表现是应用一直"QQ 未连接（重连中…）"、**消息事件一条都收不到**。
-> 应用点「检测并选择账号」会把两个 token 都填上（设置页有单独一行「OneBot WS Token」）。应用会**自己读出来**（地址、端口、token 一起），
+> 应用点「检测并选择账号」会把两个 token 都填上（设置页有单独一行「OneBot WS Token」）。
+> 另外**地址与 token 必须是同一个账号的**：手工把 URL 改成另一个账号的端口、token 没跟着换，
+> 就会出现"HTTP 能通、WS 一直 401"（实测踩到）。应用启动时会校验这组组合，
+> 不对就按 SnowLuma 的配置自动纠正，并在事件页说明。应用会**自己读出来**（地址、端口、token 一起），
 并逐个账号试到能应答为止——**3000/3001 归哪个账号取决于 SnowLuma 启动时谁先登录**，
 所以不能假定是哪一个，也不能让用户手抄 token。
 
