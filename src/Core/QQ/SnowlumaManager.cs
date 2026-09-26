@@ -3,6 +3,7 @@ using System.Formats.Tar;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace SmartClassroom.Core.QQ;
 
@@ -47,6 +48,9 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     private readonly HttpClient _http = http ?? new HttpClient();
     private Process? _process;
 
+    /// <summary>接管来的实例 pid（不是本进程启动的，但「停止」要能停掉它）。</summary>
+    private int? _adoptedPid;
+
     /// <summary>最近若干行输出（用于识别"等待 WebUI 首次设置"这类状态）。</summary>
     private readonly Queue<string> _recentOutput = new();
 
@@ -73,15 +77,17 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     }
 
     /// <summary>SnowLuma 是否在跑：本进程启动的 / pid 文件记录的 / Linux 上扫 /proc 认出来的。</summary>
-    public bool IsRunning(string installDir)
+    public bool IsRunning(string installDir) => FindRunningPid(installDir) is not null;
+
+    /// <summary>找出正在跑的 SnowLuma 进程：本进程启动的 / pid 文件里的 / Linux 扫 /proc 的。</summary>
+    public int? FindRunningPid(string installDir)
     {
         if (_process is { HasExited: false })
-            return true;
+            return _process.Id;
         var pid = ReadPid(installDir);
         if (pid is > 0 && IsProcessAlive(pid.Value))
-            return true;
-        // 用户自己启动的（或上一次应用启动的）：Linux 上扫 /proc 就能认出来
-        return RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && HasIndexProcess(installDir);
+            return pid;
+        return RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? FindIndexProcessPid(installDir) : null;
     }
 
     /// <summary>
@@ -92,6 +98,58 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     public bool NeedsWebUiSetup => _recentOutput.Any(l =>
         l.Contains("awaiting EULA", StringComparison.OrdinalIgnoreCase)
         || l.Contains("EULA/PRIVACY consent", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// 读 SnowLuma 的"发现 QQ 进程就自动注入"开关（config/runtime.json 的 hookAutoLoad）。
+    /// 它默认 false：只起 WebUI，**不会自动注入**——用户点了「启动注入」却没注入，
+    /// 十有八九是这里没开（日志里也只会看到 WebUI 起来了）。
+    /// 返回 null = 文件缺失或读不出来。
+    /// </summary>
+    public static bool? ReadHookAutoLoad(string installDir)
+    {
+        try
+        {
+            var path = RuntimeConfigPath(installDir);
+            if (!File.Exists(path))
+                return null;
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            if (!doc.RootElement.TryGetProperty("hookAutoLoad", out var v))
+                return null;
+            return v.ValueKind switch
+            {
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                _ => null
+            };
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// 打开"自动注入"（保留 runtime.json 里其它字段）。
+    /// 只在该文件能正常解析时才改写，避免把用户配置写坏。
+    /// </summary>
+    public static bool SetHookAutoLoad(string installDir, bool value)
+    {
+        try
+        {
+            var path = RuntimeConfigPath(installDir);
+            if (!File.Exists(path))
+                return false;
+            var root = JsonNode.Parse(File.ReadAllText(path));
+            if (root is not JsonObject obj)
+                return false;
+            obj["hookAutoLoad"] = value;
+            var tmp = path + ".tmp";
+            File.WriteAllText(tmp, obj.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            File.Move(tmp, path, overwrite: true);   // 原子替换
+            return true;
+        }
+        catch { return false; }
+    }
+
+    private static string RuntimeConfigPath(string installDir)
+        => Path.Combine(installDir, "config", "runtime.json");
 
     /// <summary>WebUI 地址（端口读 config/runtime.json，读不到按默认 5099）。</summary>
     public static string WebUiUrl(string installDir)
@@ -131,15 +189,15 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
         catch { return false; }
     }
 
-    /// <summary>Linux：扫 /proc/*/cmdline 找 index.mjs（用户手动启动也能认出来）。</summary>
-    private static bool HasIndexProcess(string installDir)
+    /// <summary>Linux：扫 /proc/*/cmdline 找 index.mjs，返回 pid（用户手动启动也能认出来）。</summary>
+    internal static int? FindIndexProcessPid(string installDir)
     {
         try
         {
             foreach (var dir in Directory.EnumerateDirectories("/proc"))
             {
                 var name = Path.GetFileName(dir);
-                if (!int.TryParse(name, out _))
+                if (!int.TryParse(name, out var pid))
                     continue;
                 var cmdline = Path.Combine(dir, "cmdline");
                 if (!File.Exists(cmdline))
@@ -148,11 +206,11 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
                 try { text = File.ReadAllText(cmdline).Replace('\0', ' '); }
                 catch { continue; }   // 别的用户的进程读不到
                 if (text.Contains("index.mjs") && text.Contains(installDir))
-                    return true;
+                    return pid;
             }
         }
         catch { /* 扫不了就算了 */ }
-        return false;
+        return null;
     }
 
     public async Task<IReadOnlyList<SnowlumaRelease>> ListReleasesAsync(CancellationToken cancel = default)
@@ -211,6 +269,18 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     {
         if (_process is { HasExited: false })
             return Task.CompletedTask;
+
+        // 只看这一次启动的输出（否则上一次"等待同意"的日志会让状态一直错）
+        _recentOutput.Clear();
+
+        // 已经在跑（上次应用启动的 / 用户自己启动的）就接管，别再开一个：
+        // 两个实例会抢同一个 WebUI 端口，而且「停止」按钮会停不掉真正在跑的那个。
+        if (FindRunningPid(installDir) is { } runningPid)
+        {
+            _adoptedPid = runningPid;
+            OnLog?.Invoke($"SnowLuma 已在运行（pid {runningPid}），接管现有实例");
+            return Task.CompletedTask;
+        }
         var entry = Path.Combine(installDir, "index.mjs");
         if (!File.Exists(entry))
             throw new FileNotFoundException($"SnowLuma 未安装或目录不对：{entry}");
@@ -248,6 +318,18 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
         try { _process?.Kill(entireProcessTree: true); } catch { /* 已退出则忽略 */ }
         _process?.Dispose();
         _process = null;
+
+        // 接管来的实例也要能停掉，否则「停止」按了等于没按
+        if (_adoptedPid is { } pid)
+        {
+            try
+            {
+                using var p = Process.GetProcessById(pid);
+                p.Kill(entireProcessTree: true);
+            }
+            catch { /* 已经退出了 */ }
+            _adoptedPid = null;
+        }
         if (installDir is not null)
             DeletePid(installDir);
     }

@@ -1203,7 +1203,12 @@ public sealed class SettingsViewModel : ViewModelBase
                 QqStatusSeverity = NoticeSeverity.Warning;
                 return;   // 不同意协议 → 不启动（启动了它也不会注入）
             }
+            // SnowLuma 默认 hookAutoLoad=false：只起 WebUI、不自动注入。
+            // 用户点的是「启动注入」，所以这里替他把开关打开（可在 WebUI 里改回去）。
+            EnsureAutoInjectEnabled();
+
             await _manager.StartAsync(InstallDir, acceptAgreements: true);
+            NeedsWebUiSetup = false;   // 同意是我们带过去的，不该再显示"卡在等同意"
             AppendLog("SnowLuma 已启动，5 秒后自动检测 QQ…");
             await Task.Delay(5000);
             await ProbeAsync();     // 探测结果自己会弹通知
@@ -1247,6 +1252,32 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             IsStopping = false;
             OnPropertyChanged(nameof(StopButtonText));
+        }
+    }
+
+    /// <summary>
+    /// 确保 SnowLuma 的"发现 QQ 就自动注入"是开着的。
+    /// 它默认 false，只起 WebUI 不注入——用户看到的现象就是"启动了但一直未注入"。
+    /// </summary>
+    private void EnsureAutoInjectEnabled()
+    {
+        var current = SnowlumaManager.ReadHookAutoLoad(InstallDir);
+        if (current is null)
+        {
+            AppendLog("读不到 SnowLuma 的 runtime.json，跳过自动注入开关");
+            return;
+        }
+        if (current.Value)
+            return;
+        if (SnowlumaManager.SetHookAutoLoad(InstallDir, true))
+        {
+            AppendLog("已开启 SnowLuma 的自动注入（hookAutoLoad=true）");
+            Toasts.Show("已开启自动注入", "SnowLuma 会在发现 QQ 进程时注入。", NoticeSeverity.Success);
+        }
+        else
+        {
+            AppendLog("开启自动注入失败（runtime.json 不可写或格式不对）");
+            Toasts.Warn("没能开启自动注入", "请在 SnowLuma 的 WebUI 里手动开启。");
         }
     }
 
@@ -1351,8 +1382,8 @@ public sealed class SettingsViewModel : ViewModelBase
                     Toasts.Warn("已注入，QQ 未登录", "在 QQ 里登录班级号后重试。");
                     break;
                 case SnowlumaStatus.StartedNotInjected when NeedsWebUiSetup:
-                    Toasts.Warn("SnowLuma 需要先同意用户协议/隐私政策",
-                        $"打开 {WebUiUrl} 同意 EULA/隐私政策并修改密码后才会注入。");
+                    Toasts.Warn("需要同意 SnowLuma 的协议",
+                        $"这是 SnowLuma 自己的用户协议与隐私政策（与封号风险提示是两回事）：打开 {WebUiUrl} 同意后才会注入。");
                     break;
                 case SnowlumaStatus.StartedNotInjected:
                     Toasts.Warn("SnowLuma 已启动，但未注入", "确认 QQ 已登录；必要时打开 WebUI 查看原因。");
