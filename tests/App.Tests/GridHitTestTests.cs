@@ -107,3 +107,40 @@ public sealed class GridHitTestTests
         Assert.Equal(2, GridHitTest.IndexAt(cells, new Point(100, 260)));
     }
 }
+
+/// <summary>严格命中（按下判定）：不允许"最近"兜底，否则点空白会误拖卡片。</summary>
+public sealed class GridHitTestStrictTests
+{
+    private static List<Rect> Grid(int count, int columns)
+    {
+        var cells = new List<Rect>();
+        for (var i = 0; i < count; i++)
+            cells.Add(new Rect(i % columns * 354, i / columns * 142, 344, 132));
+        return cells;
+    }
+
+    [Fact]
+    public void InsideCell_ReturnsIndex()
+    {
+        var cells = Grid(4, 2);
+        Assert.Equal(0, GridHitTest.IndexAtStrict(cells, new Point(100, 60)));
+        Assert.Equal(3, GridHitTest.IndexAtStrict(cells, new Point(400, 200)));
+    }
+
+    [Theory]
+    [InlineData(349, 60)]     // 列间空隙
+    [InlineData(100, 137)]    // 行间空隙
+    [InlineData(-5, 60)]      // 左侧空白
+    [InlineData(100, 999)]    // 下方空白
+    public void GapOrOutside_ReturnsMinusOne(double x, double y)
+    {
+        var cells = Grid(4, 2);
+        Assert.Equal(-1, GridHitTest.IndexAtStrict(cells, new Point(x, y)));
+        // 对比：宽松版会回退到最近的格子（拖拽指示需要这个行为）
+        Assert.InRange(GridHitTest.IndexAt(cells, new Point(x, y)), 0, 3);
+    }
+
+    [Fact]
+    public void Empty_ReturnsMinusOne()
+        => Assert.Equal(-1, GridHitTest.IndexAtStrict([], new Point(0, 0)));
+}

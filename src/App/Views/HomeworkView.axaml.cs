@@ -28,12 +28,28 @@ public partial class HomeworkView : UserControl
         DataContext ??= new HomeworkViewModel();
 
         AddHandler(PointerWheelChangedEvent, OnWheelZoom, RoutingStrategies.Tunnel);
+
+        // 指针事件统一挂在列表上（隧道阶段）。
+        // 之前把处理器写在 DataTemplate 的 Border 里——把卡片外观抽成资源模板时漏抄了那几行，
+        // 结果没人接事件、拖拽彻底失效。挂在列表上就不会因为改模板而再丢。
+        HomeworkList.AddHandler(PointerPressedEvent, Card_PointerPressed, RoutingStrategies.Tunnel);
+        HomeworkList.AddHandler(PointerMovedEvent, Card_PointerMoved, RoutingStrategies.Tunnel);
+        HomeworkList.AddHandler(PointerReleasedEvent, Card_PointerReleased, RoutingStrategies.Tunnel);
+        HomeworkList.AddHandler(PointerCaptureLostEvent, Card_PointerCaptureLost, RoutingStrategies.Tunnel);
+        DragHandlersAttached = true;
         ContentZoom.Changed += OnZoomChanged;
         ApplyZoom(ContentZoom.Scale);
         DetachedFromVisualTree += (_, _) => ContentZoom.Changed -= OnZoomChanged;
     }
 
     private HomeworkViewModel Vm => (HomeworkViewModel)DataContext!;
+
+    /// <summary>
+    /// 指针处理器是否已挂上（仅供测试）。
+    /// 有它是因为踩过一次坑：把卡片外观抽成 DataTemplate 资源时漏抄了
+    /// Border 上的 PointerXxx 处理器，拖拽就彻底失效且没有任何报错。
+    /// </summary>
+    internal bool DragHandlersAttached { get; private set; }
 
     // ================= 缩放（仅本页内容区） =================
 
@@ -73,12 +89,17 @@ public partial class HomeworkView : UserControl
     {
         try
         {
-            if (sender is not Control card || card.DataContext is not HomeworkCard item)
+            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
                 return;
-            if (!e.GetCurrentPoint(card).Properties.IsLeftButtonPressed)
-                return;
-            var index = Vm.Items.IndexOf(item);
+
+            var point = e.GetPosition(CardLayer);
+            // 严格命中：必须真的按在某张卡片上（不允许"最近"兜底）
+            var index = GridHitTest.IndexAtStrict(Containers().Select(c => c.Bounds).ToList(), point);
             if (index < 0)
+                return;
+
+            var card = FindCardVisual(index);
+            if (card is null)
                 return;
 
             _dragCard = card;
@@ -86,10 +107,11 @@ public partial class HomeworkView : UserControl
             _targetIndex = -1;
             _dragging = false;
             _pressedAt = DateTime.UtcNow;
-            _pressPoint = e.GetPosition(CardLayer);
+            _pressPoint = point;
             // 从"按下"起冻结刷新：定时刷新若重建卡片会销毁被按住的控件、丢失指针捕获
             Vm.SuspendRefresh = true;
-            e.Pointer.Capture(card);
+            e.Pointer.Capture(Containers()[index]);
+            e.Handled = true;   // 别让 ScrollViewer 当成拖拽滚动的开始
         }
         catch (Exception ex)
         {
@@ -268,6 +290,17 @@ public partial class HomeworkView : UserControl
     /// <summary>当前实际渲染出来的卡片容器（顺序与数据一致）。</summary>
     private List<Control> Containers()
         => HomeworkList.ItemsPanelRoot?.GetVisualChildren().OfType<Control>().ToList() ?? [];
+
+    /// <summary>取第 index 个格子里的卡片 Border（带 hwcard 类），找不到返回 null。</summary>
+    private Control? FindCardVisual(int index)
+    {
+        var containers = Containers();
+        if (index < 0 || index >= containers.Count)
+            return null;
+        return containers[index].GetVisualDescendants()
+            .OfType<Border>()
+            .FirstOrDefault(b => b.Classes.Contains("hwcard"));
+    }
 
     /// <summary>
     /// 算出指针落在哪个格子上。几何判定交给 <see cref="GridHitTest"/>（纯函数、有单测覆盖，

@@ -10,7 +10,21 @@ namespace SmartClassroom.App;
 public static class GridHitTest
 {
     /// <summary>
+    /// 严格命中：只有指针真的落在某个格子矩形内才返回该下标，否则 -1。
+    /// 用于"按下"判定——这里**不能**用"最近的格子"兜底，
+    /// 否则点击卡片之间的空白也会误判成拖拽某张卡片。
+    /// </summary>
+    public static int IndexAtStrict(IReadOnlyList<Rect> cells, Point p)
+    {
+        for (var i = 0; i < cells.Count; i++)
+            if (cells[i].Contains(p))
+                return i;
+        return -1;
+    }
+
+    /// <summary>
     /// 返回指针所在的格子下标；都不命中时返回中心点最近的格子；空集合返回 -1。
+    /// 用于拖拽过程中的落位指示——允许"最近"兜底，指示框才不会在间隙里闪掉。
     /// </summary>
     public static int IndexAt(IReadOnlyList<Rect> cells, Point p)
     {

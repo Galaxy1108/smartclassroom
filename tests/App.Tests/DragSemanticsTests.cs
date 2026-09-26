@@ -89,3 +89,22 @@ public sealed class DragSemanticsTests
         Assert.Equal(["语文", "数学", "英语"], vm.Items.Select(c => c.Subject));
     }
 }
+
+/// <summary>
+/// 拖拽接线自检。
+/// 起因：把卡片外观抽成 DataTemplate 资源时，Border 上的 PointerPressed/Moved/Released/CaptureLost
+/// 四个处理器漏抄了 —— 界面正常显示，但拖拽完全没反应、也不报错，很难查。
+/// 现在处理器在构造函数里统一挂在列表上，并由这个测试守住"确实挂上了"。
+/// </summary>
+public sealed class DragWiringTests
+{
+    [AvaloniaFact]
+    public void HomeworkView_AttachesDragHandlers()
+    {
+        var view = new SmartClassroom.App.Views.HomeworkView
+        {
+            DataContext = new HomeworkViewModel(new HomeworkStore())
+        };
+        Assert.True(view.DragHandlersAttached);
+    }
+}
