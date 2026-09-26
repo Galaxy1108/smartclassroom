@@ -26,7 +26,7 @@ public sealed class ScheduleGateTests
     {
         var gate = new ScheduleGate(new FakeStatus(true));
         var sent = new List<string>();
-        var d = await gate.ProcessSummonAsync(Summon("小明", false), (t, b, _) => { sent.Add(t); return Task.CompletedTask; });
+        var d = await gate.ProcessSummonAsync(Summon("小明", false), (c, t, b, _) => { sent.Add(t); return Task.CompletedTask; });
         Assert.Equal(GateDecision.Queued, d);
         Assert.Empty(sent);
         Assert.Equal(1, gate.PendingCount);
@@ -37,7 +37,7 @@ public sealed class ScheduleGateTests
     {
         var gate = new ScheduleGate(new FakeStatus(true));
         var sent = new List<string>();
-        var d = await gate.ProcessSummonAsync(Summon("小明", true), (t, b, _) => { sent.Add(t); return Task.CompletedTask; });
+        var d = await gate.ProcessSummonAsync(Summon("小明", true), (c, t, b, _) => { sent.Add(t); return Task.CompletedTask; });
         Assert.Equal(GateDecision.SentNow, d);
         Assert.Single(sent);
     }
@@ -47,7 +47,7 @@ public sealed class ScheduleGateTests
     {
         var gate = new ScheduleGate(new FakeStatus(false));
         var sent = new List<string>();
-        var d = await gate.ProcessSummonAsync(Summon("小明", false), (t, b, _) => { sent.Add(t); return Task.CompletedTask; });
+        var d = await gate.ProcessSummonAsync(Summon("小明", false), (c, t, b, _) => { sent.Add(t); return Task.CompletedTask; });
         Assert.Equal(GateDecision.SentNow, d);
         Assert.Single(sent);
     }
@@ -56,11 +56,11 @@ public sealed class ScheduleGateTests
     public async Task Flush_SendsQueuedInOrder()
     {
         var gate = new ScheduleGate(new FakeStatus(true));
-        Task noop(string t, string b, CancellationToken c) => Task.CompletedTask;
+        Task noop(string ch, string t, string b, CancellationToken c) => Task.CompletedTask;
         await gate.ProcessSummonAsync(Summon("小明", false), noop);
         await gate.ProcessSummonAsync(Summon("小红", false), noop);
         var sent = new List<string>();
-        var n = await gate.FlushAsync((t, b, _) => { sent.Add(t); return Task.CompletedTask; });
+        var n = await gate.FlushAsync((c, t, b, _) => { sent.Add(t); return Task.CompletedTask; });
         Assert.Equal(2, n);
         Assert.Equal(0, gate.PendingCount);
         Assert.Contains("小明", sent[0]);
