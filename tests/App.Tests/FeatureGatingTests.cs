@@ -35,8 +35,8 @@ public sealed class FeatureGatingTests : IDisposable
         Assert.Contains("QQ 连接", vm.SummonGateHint);
         Assert.Contains("AI", vm.HomeworkGateHint);
         Assert.Contains("ClassIsland", vm.ExchangeGateHint);
-        Assert.True(vm.HasMissingIntegration);
-        Assert.Contains("QQ 连接", vm.IntegrationSummary);
+        Assert.Contains("QQ 连接", vm.ArchiveGateHint);
+        Assert.Contains("ClassIsland", vm.CoursewareGateHint);
     }
 
     [AvaloniaFact]
@@ -92,7 +92,7 @@ public sealed class FeatureGatingTests : IDisposable
 
         vm.FeatureCoursewarePopup = true;
         Assert.True(vm.FeatureCoursewarePopup);
-        Assert.False(vm.HasMissingIntegration);
+        Assert.True(vm.CanEnableCoursewarePopup);
     }
 
     [AvaloniaFact]

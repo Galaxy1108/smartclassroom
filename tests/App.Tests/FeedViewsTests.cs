@@ -12,7 +12,8 @@ public sealed class FeedViewsTests
 {
     private static HomeworkItem Hw() => new()
     {
-        HomeworkId = "h1", Subject = "数学", Date = new DateOnly(2026, 9, 25),
+        // 用今天：过期作业默认被收起（见 HomeworkExpiryTests），这里测的是绑定
+        HomeworkId = "h1", Subject = "数学", Date = DateOnly.FromDateTime(DateTime.Now),
         Items = ["练习册P10"],
         Sender = new SenderInfo { UserId = 1 },
         Source = new MessageRef { GroupId = 1, MessageId = 1 }

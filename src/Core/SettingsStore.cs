@@ -35,6 +35,9 @@ public sealed class AppSettings
     /// <summary>true = 下载群里所有人的文件；false（默认）= 只下载教师映射命中的发送者。</summary>
     public bool ArchiveDownloadAll { get; set; } = false;
 
+    /// <summary>作业墙是否显示已过期的作业（默认 false：过期卡片收起，数据仍保留）。</summary>
+    public bool ShowExpiredHomework { get; set; } = false;
+
     /// <summary>ClassIsland 插件桥接 token（插件首次启动生成，写在插件配置目录 bridge.token）。</summary>
     public string PluginToken { get; set; } = "";
 
@@ -43,6 +46,9 @@ public sealed class AppSettings
 
     public List<Teacher> Teachers { get; set; } = [];
     public bool RiskAccepted { get; set; } = false;
+
+    /// <summary>首次启动的封号风险警告是否已经弹过（只自动弹一次）。</summary>
+    public bool RiskWarningShown { get; set; } = false;
 
     // ---- 功能开关：默认全部关闭 ----
     // 这些功能会读班级群消息并产生副作用（发通知、落课、下文件），必须显式开启。
@@ -85,10 +91,12 @@ public sealed class AppSettings
         QqAccounts = [];
         ArchiveRoot = d.ArchiveRoot;
         ArchiveDownloadAll = d.ArchiveDownloadAll;
+        ShowExpiredHomework = d.ShowExpiredHomework;
         PluginToken = d.PluginToken;
         PluginPort = d.PluginPort;
         Teachers = [];
         RiskAccepted = d.RiskAccepted;
+        RiskWarningShown = d.RiskWarningShown;
         FeatureSummon = d.FeatureSummon;
         FeatureHomework = d.FeatureHomework;
         FeatureExchange = d.FeatureExchange;

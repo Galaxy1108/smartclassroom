@@ -163,15 +163,36 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     /// <summary>托盘在当前桌面环境是否可用（不可用时关闭窗口即退出）。</summary>
+    /// <summary>只有托盘不可用时才需要说明（可用时行为已由开关本身表达）。</summary>
     public string TrayHint => AppShell.TrayAvailable
-        ? "关闭主窗口会收回到托盘；从托盘菜单可重新打开或退出。"
-        : "当前桌面环境未提供系统托盘，关闭主窗口将直接退出应用。";
+        ? ""
+        : "当前桌面环境无系统托盘，关闭主窗口将直接退出";
 
     /// <summary>刷新锁定状态（打开设置页 / 认证成功后调用），顺便重判集成状态。</summary>
     public void RefreshLockState()
     {
+        SyncFromShared();
         IsLocked = Runtime.Auth.IsEnabled && !Runtime.Auth.IsUnlocked;
         RefreshIntegrationState();
+    }
+
+    /// <summary>
+    /// 把"启动时弹过风险警告"这类由别处改动的状态同步回来。
+    /// 风险确认与共享设置对象是一份数据，但视图模型是用字段镜像的，
+    /// 不同步就会出现"已经接受了，设置页还显示尚未确认"。
+    /// </summary>
+    public void SyncFromShared()
+    {
+        if (_shared is null)
+            return;
+        if (_riskAccepted != _shared.RiskAccepted)
+        {
+            _riskAccepted = _shared.RiskAccepted;
+            OnPropertyChanged(nameof(RiskAccepted));
+            OnPropertyChanged(nameof(NeedsRiskConfirmation));
+            OnPropertyChanged(nameof(RiskBadgeSeverity));
+            OnPropertyChanged(nameof(RiskBadgeText));
+        }
     }
 
     /// <summary>设置或清除管理员密码。</summary>
@@ -263,11 +284,11 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         var missing = new List<string>();
         if (needQq && !QqReady)
-            missing.Add("QQ 连接（下方「QQ 连接」：填 OneBot 地址 + 监听群号）");
+            missing.Add("QQ 连接");
         if (needAi && !AiReady)
-            missing.Add("AI（上方「AI」：选引擎并填模型，内置直连还要填服务地址）");
+            missing.Add("AI");
         if (needClassIsland && !ClassIslandReady)
-            missing.Add("ClassIsland 集成（「ClassIsland 集成」：先让插件生成 token，再点「自动查找」）");
+            missing.Add("ClassIsland 集成");
         return missing;
     }
 
@@ -290,7 +311,7 @@ public sealed class SettingsViewModel : ViewModelBase
     public bool CanEnableCoursewarePopup => CoursewareGateHint.Length == 0;
 
     private static string GateHint(List<string> missing)
-        => missing.Count == 0 ? "" : "⛔ 需先完成：" + string.Join("；", missing);
+        => missing.Count == 0 ? "" : "开启前需先完成：" + string.Join("、", missing);
 
     /// <summary>重算五个开关的前置条件，并把不满足条件的开关关掉。</summary>
     public void RefreshFeatureGates()
@@ -306,8 +327,6 @@ public sealed class SettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanEnableExchange));
         OnPropertyChanged(nameof(CanEnableFileArchive));
         OnPropertyChanged(nameof(CanEnableCoursewarePopup));
-        OnPropertyChanged(nameof(IntegrationSummary));
-        OnPropertyChanged(nameof(HasMissingIntegration));
 
         TurnOffUnavailableFeatures();
     }
@@ -342,19 +361,6 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     private bool _enforcingGates;
-
-    /// <summary>总览：哪些集成还没配好。放在功能开关区顶部，用户一眼能看到原因。</summary>
-    public string IntegrationSummary
-    {
-        get
-        {
-            var missing = MissingFor(needQq: true, needAi: true, needClassIsland: true);
-            return missing.Count == 0 ? "" : "以下集成尚未配置完成，相关开关暂时无法开启：" + string.Join("；", missing);
-        }
-    }
-
-    /// <summary>有集成没配好（决定总览提示是否显示）。</summary>
-    public bool HasMissingIntegration => IntegrationSummary.Length > 0;
 
     public bool FeatureSummon
     {
@@ -411,7 +417,6 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         SaveSettings();
         OnPropertyChanged(nameof(FeatureSummary));
-        OnPropertyChanged(nameof(IntegrationSummary));
     }
 
     private FeatureFlags CurrentFlags() => new()
@@ -632,7 +637,7 @@ public sealed class SettingsViewModel : ViewModelBase
             {
                 AiTestResult = "可用，但返回为空";
                 AiTestSeverity = NoticeSeverity.Warning;
-                Toasts.Warn("AI 连通但返回为空", "换个模型或调低推理强度再试。");
+                Toasts.Warn("AI 返回为空");
             }
         }
         catch (Exception ex)
@@ -754,7 +759,7 @@ public sealed class SettingsViewModel : ViewModelBase
             await Task.Run(() => NodeManager.ExtractFlattened(archive, NodeManager.InstallRoot));
             AppendLog("Node 安装完成。");
             RefreshNodeStatus();
-            Toasts.Success("Node 安装完成", NodeStatusText);
+            Toasts.Success("Node 安装完成");
         }
         catch (Exception ex)
         {
@@ -795,16 +800,16 @@ public sealed class SettingsViewModel : ViewModelBase
             {
                 PluginStatus = "未连接（请确认 ClassIsland 已启动、插件已加载、端口与 token 正确）";
                 PluginSeverity = NoticeSeverity.Error;
-                Toasts.Error("ClassIsland 插件未连接", "确认 ClassIsland 已启动、插件已加载，端口与 token 正确。");
+                Toasts.Error("ClassIsland 插件未连接");
             }
             else
             {
                 PluginStatus = $"已连接 · 插件 v{status.PluginVersion} · 课表{(status.ClassPlanLoaded ? "已加载" : "未加载")}";
                 PluginSeverity = status.ClassPlanLoaded ? NoticeSeverity.Success : NoticeSeverity.Warning;
                 if (status.ClassPlanLoaded)
-                    Toasts.Success("ClassIsland 插件已连接", $"v{status.PluginVersion}");
+                    Toasts.Success("ClassIsland 插件已连接");
                 else
-                    Toasts.Warn("插件已连接，但课表未加载", "在 ClassIsland 里确认课表已启用。");
+                    Toasts.Warn("插件已连接，课表未加载");
             }
         }
         catch (Exception ex)
@@ -832,7 +837,7 @@ public sealed class SettingsViewModel : ViewModelBase
         SaveSettings();
         RefreshIntegrationState();   // token 到位 → 依赖 ClassIsland 的开关可以开了
         AppendLog("已自动填入插件 token 并保存。");
-        Toasts.Success("已找到插件 token", "已自动填入并保存。");
+        Toasts.Success("已找到插件 token");
         return (true, explanation + "\n\ntoken 已自动填入并保存。");
     }
 
@@ -979,7 +984,7 @@ public sealed class SettingsViewModel : ViewModelBase
             return;
         RiskAccepted = true;
         AppendLog("已确认风险，允许启动注入。");
-        Toasts.Success("已确认风险", "现在可以启动注入了。");
+        Toasts.Success("已确认风险");
     }
 
     // ================= QQ 账号（多账号时选一个） =================
@@ -999,7 +1004,7 @@ public sealed class SettingsViewModel : ViewModelBase
         get
         {
             if (QqAccount <= 0)
-                return "未选择（单账号可以不管；多账号请选一下，避免注入到别的号）";
+                return "未选择";
             var nick = QqCandidates.FirstOrDefault(a => a.Uin == QqAccount)?.Nickname;
             return string.IsNullOrWhiteSpace(nick) ? $"已选：{QqAccount}" : $"已选：{QqAccount}（{nick}）";
         }
@@ -1071,7 +1076,7 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     public void NoteQqAccountCanceled()
-        => Toasts.Show("未选择 QQ 账号", "保持原选择不变。", NoticeSeverity.Informational);
+        => Toasts.Show("未选择 QQ 账号", "", NoticeSeverity.Informational);
 
     public bool QqDetected { get => _qqDetected; private set => Set(ref _qqDetected, value); }
 
@@ -1157,7 +1162,7 @@ public sealed class SettingsViewModel : ViewModelBase
             await Task.Run(() => SnowlumaManager.Extract(archive, InstallDir));
             AppendLog("SnowLuma 就绪。请阅读封号警告并确认知晓后启动。");
             OnPropertyChanged(nameof(IsInstalled));
-            Toasts.Success("SnowLuma 下载完成", "下一步：确认风险提示，然后点「启动」。");
+            Toasts.Success("SnowLuma 下载完成");
         }
         catch (Exception ex)
         {
@@ -1206,7 +1211,7 @@ public sealed class SettingsViewModel : ViewModelBase
             QqStatusText = "已停止";
             QqStatusSeverity = NoticeSeverity.Informational;
             AppendLog("SnowLuma 已停止。");
-            Toasts.Success("SnowLuma 已停止", "注入已关闭，QQ 恢复原状。");
+            Toasts.Success("SnowLuma 已停止");
             await Task.Delay(400);
             await ProbeAsync();
         }
@@ -1254,16 +1259,16 @@ public sealed class SettingsViewModel : ViewModelBase
             switch (s)
             {
                 case SnowlumaStatus.Online:
-                    Toasts.Success("QQ 在线", "注入正常，消息管线可以工作。");
+                    Toasts.Success("QQ 在线");
                     break;
                 case SnowlumaStatus.InjectedNotLoggedIn:
-                    Toasts.Warn("已注入，但服务未就绪", "多数情况是 QQ 还没登录完成，稍等再探测一次。");
+                    Toasts.Warn("已注入，服务未就绪", "可稍后再探测一次。");
                     break;
                 case SnowlumaStatus.QqNotFound:
-                    Toasts.Error("QQ 未运行", "请先启动并登录班级 QQ，再启动注入。");
+                    Toasts.Error("QQ 未运行");
                     break;
                 case SnowlumaStatus.NotInstalled:
-                    Toasts.Error("未安装 SnowLuma", "先在下方「SnowLuma 下载器」里下载。");
+                    Toasts.Error("未安装 SnowLuma");
                     break;
             }
 
@@ -1307,7 +1312,7 @@ public sealed class SettingsViewModel : ViewModelBase
         QqDetected = false;
         SaveSettings();
         AppendLog("已填入默认 OneBot 地址并保存，重启 App 后管线自动连接。");
-        Toasts.Success("已填入默认 OneBot 地址", "重启应用后消息管线会自动连接。");
+        Toasts.Success("已填入默认 OneBot 地址");
     }
 
     // ================= 软件更新 =================
@@ -1385,9 +1390,8 @@ public sealed class SettingsViewModel : ViewModelBase
 
     /// <summary>Linux 下的说明（为什么按钮是灰的）。</summary>
     public string UpdatePlatformHint => CanSelfUpdate
-        ? "Windows：可以直接下载并自动替换（关闭应用后由脚本完成覆盖并重启）。"
-        : "Linux：应用由系统包管理器安装，程序不会自行替换 /opt 下的文件。" +
-          "请用包管理器更新（例如 sudo pacman -U 新版 .pkg.tar.zst），或到 Releases 页下载。";
+        ? "支持自动更新"
+        : "由系统包管理器更新";
 
     public bool HasReleasePage => _releaseUrl is not null;
 
@@ -1431,7 +1435,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 LatestVersionText = "未获取到";
                 UpdateSeverity = NoticeSeverity.Warning;
                 UpdateStatusText = "检查失败：拿不到远端版本（网络不通或仓库没有 tag/Release）";
-                Toasts.Warn("更新检查失败", "没拿到远端版本信息，稍后再试。");
+                Toasts.Warn("更新检查失败");
             }
             else if (info.HasUpdate)
             {
@@ -1447,7 +1451,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 LatestVersionText = $"最新版本 {info.LatestVersion}";
                 UpdateSeverity = NoticeSeverity.Success;
                 UpdateStatusText = "已是最新版本";
-                Toasts.Success("已是最新版本", $"当前 {AppVersion.Current}");
+                Toasts.Success("已是最新版本");
             }
             AppendLog($"更新检查：{UpdateStatusText}（来源 {info.Source}）");
         }
@@ -1471,7 +1475,7 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         if (_assetUrl is null)
         {
-            Toasts.Warn("没有可下载的安装包", "该 Release 里还没有上传 win-x64.zip。");
+            Toasts.Warn("没有可下载的安装包");
             return;
         }
         IsDownloadingUpdate = true;
@@ -1482,7 +1486,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 new Progress<double>(p => UpdateProgress = p));
             PendingUpdateScript = UpdateInstaller.WriteScript(stage, _appDir);
             AppendLog($"更新已下载并解压到 {stage}；覆盖脚本：{PendingUpdateScript}");
-            Toasts.Success("更新已下载", "关闭应用后运行 apply-update.cmd 即可覆盖并重启。");
+            Toasts.Success("更新已下载", "关闭应用后运行 apply-update.cmd");
         }
         catch (Exception ex)
         {
@@ -1502,7 +1506,7 @@ public sealed class SettingsViewModel : ViewModelBase
     // ================= 调试 =================
 
     /// <summary>配置文件位置（清空前让用户知道动的是哪个文件）。</summary>
-    public string SettingsPathHint => $"配置文件：{SettingsPath}";
+    public string SettingsPathHint => "";
 
     /// <summary>
     /// 清空所有设置：删掉 settings.json，并把内存里那份一起复位
@@ -1518,7 +1522,7 @@ public sealed class SettingsViewModel : ViewModelBase
         RefreshLockState();           // 管理员密码也清了
         OnPropertyChanged(nameof(FeatureSummary));
         AppendLog("已清空所有设置（作业/事件等数据未动）。");
-        Toasts.Success("已清空所有设置", "重启应用后完全生效。");
+        Toasts.Success("已清空所有设置", "重启后生效");
     }
 
     // ================= 持久化 =================

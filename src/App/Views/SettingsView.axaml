@@ -14,7 +14,7 @@
 
             <local:NoticeBar Severity="Warning" IsVisible="{Binding IsLocked}"
                              Title="设置已锁定"
-                             Message="已启用管理员密码。解锁后才能修改设置、切换功能开关。">
+                             Message="已启用管理员密码，解锁后才能修改设置。">
                 <local:NoticeBar.ActionContent>
                     <Button Content="解锁设置" Classes="accent" Click="Unlock_Click" />
                 </local:NoticeBar.ActionContent>
@@ -28,13 +28,8 @@
                 <TextBlock Text="功能开关" Theme="{StaticResource SubtitleTextBlockStyle}" />
             </StackPanel>
 
-            <!-- 前置集成没配好时，先把理由摆在最上面：开关是灰的，用户得知道为什么 -->
-            <local:NoticeBar Severity="Warning" IsVisible="{Binding HasMissingIntegration}"
-                             Title="有集成还没配置完成"
-                             Message="{Binding IntegrationSummary}" />
-
             <fa:SettingsExpander Header="召唤通知"
-                                 Description="老师在群里叫「xxx 来一下」时发 ClassIsland 通知；上课中排队、下课再发，带「现在/立刻」则立刻发。">
+                                 Description="「xxx 来一下」→ ClassIsland 通知">
                 <fa:SettingsExpander.Footer>
                     <ToggleSwitch IsChecked="{Binding FeatureSummon}" IsEnabled="{Binding CanEnableSummon}" />
                 </fa:SettingsExpander.Footer>
@@ -44,7 +39,7 @@
                        TextWrapping="Wrap" Margin="2,0,0,2" />
 
             <fa:SettingsExpander Header="作业自动录入"
-                                 Description="AI 把老师宣布的当日作业整理成条目上墙到「作业」页。">
+                                 Description="AI 整理老师布置的作业并上墙">
                 <fa:SettingsExpander.Footer>
                     <ToggleSwitch IsChecked="{Binding FeatureHomework}" IsEnabled="{Binding CanEnableHomework}" />
                 </fa:SettingsExpander.Footer>
@@ -54,7 +49,7 @@
                        TextWrapping="Wrap" Margin="2,0,0,2" />
 
             <fa:SettingsExpander Header="换课自动处理"
-                                 Description="AI 解析换课（调换/替换/跨天）后交插件校验，合法才落课（临时层），非法转人工。">
+                                 Description="AI 解析 → 插件校验 → 合法才落课">
                 <fa:SettingsExpander.Footer>
                     <ToggleSwitch IsChecked="{Binding FeatureExchange}" IsEnabled="{Binding CanEnableExchange}" />
                 </fa:SettingsExpander.Footer>
@@ -64,7 +59,7 @@
                        TextWrapping="Wrap" Margin="2,0,0,2" />
 
             <fa:SettingsExpander Header="群文件自动归档"
-                                 Description="老师发的群文件自动下载，按科目分类存到归档目录。">
+                                 Description="自动下载群文件并按科目归档">
                 <fa:SettingsExpander.Footer>
                     <ToggleSwitch IsChecked="{Binding FeatureFileArchive}" IsEnabled="{Binding CanEnableFileArchive}" />
                 </fa:SettingsExpander.Footer>
@@ -74,7 +69,7 @@
                        TextWrapping="Wrap" Margin="2,0,0,2" />
 
             <fa:SettingsExpander Header="上课课件弹窗"
-                                 Description="上课时若当天该科有课件，弹出「您可能需要的课件」窗口；没有当天该科的课件就不弹。">
+                                 Description="上课时弹出当天该科的课件">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="测试弹窗" Click="TestCourseware_Click"
@@ -97,7 +92,7 @@
                 <TextBlock Text="外观" Theme="{StaticResource SubtitleTextBlockStyle}" />
             </StackPanel>
             <fa:SettingsExpander Header="作业内容缩放"
-                                 Description="只缩放「作业」页的卡片区（80%~180%），不影响其它界面。也可在作业页直接 Ctrl+滚轮。">
+                                 Description="仅作用于「作业」页；支持 Ctrl+滚轮">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <Slider Value="{Binding UiScale}" Minimum="0.8" Maximum="1.8"
@@ -116,7 +111,7 @@
             </StackPanel>
 
             <fa:SettingsExpander Header="接入引擎"
-                                 Description="内置直连零依赖；pi-ai 经 Node 边车，自带多厂商模型目录。">
+                                >
                 <fa:SettingsExpander.IconSource>
                     <fa:PathIconSource Data="{StaticResource IconSettings}" />
                 </fa:SettingsExpander.IconSource>
@@ -141,7 +136,7 @@
             <local:NoticeBar Severity="Warning"
                              IsVisible="{Binding ShowNodeInstaller}"
                              Title="使用 pi-ai 需要 Node 运行时"
-                             Message="未检测到可用的 Node（要求 ≥ 22.19）。可以在下面下载一份到用户目录，或自行安装；也可以先把引擎切回「内置直连」。">
+                             Message="未检测到 Node ≥ 22.19。可在下方下载，或改用「内置直连」。">
                 <local:NoticeBar.ActionContent>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <ComboBox MinWidth="140" ItemsSource="{Binding NodeReleases}"
@@ -166,7 +161,7 @@
                          IsVisible="{Binding ShowNodeInstaller}" Margin="0,4" />
 
             <fa:SettingsExpander Header="服务商" IsVisible="{Binding IsHttpGateway}"
-                                 Description="选预设自动填地址，选自定义后手动填。">
+                                >
                 <fa:SettingsExpander.Footer>
                     <ComboBox MinWidth="220" ItemsSource="{Binding AiProviders}"
                               SelectedItem="{Binding AiProvider}">
@@ -185,7 +180,7 @@
             </fa:SettingsExpander>
 
             <fa:SettingsExpander Header="pi-ai 运行时" IsVisible="{Binding IsPiAi}"
-                                 Description="需要 Node ≥ 22.19；边车依赖已随包安装。">
+                                 Description="需要 Node ≥ 22.19">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBlock Text="{Binding SidecarInfo}" VerticalAlignment="Center" FontSize="12" />
@@ -194,7 +189,7 @@
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
             <fa:SettingsExpander Header="provider / 模型" IsVisible="{Binding IsPiAi}"
-                                 Description="从 pi-ai 目录拉取；模型列表含上下文长度与能力标记。">
+                                >
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <ComboBox MinWidth="170" ItemsSource="{Binding PiProviders}"
@@ -229,7 +224,7 @@
             </fa:SettingsExpander>
 
             <fa:SettingsExpander Header="推理强度" IsVisible="{Binding IsPiAi}"
-                                 Description="默认 minimal。调高会让推理模型花更多输出在思考上，可能出现「只有思考、正文为空」。">
+                                >
                 <fa:SettingsExpander.Footer>
                     <ComboBox MinWidth="140" ItemsSource="{Binding ReasoningLevels}"
                               SelectedItem="{Binding AiReasoning}" />
@@ -237,26 +232,26 @@
             </fa:SettingsExpander>
 
             <fa:SettingsExpander Header="服务地址"
-                                 Description="pi-ai 引擎留空则用所选 provider 官方端点；填了则按自定义 OpenAI 兼容端点处理。opencode.ai 需要的路由头由程序自动补上。">
+                                 Description="留空用服务商默认地址">
                 <fa:SettingsExpander.Footer>
                     <TextBox Text="{Binding AiBaseUrl}" MinWidth="300" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
             <fa:SettingsExpander Header="API Key"
-                                 Description="只写入本机 settings.json，不上传任何地方。">
+                                >
                 <fa:SettingsExpander.Footer>
                     <TextBox Text="{Binding AiApiKey}" MinWidth="300" PasswordChar="•" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
             <fa:SettingsExpander Header="模型" IsVisible="{Binding IsHttpGateway}"
-                                 Description="可从预设选，也可直接输入。">
+                                >
                 <fa:SettingsExpander.Footer>
                     <ComboBox MinWidth="220" ItemsSource="{Binding ModelPresets}"
                               SelectedItem="{Binding AiModel, Mode=TwoWay}" IsEditable="True" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
             <fa:SettingsExpander Header="连通性测试"
-                                 Description="用当前配置发一条最小请求，验证地址/Key/模型是否可用。">
+                                 Description="发一条最小请求验证配置">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="测试" Classes="accent" Click="TestAi_Click" />
@@ -272,7 +267,7 @@
                 <TextBlock Text="教师映射" Theme="{StaticResource SubtitleTextBlockStyle}" />
             </StackPanel>
             <fa:SettingsExpander Header="任课老师"
-                                 Description="QQ 号（可空）/ 姓名或群名片 / 科目。匹配顺序：QQ 号 → 群名片 → 昵称。">
+                                >
                 <fa:SettingsExpander.IconSource>
                     <fa:PathIconSource Data="{StaticResource IconPerson}" />
                 </fa:SettingsExpander.IconSource>
@@ -310,7 +305,7 @@
             </StackPanel>
 
             <fa:SettingsExpander Header="归档目录"
-                                 Description="老师发的文件保存为「根目录 / 科目名 / 文件名」；不认科目时用老师姓名，都不认识则归入「未分类」。留空则用默认位置。">
+                                 Description="文件按科目存放">
                 <fa:SettingsExpander.IconSource>
                     <fa:PathIconSource Data="{StaticResource IconFolder}" />
                 </fa:SettingsExpander.IconSource>
@@ -327,7 +322,7 @@
                        TextWrapping="Wrap" Margin="2,0,0,0" />
 
             <fa:SettingsExpander Header="下载群里所有人的文件"
-                                 Description="默认只下载教师映射命中的发送者（能落到对应科目目录）；开启后群里任何人的文件都下载，认不出的进「未分类」。">
+                                 Description="关闭时只下载已映射的教师">
                 <fa:SettingsExpander.Footer>
                     <ToggleSwitch IsChecked="{Binding ArchiveDownloadAll}" />
                 </fa:SettingsExpander.Footer>
@@ -339,7 +334,7 @@
                 <TextBlock Text="ClassIsland 集成" Theme="{StaticResource SubtitleTextBlockStyle}" />
             </StackPanel>
             <fa:SettingsExpander Header="桥接端口"
-                                 Description="本应用经 127.0.0.1 调用插件接口（默认 5199），需与插件一致。">
+                                 Description="需与插件一致">
                 <fa:SettingsExpander.IconSource>
                     <fa:PathIconSource Data="{StaticResource IconSettings}" />
                 </fa:SettingsExpander.IconSource>
@@ -348,7 +343,7 @@
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
             <fa:SettingsExpander Header="桥接 Token"
-                                 Description="插件首次启动自动生成；点右侧按钮可自动查找并填入。">
+                                >
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <TextBox Text="{Binding PluginToken}" MinWidth="240" PasswordChar="•" />
@@ -356,7 +351,7 @@
                     </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
-            <fa:SettingsExpander Header="连接状态" Description="探测插件是否已加载并在线（对钩=已连接且课表已加载）。">
+            <fa:SettingsExpander Header="连接状态">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="探测" Click="ProbePlugin_Click" />
@@ -374,10 +369,10 @@
 
             <local:NoticeBar Severity="Informational" IsVisible="{Binding !IsInstalled}"
                              Title="您还没有下载 SnowLuma 注入层"
-                             Message="下载后即可注入已登录的班级 QQ，无需单独 QQ 实例；也可以跳过下载，直接在下方填写已有的 OneBot v11 地址。" />
+                             Message="下载后即可注入已登录的班级 QQ；也可直接填写已有的 OneBot 地址。" />
 
             <fa:SettingsExpander Header="SnowLuma 下载器" IsVisible="{Binding !IsInstalled}"
-                                 Description="不随应用附带。完整版内置 Node，精简版需自装 Node ≥ 22。">
+                                 Description="精简版需自备 Node">
                 <fa:SettingsExpander.IconSource>
                     <fa:PathIconSource Data="{StaticResource IconFolder}" />
                 </fa:SettingsExpander.IconSource>
@@ -408,7 +403,7 @@
                              Title="风险警告"
                              Message="{Binding RiskWarningMessage}" />
             <fa:SettingsExpander Header="风险确认" IsVisible="{Binding IsInstalled}"
-                                 Description="启动注入前必须确认一次；点击按钮会弹出完整警告。">
+                                 Description="启动前需确认">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <local:StatusBadge Severity="{Binding RiskBadgeSeverity}"
@@ -421,7 +416,7 @@
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
             <fa:SettingsExpander Header="运行状态" IsVisible="{Binding IsInstalled}"
-                                 Description="三态一眼可辨：对钩=在线可用，感叹号=已注入但服务未就绪，叉=QQ 未运行/未安装。">
+                                >
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Click="Start_Click" IsEnabled="{Binding !IsQqBusy}">
@@ -453,14 +448,14 @@
 
             <local:NoticeBar Severity="Success" IsVisible="{Binding QqDetected}"
                              Title="检测到 QQ，是否自动连接？"
-                             Message="将填入默认 OneBot 地址并保存，重启应用后消息管线会自动连接。">
+                             Message="将填入默认 OneBot 地址并保存。">
                 <local:NoticeBar.ActionContent>
                     <Button Content="自动连接" Classes="accent" Click="AutoConnect_Click" />
                 </local:NoticeBar.ActionContent>
             </local:NoticeBar>
 
             <fa:SettingsExpander Header="班级 QQ 账号"
-                                 Description="一台机器上登过好几个号时，选清楚要注入哪个；点按钮会先检测当前在线的账号再让你挑。">
+                                 Description="多账号时指定要注入的 QQ">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="检测并选择账号" Classes="accent" Click="PickQqAccount_Click"
@@ -473,29 +468,29 @@
             <TextBlock Text="{Binding OnlineQqText, StringFormat='当前在线：{0}'}" FontSize="12" Opacity="0.7"
                        TextWrapping="Wrap" Margin="2,0,0,0" />
 
-            <fa:SettingsExpander Header="OneBot HTTP" Description="SnowLuma 默认 http://127.0.0.1:3000">
+            <fa:SettingsExpander Header="OneBot HTTP">
                 <fa:SettingsExpander.Footer>
                     <TextBox Text="{Binding OneBotHttp}" MinWidth="280" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
-            <fa:SettingsExpander Header="OneBot WebSocket" Description="SnowLuma 默认 ws://127.0.0.1:3001">
+            <fa:SettingsExpander Header="OneBot WebSocket">
                 <fa:SettingsExpander.Footer>
                     <TextBox Text="{Binding OneBotWs}" MinWidth="280" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
             <fa:SettingsExpander Header="OneBot Token"
-                                 Description="SnowLuma/OneBot 配了 access token 时必填，否则连不上（留空表示不需要）。">
+                                 Description="需与 OneBot 端一致">
                 <fa:SettingsExpander.Footer>
                     <TextBox Text="{Binding OneBotToken}" PasswordChar="•" MinWidth="280" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
-            <fa:SettingsExpander Header="监听群号" Description="英文逗号分隔，只处理这些群的消息。">
+            <fa:SettingsExpander Header="监听群号">
                 <fa:SettingsExpander.Footer>
                     <TextBox Text="{Binding GroupIdsText}" MinWidth="280" Watermark="如 123456,789012" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
             <fa:SettingsExpander Header="开机自启 SnowLuma"
-                                 Description="Windows 写 Startup 文件夹，Linux 写 autostart。">
+                                >
                 <fa:SettingsExpander.Footer>
                     <ToggleSwitch IsChecked="{Binding AutostartEnabled}" />
                 </fa:SettingsExpander.Footer>
@@ -508,7 +503,7 @@
             </StackPanel>
 
             <fa:SettingsExpander Header="管理员密码"
-                                 Description="设置后，改设置、切换功能开关、增删作业、处理待确认、以及彻底退出都需要输入密码。留空表示不启用。">
+                                 Description="改设置、处理待确认、退出都需验证">
                 <fa:SettingsExpander.IconSource>
                     <fa:PathIconSource Data="{StaticResource IconWarning}" />
                 </fa:SettingsExpander.IconSource>
@@ -526,7 +521,7 @@
                        TextWrapping="Wrap" Margin="2,0,0,0" />
 
             <fa:SettingsExpander Header="退出应用"
-                                 Description="彻底关闭智慧课堂。已设置管理员密码时需要验证身份。">
+                                >
                 <fa:SettingsExpander.Footer>
                     <Button Content="退出应用" Click="QuitApp_Click" />
                 </fa:SettingsExpander.Footer>
@@ -587,7 +582,7 @@
                 <TextBlock Text="调试" Theme="{StaticResource SubtitleTextBlockStyle}" />
             </StackPanel>
             <fa:SettingsExpander Header="清空所有设置"
-                                 Description="把 settings.json 恢复成默认值（AI / QQ / 归档 / 教师映射 / 功能开关 / 管理员密码）。作业、待处理与事件时间线属于数据，不会被清掉。">
+                                 Description="恢复默认值（不含作业等数据）">
                 <fa:SettingsExpander.IconSource>
                     <fa:PathIconSource Data="{StaticResource IconWarning}" />
                 </fa:SettingsExpander.IconSource>

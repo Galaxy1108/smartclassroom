@@ -59,15 +59,16 @@ public sealed class HomeworkManualAddTests
         var store = new HomeworkStore();
         var vm = new HomeworkViewModel(store);
 
+        var today = DateTime.Now.ToString("yyyy-MM-dd");
         vm.BeginAdd();
         vm.FormSubject = "数学";
-        vm.FormDate = "2026-09-25";
+        vm.FormDate = today;
         vm.FormItems = "练习册P10";
         vm.SubmitAdd();
 
         vm.BeginAdd();
         vm.FormSubject = "数学";
-        vm.FormDate = "2026-09-25";
+        vm.FormDate = today;
         vm.FormItems = "练习册P10\n试卷一张";   // 含重复项
         vm.SubmitAdd();
 

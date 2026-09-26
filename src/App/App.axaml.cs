@@ -32,6 +32,9 @@ public partial class App : Application
                 DataContext = vm,
             };
             AppShell.Setup(desktop);   // 托盘 + 关闭到托盘 + 受密码保护的退出
+
+            // 首次启动弹一次封号风险警告（只一次；「启动」按钮仍然把关）
+            Dispatcher.UIThread.Post(async () => await RiskNotice.ShowOnFirstLaunchAsync());
         }
 
         base.OnFrameworkInitializationCompleted();
