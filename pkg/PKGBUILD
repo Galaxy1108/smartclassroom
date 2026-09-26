@@ -28,12 +28,10 @@ package() {
     install -dm755 "$pkgdir/opt/smartclassroom"
     cp -a "$stagedir/." "$pkgdir/opt/smartclassroom/"
 
-    # 工作区/CI 的文件可能是 0600（cp -a 会原样带进来），
-    # 安装后普通用户读不了 → 边车 EACCES。这里统一归一：
-    # 目录 755，文件 644，原本带执行位的保持可执行。
-    find "$pkgdir/opt/smartclassroom" -type d -exec chmod 755 {} +
-    find "$pkgdir/opt/smartclassroom" -type f -exec chmod 644 {} +
-    find "$pkgdir/opt/smartclassroom" -type f -perm -u+x -exec chmod 755 {} +
+    # 工作区/CI 的文件可能是 0600（cp -a 会原样带进来），安装后普通用户读不了 → 边车 EACCES。
+    # a+rX 的语义正好：给所有人加读；只给「目录」和「原本就有执行位的文件」加执行位，
+    # 所以既能修 0600，又不会破坏 SmartClassroom.App / createdump 的可执行位。
+    chmod -R a+rX "$pkgdir/opt/smartclassroom"
 
     install -Dm755 "$srcdir/smartclassroom.sh" "$pkgdir/usr/bin/smartclassroom"
     install -Dm644 "$srcdir/smartclassroom.desktop" "$pkgdir/usr/share/applications/smartclassroom.desktop"
