@@ -20,6 +20,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _homeVm = new HomeworkViewModel(Runtime.Homework);
         _eventsVm = new EventsViewModel(Runtime.Feed, Runtime.Pending, Runtime.Pipeline);
+        ToastList.ItemsSource = Toasts.Items;   // 右下角的应用内通知
         Navigate("home");
         NavView.SelectedItem = NavView.MenuItems[0];
         _refreshTimer = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background,
@@ -85,5 +86,12 @@ public partial class MainWindow : Window
                 continue;
             _coursewareVm.Items.Add(CoursewareViewModel.CreateItem(f.FileName, f.LocalPath, f.Size));
         }
+    }
+
+    /// <summary>关掉一条通知（不等它自动消失）。</summary>
+    private void ToastClose_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is ToastItem item)
+            Toasts.Remove(item);
     }
 }

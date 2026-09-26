@@ -10,6 +10,8 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
+using SmartClassroom.App;
 using SmartClassroom.App.ViewModels;
 using SmartClassroom.App.Views;
 using SmartClassroom.Core;
@@ -26,11 +28,32 @@ AppBuilder.Configure<SmartClassroom.App.App>()
 Application.Current!.Resources["SymbolThemeFontFamily"] = new FontFamily("DejaVu Sans");
 
 Render("timeline-light.png", TimelineView(), ThemeVariant.Light, 920, 560);
+RenderShell();
+Render("settings-full.png", SettingsView(), ThemeVariant.Light, 920, 3200);   // 整页一图，方便逐段检查
 Render("timeline-dark.png", TimelineView(), ThemeVariant.Dark, 920, 560);
 Render("settings-gating.png", SettingsView(), ThemeVariant.Light, 920, 620);
 Render("settings-narrow.png", SettingsView(), ThemeVariant.Light, 620, 620);
 
-void Render(string fileName, Control content, ThemeVariant variant, int width, int height)
+void RenderShell()
+{
+    Toasts.Items.Clear();
+    Toasts.Success("SnowLuma 已停止", "注入已关闭，QQ 恢复原状。");
+    Toasts.Error("AI 测试失败", "AI 请求失败：400: MissingSessionID（该端点要求 x-opencode-session 路由头）");
+    Toasts.Warn("注入的 QQ 账号与所选不一致", "当前在线 10002，你在设置里选的是 10001。");
+
+    var shell = new MainWindow { DataContext = new MainViewModel(), RequestedThemeVariant = ThemeVariant.Dark };
+    shell.Width = 920;
+    shell.Height = 560;
+    shell.Show();
+    shell.Width = 921;
+    shell.Width = 920;
+    Settle();
+    shell.CaptureRenderedFrame()!.Save(Path.Combine(outDir, "shell-toasts.png"));
+    Console.WriteLine("saved shell-toasts.png");
+    shell.Close();
+}
+
+void Render(string fileName, Control content, ThemeVariant variant, int width, int height, double scrollTo = 0)
 {
     var window = new Window
     {
@@ -45,6 +68,11 @@ void Render(string fileName, Control content, ThemeVariant variant, int width, i
     window.Width = width;
     window.Height = height;
     Settle();
+    if (scrollTo > 0 && ((Visual)content).GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault() is { } sv)
+    {
+        sv.Offset = new Vector(0, scrollTo);
+        Settle();
+    }
     window.CaptureRenderedFrame()!.Save(Path.Combine(outDir, fileName));
     Console.WriteLine("saved " + fileName);
     window.Close();
@@ -71,7 +99,7 @@ Control TimelineView()
     return new EventsView { DataContext = new EventsViewModel(feed, new PendingStore(), null) };
 }
 
-Control SettingsView()
+Control SettingsView(double scrollTo = 0)
 {
     // 每次都从"什么都没配"的空白设置开始，这样看到的正是功能开关被拦下的状态。
     var path = Path.Combine(Path.GetTempPath(), "ui-preview-settings.json");

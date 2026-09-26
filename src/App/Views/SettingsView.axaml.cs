@@ -118,6 +118,7 @@ public partial class SettingsView : UserControl
         catch (Exception ex)
         {
             Vm.AppendLogFromView($"打开目录失败：{ex.Message}");
+            Toasts.Error("打开目录失败", ex.Message);
         }
     }
 
@@ -128,7 +129,10 @@ public partial class SettingsView : UserControl
             reason => PasswordDialog.PromptAsync("保存设置", reason),
             "保存设置需要管理员密码");
         if (ok)
+        {
             Vm.SaveSettings();
+            Toasts.Success("设置已保存", "改动已写入 settings.json。");
+        }
     }
 
     private void AddTeacher_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -148,10 +152,48 @@ public partial class SettingsView : UserControl
         => await Vm.DownloadSelectedAsync();
 
     private async void Start_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => await Vm.StartAsync();
+    {
+        // 没确认过风险就先弹窗（"我已知晓风险"本来就该是弹窗，不是一个随手能勾的小方框）
+        if (!Vm.RiskAccepted)
+        {
+            var ok = await Dialogs.ConfirmAsync("风险警告", SettingsViewModel.RiskWarningText,
+                "我已知晓并接受", "取消");
+            if (!ok)
+                return;
+            Vm.AcceptRisk();
+        }
+        await Vm.StartAsync();
+    }
 
-    private void Stop_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-        => Vm.Stop();
+    /// <summary>风险确认按钮（弹窗展示完整警告）。</summary>
+    private async void AcceptRisk_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var ok = await Dialogs.ConfirmAsync("风险警告", SettingsViewModel.RiskWarningText,
+            "我已知晓并接受", "取消");
+        if (ok)
+            Vm.AcceptRisk();
+    }
+
+    /// <summary>已确认过，再查看一次警告原文。</summary>
+    private async void ReviewRisk_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Dialogs.ShowAsync("风险警告", SettingsViewModel.RiskWarningText, "知道了");
+
+    /// <summary>检测在线 QQ 并弹窗让用户选一个账号。</summary>
+    private async void PickQqAccount_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var online = await Vm.DetectOnlineQqAsync();
+        var pick = await Dialogs.PickQqAccountAsync(
+            Vm.QqCandidates.ToList(), online?.Uin, online?.Nickname);
+        if (pick is null)
+        {
+            Vm.NoteQqAccountCanceled();
+            return;
+        }
+        Vm.ApplyQqAccount(pick);
+    }
+
+    private async void Stop_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Vm.StopAsync();
 
     private async void Probe_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => await Vm.ProbeAsync();

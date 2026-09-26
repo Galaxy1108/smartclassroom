@@ -23,6 +23,12 @@ public sealed class AppSettings
     public string OneBotWs { get; set; } = "ws://127.0.0.1:3001";
     public string OneBotToken { get; set; } = "";
     public List<long> GroupIds { get; set; } = [];
+
+    /// <summary>选定的班级 QQ 账号（0 = 未指定）。一台机器上登过好几个号时用它区分。</summary>
+    public long QqAccount { get; set; }
+
+    /// <summary>见过的账号（检测到的 + 手填的），下次打开选择框时作为候选。</summary>
+    public List<QqAccount> QqAccounts { get; set; } = [];
     /// <summary>群文件归档根目录；留空用默认（&lt;LocalAppData&gt;/SmartClassroom/archive）。</summary>
     public string ArchiveRoot { get; set; } = "";
 
@@ -66,6 +72,13 @@ public sealed class AppSettings
         FileArchive = FeatureFileArchive,
         CoursewarePopup = FeatureCoursewarePopup
     };
+}
+
+/// <summary>记住的 QQ 账号（候选列表用）。</summary>
+public sealed class QqAccount
+{
+    public long Uin { get; set; }
+    public string Nickname { get; set; } = "";
 }
 
 public static class SettingsStore

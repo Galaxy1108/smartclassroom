@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="SmartClassroom.App.Views.StatusBadge"
+             x:Name="Self">
+    <!-- 状态徽标：图标 + 文案。图标本身就说明"成功没有"：
+         成功=对钩(绿) / 警告=感叹号(橙) / 失败=叉(红) / 进行中=信息(蓝)。
+         对钩用描边 Path 画（不依赖图标字体，headless 下也能渲染）。 -->
+    <StackPanel Orientation="Horizontal" Spacing="6">
+        <Path x:Name="CheckIcon" Width="15" Height="15" VerticalAlignment="Center"
+              Data="M 4.5,12.6 L 9.4,17.4 L 19.5,6.8"
+              StrokeThickness="2.4" StrokeLineCap="Round" StrokeJoin="Round"
+              IsVisible="False" />
+        <PathIcon x:Name="WarnIcon" Width="14" Height="14" VerticalAlignment="Center"
+                  Data="{StaticResource IconWarning}" IsVisible="False" />
+        <PathIcon x:Name="ErrorIcon" Width="14" Height="14" VerticalAlignment="Center"
+                  Data="{StaticResource IconDismiss}" IsVisible="False" />
+        <PathIcon x:Name="InfoIcon" Width="14" Height="14" VerticalAlignment="Center"
+                  Data="{StaticResource IconInfo}" IsVisible="False" />
+        <TextBlock x:Name="Label" VerticalAlignment="Center" TextWrapping="Wrap" FontWeight="SemiBold" />
+    </StackPanel>
+</UserControl>

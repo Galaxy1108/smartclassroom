@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using SmartClassroom.Core;
 using SmartClassroom.Core.AI;
+using SmartClassroom.App.Views;
 using SmartClassroom.Core.QQ;
 
 namespace SmartClassroom.App.ViewModels;
@@ -49,7 +50,9 @@ public sealed class SettingsViewModel : ViewModelBase
     private bool _featureCoursewarePopup;
     private double _nodeProgress;
 
-    public SettingsViewModel() : this(SettingsStore.DefaultPath, AppContext.BaseDirectory, Runtime.Settings) { }
+    public SettingsViewModel() : this(SettingsStore.DefaultPath, AppContext.BaseDirectory,
+        // 只有 Runtime 已经装载过设置时才共用；否则自己读文件，避免用空对象覆盖用户配置。
+        Runtime.SettingsLoaded ? Runtime.Settings : null) { }
 
     /// <param name="shared">
     /// 真实运行时传入 <see cref="Runtime.Settings"/>：设置页与 Runtime 必须操作**同一个对象**。
@@ -600,6 +603,7 @@ public sealed class SettingsViewModel : ViewModelBase
     public async Task TestAiAsync()
     {
         AiTestResult = "测试中…";
+        AiTestSeverity = NoticeSeverity.Informational;
         try
         {
             string text;
@@ -613,11 +617,24 @@ public sealed class SettingsViewModel : ViewModelBase
                 var gw = new AiGateway(new AiOptions { BaseUrl = AiBaseUrl, ApiKey = AiApiKey, Model = AiModel });
                 text = await gw.AskAsync("只回复两个字：可用", "测试");
             }
-            AiTestResult = text.Length > 0 ? $"可用：{Trim(text)}" : "可用，但返回为空";
+            if (text.Length > 0)
+            {
+                AiTestResult = $"可用：{Trim(text)}";
+                AiTestSeverity = NoticeSeverity.Success;
+                Toasts.Success("AI 可用", Trim(text));
+            }
+            else
+            {
+                AiTestResult = "可用，但返回为空";
+                AiTestSeverity = NoticeSeverity.Warning;
+                Toasts.Warn("AI 连通但返回为空", "换个模型或调低推理强度再试。");
+            }
         }
         catch (Exception ex)
         {
             AiTestResult = $"失败：{ex.Message}";
+            AiTestSeverity = NoticeSeverity.Error;
+            Toasts.Error("AI 测试失败", ex.Message);
         }
     }
 
@@ -732,8 +749,13 @@ public sealed class SettingsViewModel : ViewModelBase
             await Task.Run(() => NodeManager.ExtractFlattened(archive, NodeManager.InstallRoot));
             AppendLog("Node 安装完成。");
             RefreshNodeStatus();
+            Toasts.Success("Node 安装完成", NodeStatusText);
         }
-        catch (Exception ex) { AppendLog($"Node 安装失败：{ex.Message}"); }
+        catch (Exception ex)
+        {
+            AppendLog($"Node 安装失败：{ex.Message}");
+            Toasts.Error("Node 安装失败", ex.Message);
+        }
         finally { Busy = false; NodeProgress = 0; }
     }
 
@@ -759,15 +781,33 @@ public sealed class SettingsViewModel : ViewModelBase
     public async Task ProbePluginAsync()
     {
         PluginStatus = "探测中…";
+        PluginSeverity = NoticeSeverity.Informational;
         try
         {
             var link = new PluginLink($"http://127.0.0.1:{PluginPort}", PluginToken);
             var status = await link.StatusAsync();
-            PluginStatus = status is null
-                ? "未连接（请确认 ClassIsland 已启动、插件已加载、端口与 token 正确）"
-                : $"已连接 · 插件 v{status.PluginVersion} · 课表{(status.ClassPlanLoaded ? "已加载" : "未加载")}";
+            if (status is null)
+            {
+                PluginStatus = "未连接（请确认 ClassIsland 已启动、插件已加载、端口与 token 正确）";
+                PluginSeverity = NoticeSeverity.Error;
+                Toasts.Error("ClassIsland 插件未连接", "确认 ClassIsland 已启动、插件已加载，端口与 token 正确。");
+            }
+            else
+            {
+                PluginStatus = $"已连接 · 插件 v{status.PluginVersion} · 课表{(status.ClassPlanLoaded ? "已加载" : "未加载")}";
+                PluginSeverity = status.ClassPlanLoaded ? NoticeSeverity.Success : NoticeSeverity.Warning;
+                if (status.ClassPlanLoaded)
+                    Toasts.Success("ClassIsland 插件已连接", $"v{status.PluginVersion}");
+                else
+                    Toasts.Warn("插件已连接，但课表未加载", "在 ClassIsland 里确认课表已启用。");
+            }
         }
-        catch (Exception ex) { PluginStatus = $"探测失败：{ex.Message}"; }
+        catch (Exception ex)
+        {
+            PluginStatus = $"探测失败：{ex.Message}";
+            PluginSeverity = NoticeSeverity.Error;
+            Toasts.Error("插件探测失败", ex.Message);
+        }
     }
 
     /// <summary>
@@ -787,6 +827,7 @@ public sealed class SettingsViewModel : ViewModelBase
         SaveSettings();
         RefreshIntegrationState();   // token 到位 → 依赖 ClassIsland 的开关可以开了
         AppendLog("已自动填入插件 token 并保存。");
+        Toasts.Success("已找到插件 token", "已自动填入并保存。");
         return (true, explanation + "\n\ntoken 已自动填入并保存。");
     }
 
@@ -834,13 +875,198 @@ public sealed class SettingsViewModel : ViewModelBase
     public bool Busy { get => _busy; private set => Set(ref _busy, value); }
     public string Log { get => _log; private set => Set(ref _log, value); }
 
+    // ================= 状态徽标（图标 + 文案） =================
+    //
+    // 原来的纯文本状态有歧义：「已注入 / 服务未就绪」到底算成功没有？
+    // 现在一律给出 (级别, 文案) 两件套 —— 级别决定图标与颜色：
+    //   成功=对钩(绿) / 警告=感叹号(橙) / 失败=叉(红) / 进行中=信息(蓝)
+
+    private NoticeSeverity _qqStatusSeverity = NoticeSeverity.Informational;
+    public NoticeSeverity QqStatusSeverity
+    {
+        get => _qqStatusSeverity;
+        private set => Set(ref _qqStatusSeverity, value);
+    }
+
+    private string _qqStatusText = "未检测";
+    public string QqStatusText { get => _qqStatusText; private set => Set(ref _qqStatusText, value); }
+
+    private NoticeSeverity _pluginSeverity = NoticeSeverity.Informational;
+    public NoticeSeverity PluginSeverity
+    {
+        get => _pluginSeverity;
+        private set => Set(ref _pluginSeverity, value);
+    }
+
+    private NoticeSeverity _aiTestSeverity = NoticeSeverity.Informational;
+    public NoticeSeverity AiTestSeverity
+    {
+        get => _aiTestSeverity;
+        private set => Set(ref _aiTestSeverity, value);
+    }
+
+    /// <summary>启动/停止/探测期间为 true —— 按钮要转圈，否则用户以为点了没反应。</summary>
+    public bool IsQqBusy => IsStarting || IsStopping || IsProbing;
+
+    private bool _isStarting;
+    public bool IsStarting
+    {
+        get => _isStarting;
+        private set { if (Set(ref _isStarting, value)) OnPropertyChanged(nameof(IsQqBusy)); }
+    }
+
+    private bool _isStopping;
+    public bool IsStopping
+    {
+        get => _isStopping;
+        private set { if (Set(ref _isStopping, value)) OnPropertyChanged(nameof(IsQqBusy)); }
+    }
+
+    private bool _isProbing;
+    public bool IsProbing
+    {
+        get => _isProbing;
+        private set { if (Set(ref _isProbing, value)) OnPropertyChanged(nameof(IsQqBusy)); }
+    }
+
+    /// <summary>正在启动时按钮上显示的文字。</summary>
+    public string StartButtonText => IsStarting ? "启动中…" : "启动";
+    public string StopButtonText => IsStopping ? "停止中…" : "停止";
+    public string ProbeButtonText => IsProbing ? "探测中…" : "探测";
+
     public bool IsInstalled => File.Exists(Path.Combine(InstallDir, "index.mjs"));
 
     public bool RiskAccepted
     {
         get => _riskAccepted;
-        set { if (Set(ref _riskAccepted, value)) SaveSettings(); }
+        set
+        {
+            if (!Set(ref _riskAccepted, value))
+                return;
+            SaveSettings();
+            OnPropertyChanged(nameof(NeedsRiskConfirmation));
+            OnPropertyChanged(nameof(RiskBadgeSeverity));
+            OnPropertyChanged(nameof(RiskBadgeText));
+        }
     }
+
+    /// <summary>还没确认风险（启动注入前要先弹窗确认）。</summary>
+    public bool NeedsRiskConfirmation => !RiskAccepted;
+
+    /// <summary>风险提示原文（弹窗与横幅共用一份，避免两处说法不一致）。</summary>
+    public const string RiskWarningText =
+        "QQ 官方可能检测到第三方登录方式并封禁账号。强烈建议不要使用全新注册的 QQ 号操作；" +
+        "班级号请确认可以接受该风险后再启动注入。";
+
+    /// <summary>风险提示原文（弹窗与横幅共用一份，避免两处说法不一致）。</summary>
+    public string RiskWarningMessage => RiskWarningText;
+
+    /// <summary>风险确认状态徽标（未确认=感叹号，已确认=对钩）。</summary>
+    public NoticeSeverity RiskBadgeSeverity =>
+        RiskAccepted ? NoticeSeverity.Success : NoticeSeverity.Warning;
+
+    public string RiskBadgeText => RiskAccepted ? "已确认风险" : "尚未确认风险";
+
+    /// <summary>用户在弹窗里确认风险后调用。</summary>
+    public void AcceptRisk()
+    {
+        if (RiskAccepted)
+            return;
+        RiskAccepted = true;
+        AppendLog("已确认风险，允许启动注入。");
+        Toasts.Success("已确认风险", "现在可以启动注入了。");
+    }
+
+    // ================= QQ 账号（多账号时选一个） =================
+
+    /// <summary>候选账号（检测到的 + 以前选过的）。</summary>
+    public ObservableCollection<QqAccount> QqCandidates { get; } = new();
+
+    private long _qqAccount;
+    public long QqAccount
+    {
+        get => _qqAccount;
+        private set { if (Set(ref _qqAccount, value)) OnPropertyChanged(nameof(QqAccountLabel)); }
+    }
+
+    public string QqAccountLabel
+    {
+        get
+        {
+            if (QqAccount <= 0)
+                return "未选择（单账号可以不管；多账号请选一下，避免注入到别的号）";
+            var nick = QqCandidates.FirstOrDefault(a => a.Uin == QqAccount)?.Nickname;
+            return string.IsNullOrWhiteSpace(nick) ? $"已选：{QqAccount}" : $"已选：{QqAccount}（{nick}）";
+        }
+    }
+
+    private string _onlineQqText = "未检测";
+    public string OnlineQqText { get => _onlineQqText; private set => Set(ref _onlineQqText, value); }
+
+    /// <summary>探测当前注入实例登录的 QQ，并把它并入候选列表。返回检测到的账号（可能为 null）。</summary>
+    public async Task<QqAccount?> DetectOnlineQqAsync()
+    {
+        IsProbing = true;
+        try
+        {
+            await using var oneBot = new OneBotClient(OneBotHttp, OneBotWs,
+                OneBotToken.Length > 0 ? OneBotToken : null);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            var info = await oneBot.GetLoginInfoAsync(cts.Token);
+            if (info is { UserId: > 0 })
+            {
+                var found = new QqAccount { Uin = info.UserId, Nickname = info.Nickname };
+                MergeCandidate(found);
+                OnlineQqText = string.IsNullOrWhiteSpace(found.Nickname)
+                    ? found.Uin.ToString()
+                    : $"{found.Uin}（{found.Nickname}）";
+                return found;
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"检测 QQ 账号失败：{ex.Message}");
+        }
+        finally { IsProbing = false; }
+
+        OnlineQqText = "未检测到（OneBot 未连接或未登录）";
+        return null;
+    }
+
+    /// <summary>记住一个候选账号（同号更新昵称）。</summary>
+    public void MergeCandidate(QqAccount account)
+    {
+        if (account.Uin <= 0)
+            return;
+        var existing = QqCandidates.FirstOrDefault(a => a.Uin == account.Uin);
+        if (existing is null)
+        {
+            QqCandidates.Add(account);
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(account.Nickname) && existing.Nickname != account.Nickname)
+        {
+            var idx = QqCandidates.IndexOf(existing);
+            QqCandidates[idx] = new QqAccount { Uin = account.Uin, Nickname = account.Nickname };
+        }
+    }
+
+    /// <summary>用户选定了账号。</summary>
+    public void ApplyQqAccount(QqAccount account)
+    {
+        MergeCandidate(account);
+        QqAccount = account.Uin;
+        OnPropertyChanged(nameof(QqAccountLabel));
+        SaveSettings();
+        var label = string.IsNullOrWhiteSpace(account.Nickname)
+            ? account.Uin.ToString()
+            : $"{account.Uin}（{account.Nickname}）";
+        AppendLog($"已选择 QQ 账号：{label}");
+        Toasts.Success("已选择 QQ 账号", label);
+    }
+
+    public void NoteQqAccountCanceled()
+        => Toasts.Show("未选择 QQ 账号", "保持原选择不变。", NoticeSeverity.Informational);
 
     public bool QqDetected { get => _qqDetected; private set => Set(ref _qqDetected, value); }
 
@@ -856,6 +1082,14 @@ public sealed class SettingsViewModel : ViewModelBase
     {
         get => _oneBotWs;
         set { if (Set(ref _oneBotWs, value)) { RefreshFeatureGates(); AutoSaveSoon(); } }
+    }
+
+    private string _oneBotToken = "";
+    /// <summary>OneBot 访问令牌（SnowLuma 配了 token 时必填，否则连不上）。</summary>
+    public string OneBotToken
+    {
+        get => _oneBotToken;
+        set { if (Set(ref _oneBotToken, value)) AutoSaveSoon(); }
     }
 
     private string _groupIds = "";
@@ -916,50 +1150,149 @@ public sealed class SettingsViewModel : ViewModelBase
             await _manager.DownloadAsync(asset.DownloadUrl, archive, prog, CancellationToken.None);
             AppendLog("解压中…");
             await Task.Run(() => SnowlumaManager.Extract(archive, InstallDir));
-            AppendLog("SnowLuma 就绪。请阅读封号警告并勾选知晓后启动。");
+            AppendLog("SnowLuma 就绪。请阅读封号警告并确认知晓后启动。");
             OnPropertyChanged(nameof(IsInstalled));
+            Toasts.Success("SnowLuma 下载完成", "下一步：确认风险提示，然后点「启动」。");
         }
-        catch (Exception ex) { AppendLog($"下载失败：{ex.Message}"); }
+        catch (Exception ex)
+        {
+            AppendLog($"下载失败：{ex.Message}");
+            Toasts.Error("SnowLuma 下载失败", ex.Message);
+        }
         finally { Busy = false; Progress = 0; }
     }
 
     public async Task StartAsync()
     {
+        IsStarting = true;
+        QqStatusText = "正在启动…";
+        QqStatusSeverity = NoticeSeverity.Informational;
+        OnPropertyChanged(nameof(StartButtonText));
         try
         {
             await _manager.StartAsync(InstallDir);
             AppendLog("SnowLuma 已启动，5 秒后自动检测 QQ…");
             await Task.Delay(5000);
+            await ProbeAsync();     // 探测结果自己会弹通知
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"启动失败：{ex.Message}");
+            QqStatusText = "启动失败";
+            QqStatusSeverity = NoticeSeverity.Error;
+            Toasts.Error("SnowLuma 启动失败", ex.Message);
+        }
+        finally
+        {
+            IsStarting = false;
+            OnPropertyChanged(nameof(StartButtonText));
+        }
+    }
+
+    /// <summary>停止注入。以前是同步的、界面毫无反馈，用户以为点了没反应。</summary>
+    public async Task StopAsync()
+    {
+        IsStopping = true;
+        OnPropertyChanged(nameof(StopButtonText));
+        try
+        {
+            await Task.Run(() => _manager.Stop());
+            QqDetected = false;
+            QqStatusText = "已停止";
+            QqStatusSeverity = NoticeSeverity.Informational;
+            AppendLog("SnowLuma 已停止。");
+            Toasts.Success("SnowLuma 已停止", "注入已关闭，QQ 恢复原状。");
+            await Task.Delay(400);
             await ProbeAsync();
         }
-        catch (Exception ex) { AppendLog($"启动失败：{ex.Message}"); }
+        catch (Exception ex)
+        {
+            AppendLog($"停止失败：{ex.Message}");
+            Toasts.Error("停止失败", ex.Message);
+        }
+        finally
+        {
+            IsStopping = false;
+            OnPropertyChanged(nameof(StopButtonText));
+        }
     }
 
-    public void Stop()
-    {
-        _manager.Stop();
-        QqDetected = false;
-        AppendLog("SnowLuma 已停止。");
-    }
-
+    /// <summary>
+    /// 探测注入三态。
+    /// 文案必须能一眼看出"成功没有"：在线=成功(对钩)、已注入但服务未就绪=警告(感叹号)、
+    /// 其余=失败(叉)。原来的「已注入 / 服务未就绪」看不出是哪种。
+    /// </summary>
     public async Task ProbeAsync()
     {
         QqDetected = false;
+        IsProbing = true;
+        OnPropertyChanged(nameof(ProbeButtonText));
+        QqStatusText = "探测中…";
+        QqStatusSeverity = NoticeSeverity.Informational;
         try
         {
-            await using var oneBot = new OneBotClient(OneBotHttp, OneBotWs);
+            await using var oneBot = new OneBotClient(OneBotHttp, OneBotWs,
+                OneBotToken.Length > 0 ? OneBotToken : null);
             var s = await _manager.ProbeAsync(InstallDir, oneBot);
-            Status = s switch
+            (QqStatusSeverity, QqStatusText) = s switch
             {
-                SnowlumaStatus.NotInstalled => "未安装",
-                SnowlumaStatus.QqNotFound => "QQ 未运行",
-                SnowlumaStatus.InjectedNotLoggedIn => "已注入 / 服务未就绪",
-                SnowlumaStatus.Online => "在线",
-                _ => s.ToString()
+                SnowlumaStatus.Online => (NoticeSeverity.Success, "在线（注入正常）"),
+                SnowlumaStatus.InjectedNotLoggedIn =>
+                    (NoticeSeverity.Warning, "已注入，但服务未就绪（通常是还没登录完成）"),
+                SnowlumaStatus.QqNotFound => (NoticeSeverity.Error, "QQ 未运行（请先启动并登录班级 QQ）"),
+                SnowlumaStatus.NotInstalled => (NoticeSeverity.Error, "未安装 SnowLuma"),
+                _ => (NoticeSeverity.Error, s.ToString())
             };
+            Status = QqStatusText;
             QqDetected = s is SnowlumaStatus.Online or SnowlumaStatus.InjectedNotLoggedIn;
+
+            switch (s)
+            {
+                case SnowlumaStatus.Online:
+                    Toasts.Success("QQ 在线", "注入正常，消息管线可以工作。");
+                    break;
+                case SnowlumaStatus.InjectedNotLoggedIn:
+                    Toasts.Warn("已注入，但服务未就绪", "多数情况是 QQ 还没登录完成，稍等再探测一次。");
+                    break;
+                case SnowlumaStatus.QqNotFound:
+                    Toasts.Error("QQ 未运行", "请先启动并登录班级 QQ，再启动注入。");
+                    break;
+                case SnowlumaStatus.NotInstalled:
+                    Toasts.Error("未安装 SnowLuma", "先在下方「SnowLuma 下载器」里下载。");
+                    break;
+            }
+
+            // 多账号场景：注入的号和我们选的不一致，用户必须知道
+            if (QqAccount > 0 && s is SnowlumaStatus.Online)
+            {
+                var info = await TryGetLoginInfoAsync(oneBot);
+                if (info is { UserId: > 0 } && info.UserId != QqAccount)
+                    Toasts.Warn("注入的 QQ 账号与所选不一致",
+                        $"当前在线 {info.UserId}，你在设置里选的是 {QqAccount}。");
+            }
         }
-        catch (Exception ex) { Status = $"探测失败：{ex.Message}"; }
+        catch (Exception ex)
+        {
+            Status = $"探测失败：{ex.Message}";
+            QqStatusText = "探测失败";
+            QqStatusSeverity = NoticeSeverity.Error;
+            Toasts.Error("探测失败", ex.Message);
+        }
+        finally
+        {
+            IsProbing = false;
+            OnPropertyChanged(nameof(ProbeButtonText));
+        }
+    }
+
+    private static async Task<LoginInfoData?> TryGetLoginInfoAsync(OneBotClient oneBot)
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            return await oneBot.GetLoginInfoAsync(cts.Token);
+        }
+        catch { return null; }
     }
 
     public void AutoConnect()
@@ -969,6 +1302,7 @@ public sealed class SettingsViewModel : ViewModelBase
         QqDetected = false;
         SaveSettings();
         AppendLog("已填入默认 OneBot 地址并保存，重启 App 后管线自动连接。");
+        Toasts.Success("已填入默认 OneBot 地址", "重启应用后消息管线会自动连接。");
     }
 
     // ================= 持久化 =================
@@ -991,8 +1325,13 @@ public sealed class SettingsViewModel : ViewModelBase
             OneBotHttp = s.OneBotHttp;
             OneBotWs = s.OneBotWs;
             GroupIdsText = string.Join(",", s.GroupIds);
+            OneBotToken = s.OneBotToken;
             PluginToken = s.PluginToken;
             PluginPort = s.PluginPort;
+            _qqAccount = s.QqAccount;
+            QqCandidates.Clear();
+            foreach (var a in s.QqAccounts)
+                QqCandidates.Add(a);
             _riskAccepted = s.RiskAccepted;
             _adminHash = s.AdminPasswordHash;
             _minimizeToTray = s.MinimizeToTray;
@@ -1032,8 +1371,11 @@ public sealed class SettingsViewModel : ViewModelBase
         s.OneBotHttp = OneBotHttp;
         s.OneBotWs = OneBotWs;
         s.GroupIds = groups;
+        s.OneBotToken = OneBotToken;
         s.PluginToken = PluginToken;
         s.PluginPort = PluginPort;
+        s.QqAccount = QqAccount;
+        s.QqAccounts = QqCandidates.ToList();
         s.Teachers = Teachers.Select(t => new Teacher
         {
             Qq = long.TryParse(t.Qq, out var n) ? n : 0,

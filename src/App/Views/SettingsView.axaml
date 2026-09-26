@@ -260,8 +260,8 @@
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="测试" Classes="accent" Click="TestAi_Click" />
-                        <TextBlock Text="{Binding AiTestResult}" VerticalAlignment="Center" FontSize="12"
-                                   TextWrapping="Wrap" MaxWidth="320" />
+                        <local:StatusBadge Severity="{Binding AiTestSeverity}"
+                                           Text="{Binding AiTestResult}" MaxWidth="340" />
                     </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
@@ -356,12 +356,12 @@
                     </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
-            <fa:SettingsExpander Header="连接状态" Description="探测插件是否已加载并在线。">
+            <fa:SettingsExpander Header="连接状态" Description="探测插件是否已加载并在线（对钩=已连接且课表已加载）。">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="探测" Click="ProbePlugin_Click" />
-                        <TextBlock Text="{Binding PluginStatus}" VerticalAlignment="Center" FontSize="12"
-                                   TextWrapping="Wrap" MaxWidth="340" />
+                        <local:StatusBadge Severity="{Binding PluginSeverity}"
+                                           Text="{Binding PluginStatus}" MaxWidth="360" />
                     </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
@@ -406,21 +406,47 @@
 
             <local:NoticeBar Severity="Error" IsVisible="{Binding IsInstalled}"
                              Title="风险警告"
-                             Message="QQ 官方可能检测到第三方登录方式并封禁账号。强烈建议不要使用全新注册的 QQ 号操作；班级号请确认可以接受该风险后再启动注入。" />
-            <fa:SettingsExpander Header="我已知晓风险" IsVisible="{Binding IsInstalled}"
-                                 Description="勾选后才允许启动注入。">
+                             Message="{Binding RiskWarningMessage}" />
+            <fa:SettingsExpander Header="风险确认" IsVisible="{Binding IsInstalled}"
+                                 Description="启动注入前必须确认一次；点击按钮会弹出完整警告。">
                 <fa:SettingsExpander.Footer>
-                    <CheckBox IsChecked="{Binding RiskAccepted}" Content="已知晓" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <local:StatusBadge Severity="{Binding RiskBadgeSeverity}"
+                                           Text="{Binding RiskBadgeText}" VerticalAlignment="Center" />
+                        <Button Content="我已知晓风险" Click="AcceptRisk_Click"
+                                IsVisible="{Binding NeedsRiskConfirmation}" />
+                        <Button Content="重新查看" Click="ReviewRisk_Click"
+                                IsVisible="{Binding RiskAccepted}" />
+                    </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
             <fa:SettingsExpander Header="运行状态" IsVisible="{Binding IsInstalled}"
-                                 Description="注入三态：QQ 未运行 / 已注入未登录 / 在线。">
+                                 Description="三态一眼可辨：对钩=在线可用，感叹号=已注入但服务未就绪，叉=QQ 未运行/未安装。">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="启动" Click="Start_Click" IsEnabled="{Binding RiskAccepted}" />
-                        <Button Content="停止" Click="Stop_Click" />
-                        <Button Content="探测" Click="Probe_Click" />
-                        <TextBlock Text="{Binding Status}" VerticalAlignment="Center" FontWeight="SemiBold" />
+                        <Button Click="Start_Click" IsEnabled="{Binding !IsQqBusy}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <fa:ProgressRing Width="14" Height="14" IsActive="{Binding IsStarting}"
+                                                 IsVisible="{Binding IsStarting}" />
+                                <TextBlock Text="{Binding StartButtonText}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Click="Stop_Click" IsEnabled="{Binding !IsQqBusy}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <fa:ProgressRing Width="14" Height="14" IsActive="{Binding IsStopping}"
+                                                 IsVisible="{Binding IsStopping}" />
+                                <TextBlock Text="{Binding StopButtonText}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Click="Probe_Click" IsEnabled="{Binding !IsQqBusy}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <fa:ProgressRing Width="14" Height="14" IsActive="{Binding IsProbing}"
+                                                 IsVisible="{Binding IsProbing}" />
+                                <TextBlock Text="{Binding ProbeButtonText}" />
+                            </StackPanel>
+                        </Button>
+                        <local:StatusBadge Severity="{Binding QqStatusSeverity}"
+                                           Text="{Binding QqStatusText}" MaxWidth="360" />
                     </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
@@ -433,6 +459,20 @@
                 </local:NoticeBar.ActionContent>
             </local:NoticeBar>
 
+            <fa:SettingsExpander Header="班级 QQ 账号"
+                                 Description="一台机器上登过好几个号时，选清楚要注入哪个；点按钮会先检测当前在线的账号再让你挑。">
+                <fa:SettingsExpander.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="检测并选择账号" Classes="accent" Click="PickQqAccount_Click"
+                                IsEnabled="{Binding !IsProbing}" />
+                        <TextBlock Text="{Binding QqAccountLabel}" VerticalAlignment="Center" FontSize="12"
+                                   TextWrapping="Wrap" MaxWidth="320" />
+                    </StackPanel>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <TextBlock Text="{Binding OnlineQqText, StringFormat='当前在线：{0}'}" FontSize="12" Opacity="0.7"
+                       TextWrapping="Wrap" Margin="2,0,0,0" />
+
             <fa:SettingsExpander Header="OneBot HTTP" Description="SnowLuma 默认 http://127.0.0.1:3000">
                 <fa:SettingsExpander.Footer>
                     <TextBox Text="{Binding OneBotHttp}" MinWidth="280" />
@@ -441,6 +481,12 @@
             <fa:SettingsExpander Header="OneBot WebSocket" Description="SnowLuma 默认 ws://127.0.0.1:3001">
                 <fa:SettingsExpander.Footer>
                     <TextBox Text="{Binding OneBotWs}" MinWidth="280" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <fa:SettingsExpander Header="OneBot Token"
+                                 Description="SnowLuma/OneBot 配了 access token 时必填，否则连不上（留空表示不需要）。">
+                <fa:SettingsExpander.Footer>
+                    <TextBox Text="{Binding OneBotToken}" PasswordChar="•" MinWidth="280" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
             <fa:SettingsExpander Header="监听群号" Description="英文逗号分隔，只处理这些群的消息。">

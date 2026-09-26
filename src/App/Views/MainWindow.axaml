@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:SmartClassroom.App.ViewModels"
         xmlns:views="using:SmartClassroom.App.Views"
+        xmlns:app="using:SmartClassroom.App"
         xmlns:fa="using:FluentAvalonia.UI.Controls"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -55,6 +56,29 @@
                 BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
             <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.8" />
         </Border>
+
+        <!-- 应用内通知：右下角浮出，几秒后自动消失。
+             启动/停止 SnowLuma、下载、AI 测试这类耗时操作完成后必须给反馈，
+             否则用户只会看到"点了没反应"，以为失败了。 -->
+        <ItemsControl Grid.Row="0" x:Name="ToastList"
+                      HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                      Margin="0,0,16,16" MaxWidth="420"
+                      IsHitTestVisible="True">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="app:ToastItem">
+                    <Border Margin="0,6,0,0" CornerRadius="6" BoxShadow="0 4 16 0 #33000000">
+                        <views:NoticeBar Severity="{Binding Severity}"
+                                         Title="{Binding Title}"
+                                         Message="{Binding Message}">
+                            <views:NoticeBar.ActionContent>
+                                <Button Content="关闭" FontSize="11" Padding="8,3"
+                                        Click="ToastClose_Click" Tag="{Binding}" />
+                            </views:NoticeBar.ActionContent>
+                        </views:NoticeBar>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
     </Grid>
 
 </Window>

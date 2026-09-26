@@ -18,6 +18,13 @@ public static class Runtime
     private static System.Timers.Timer? _scaleSaveTimer;
 
     public static AppSettings Settings { get; private set; } = new();
+
+    /// <summary>
+    /// settings.json 是否已经装进 <see cref="Settings"/>。
+    /// 设置页只有在 true 时才与 Runtime 共用这个对象；否则（比如设计器/预览工具提前构造）
+    /// 它得自己去读文件——绝不能拿一个空对象当"当前设置"再存回去，那会把用户配置清空。
+    /// </summary>
+    public static bool SettingsLoaded { get; private set; }
     public static HomeworkStore Homework { get; } = new();
     public static ActivityFeed Feed { get; } = new();
     public static CoursewareService Courseware { get; } = new();
@@ -38,6 +45,7 @@ public static class Runtime
         _cts = new CancellationTokenSource();
         var cancel = _cts.Token;
         Settings = SettingsStore.Load();
+        SettingsLoaded = true;
         LoadState();
         if (Settings.ArchiveRoot.Length > 0)
             Courseware.RebuildFromArchive(Settings.ArchiveRoot);

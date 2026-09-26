@@ -71,3 +71,10 @@ public sealed class FileUrlData
 {
     public string Url { get; set; } = "";
 }
+
+/// <summary>get_login_info 的结果：当前注入实例登录的 QQ。</summary>
+public sealed class LoginInfoData
+{
+    public long UserId { get; set; }
+    public string Nickname { get; set; } = "";
+}
