@@ -2,26 +2,137 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:SmartClassroom.App.ViewModels"
              xmlns:c="using:SmartClassroom.Core"
+             xmlns:local="using:SmartClassroom.App.Views"
              x:Class="SmartClassroom.App.Views.EventsView"
              x:DataType="vm:EventsViewModel">
-    <ScrollViewer>
-        <ItemsControl ItemsSource="{Binding Entries}">
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="c:ActivityEntry">
-                    <Border Margin="4" Padding="8" CornerRadius="8"
-                            BorderThickness="1"
-                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                        <StackPanel Spacing="2">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="{Binding Kind}" FontSize="11" Opacity="0.6" />
-                                <TextBlock Text="{Binding At, StringFormat='{}{0:MM-dd HH:mm}'}" FontSize="11" Opacity="0.6" />
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="8" MaxWidth="900" HorizontalAlignment="Stretch">
+
+            <!-- ============ 待处理：AI 没处理掉的群消息，这里给出口 ============ -->
+            <local:NoticeBar Severity="Warning" IsVisible="{Binding HasPending}"
+                             Title="{Binding PendingHeader}" Message="{Binding PendingHint}" />
+
+            <ItemsControl ItemsSource="{Binding Pending}" IsVisible="{Binding HasPending}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PendingRow">
+                        <Border Margin="0,2" Padding="12,10" CornerRadius="6" BorderThickness="1"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Border Padding="6,1" CornerRadius="4"
+                                            Background="{DynamicResource AccentFillColorDefaultBrush}">
+                                        <TextBlock Text="{Binding KindLabel}" FontSize="11" Foreground="White" />
+                                    </Border>
+                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding RetryLabel}" FontSize="11" Opacity="0.6"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding RawText}" TextWrapping="Wrap" Opacity="0.9" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="{Binding Sender}" FontSize="11" Opacity="0.7" />
+                                    <TextBlock Text="{Binding Time}" FontSize="11" Opacity="0.7" />
+                                    <TextBlock Text="{Binding Reason}" FontSize="11" Opacity="0.7"
+                                               TextWrapping="Wrap" MaxWidth="520" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2,0,0">
+                                    <Button Content="重新解析" Classes="accent" Click="Retry_Click" Tag="{Binding}" />
+                                    <Button Content="手动录入" Click="Edit_Click" Tag="{Binding}" />
+                                    <Button Content="忽略" Click="Ignore_Click" Tag="{Binding}" />
+                                </StackPanel>
                             </StackPanel>
-                            <TextBlock Text="{Binding Title}" FontWeight="Bold" />
-                            <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Opacity="0.8" />
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- 人工录入表单（按 kind 显示不同字段） -->
+            <Border IsVisible="{Binding IsEditing}" Padding="12,10" CornerRadius="6" BorderThickness="1"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="人工录入" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Editing.RawText}" TextWrapping="Wrap" Opacity="0.7" FontSize="12" />
+
+                    <!-- 作业 -->
+                    <StackPanel Spacing="6" IsVisible="{Binding IsEditingHomework}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="科目" VerticalAlignment="Center" Width="60" />
+                            <TextBox Text="{Binding FormSubject}" Width="150" Watermark="数学" />
+                            <TextBlock Text="日期" VerticalAlignment="Center" Width="44" />
+                            <TextBox Text="{Binding FormDate}" Width="130" Watermark="yyyy-MM-dd" />
                         </StackPanel>
-                    </Border>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+                        <TextBlock Text="作业条目（一行一条）" FontSize="12" Opacity="0.7" />
+                        <TextBox Text="{Binding FormItems}" AcceptsReturn="True" Height="90"
+                                 TextWrapping="Wrap" Watermark="练习册P10&#x0a;试卷一张" />
+                    </StackPanel>
+
+                    <!-- 召唤 -->
+                    <StackPanel Spacing="6" IsVisible="{Binding IsEditingSummon}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="被叫的人" VerticalAlignment="Center" Width="60" />
+                            <TextBox Text="{Binding FormTarget}" Width="180" Watermark="小明" />
+                            <CheckBox IsChecked="{Binding FormUrgent}" Content="要求现在就去" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- 换课 -->
+                    <StackPanel Spacing="6" IsVisible="{Binding IsEditingExchange}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="类型" VerticalAlignment="Center" Width="60" />
+                            <ComboBox ItemsSource="{Binding ExchangeKinds}" SelectedItem="{Binding FormKind}" Width="130" />
+                            <TextBlock Text="日期" VerticalAlignment="Center" Width="44" />
+                            <TextBox Text="{Binding FormDate}" Width="130" Watermark="yyyy-MM-dd" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="原节次" VerticalAlignment="Center" Width="60" />
+                            <TextBox Text="{Binding FormFromPeriod}" Width="70" />
+                            <TextBlock Text="目标节次" VerticalAlignment="Center" Width="70" />
+                            <TextBox Text="{Binding FormToPeriod}" Width="70" />
+                            <TextBlock Text="替换为" VerticalAlignment="Center" Width="56" />
+                            <TextBox Text="{Binding FormNewSubject}" Width="110" Watermark="仅替换时填" />
+                        </StackPanel>
+                        <TextBlock Text="跨天换课时目标节次按同一日期填写需自行确认；提交仍会经插件合法性校验。"
+                                   FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="提交" Classes="accent" Click="Submit_Click" />
+                        <Button Content="取消" Click="Cancel_Click" />
+                        <TextBlock Text="{Binding ActionResult}" VerticalAlignment="Center" FontSize="12"
+                                   TextWrapping="Wrap" MaxWidth="420" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="{Binding ActionResult}" IsVisible="{Binding !IsEditing}"
+                       FontSize="12" Opacity="0.85" TextWrapping="Wrap" />
+
+            <!-- ============ 决策时间线 ============ -->
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                <PathIcon Width="16" Height="16" Data="{StaticResource IconInfo}" VerticalAlignment="Center" />
+                <TextBlock Text="决策时间线" Theme="{StaticResource SubtitleTextBlockStyle}" />
+            </StackPanel>
+            <TextBlock Text="应用对群里消息做了什么、为什么没做，都记在这里（重启后清空）。"
+                       FontSize="12" Opacity="0.6" />
+
+            <ItemsControl ItemsSource="{Binding Entries}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="c:ActivityEntry">
+                        <Border Margin="0,2" Padding="10,8" CornerRadius="6" BorderThickness="1"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                            <StackPanel Spacing="2">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="{Binding Kind}" FontSize="11" Opacity="0.6" />
+                                    <TextBlock Text="{Binding At, StringFormat='{}{0:MM-dd HH:mm}'}" FontSize="11" Opacity="0.6" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" Opacity="0.8" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
     </ScrollViewer>
 </UserControl>

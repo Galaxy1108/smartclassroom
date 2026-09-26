@@ -8,7 +8,7 @@ namespace SmartClassroom.Core;
 public sealed class PluginLink
 {
     private readonly HttpClient _http;
-    private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions Json = ContractsJson.Options;
 
     public PluginLink(string baseUrl, string token, HttpClient? http = null)
     {
@@ -48,7 +48,7 @@ public sealed class PluginLink
         var req = new NotifyRequest { Channel = channel, Title = title, Body = body };
         using var msg = new HttpRequestMessage(HttpMethod.Post, "notify")
         {
-            Content = new StringContent(JsonSerializer.Serialize(req), Encoding.UTF8, "application/json")
+            Content = new StringContent(JsonSerializer.Serialize(req, Json), Encoding.UTF8, "application/json")
         };
         msg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Token);
         using var res = await _http.SendAsync(msg, cancel).ConfigureAwait(false);
@@ -59,7 +59,7 @@ public sealed class PluginLink
     {
         using var msg = new HttpRequestMessage(HttpMethod.Post, "exchange")
         {
-            Content = new StringContent(JsonSerializer.Serialize(req), Encoding.UTF8, "application/json")
+            Content = new StringContent(JsonSerializer.Serialize(req, Json), Encoding.UTF8, "application/json")
         };
         msg.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", Token);
         using var res = await _http.SendAsync(msg, cancel).ConfigureAwait(false);

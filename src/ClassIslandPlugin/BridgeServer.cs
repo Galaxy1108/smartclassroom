@@ -22,7 +22,7 @@ public class BridgeServer(ExchangeService exchange) : IHostedService
 
     private WebApplication? _app;
 
-    private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions Json = ContractsJson.Options;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {

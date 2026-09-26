@@ -37,7 +37,7 @@ public sealed class FeedViewsTests
     {
         var feed = new ActivityFeed();
         feed.Append("summon", "请小明过去", "张老师：来一下");
-        var vm = new EventsViewModel(feed);
+        var vm = new EventsViewModel(feed, new PendingStore(), null);
         var view = new EventsView { DataContext = vm };
 
         var entry = Assert.Single(vm.Entries);

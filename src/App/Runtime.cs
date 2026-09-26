@@ -19,6 +19,7 @@ public static class Runtime
     public static HomeworkStore Homework { get; } = new();
     public static ActivityFeed Feed { get; } = new();
     public static CoursewareService Courseware { get; } = new();
+    public static PendingStore Pending { get; } = new();
     public static ScheduleGate? Gate { get; private set; }
     public static PipelineService? Pipeline { get; private set; }
 
@@ -72,7 +73,7 @@ public static class Runtime
                 : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SmartClassroom", "archive")
         });
         var pipeline = new PipelineService(teachers, new AiAnalyzer(ai), gate, plugin,
-            oneBot, archive, Courseware, Homework, Feed);
+            oneBot, archive, Courseware, Homework, Feed, Pending);
         Pipeline = pipeline;
         pipeline.CoursewareSuggested += files => Dispatcher.UIThread.Post(() =>
         {

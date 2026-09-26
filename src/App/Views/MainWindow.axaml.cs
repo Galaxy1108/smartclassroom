@@ -17,7 +17,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _homeVm = new HomeworkViewModel(Runtime.Homework);
-        _eventsVm = new EventsViewModel(Runtime.Feed);
+        _eventsVm = new EventsViewModel(Runtime.Feed, Runtime.Pending, Runtime.Pipeline);
         Navigate("home");
         NavView.SelectedItem = NavView.MenuItems[0];
         _refreshTimer = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background,

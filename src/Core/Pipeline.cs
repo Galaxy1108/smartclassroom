@@ -6,7 +6,8 @@ namespace SmartClassroom.Core;
 
 /// <summary>
 /// 运行时总装：QQ 事件 → 教师映射 → 规则分流 → AI → 调度门/存储/插件/归档/课件。
-/// 所有外部依赖经构造注入；AI 失败一律保守降级（召唤排队、作业/换课待确认），永不抛给调用方。
+/// AI 失败或类型未知时不丢消息：进 <see cref="PendingStore"/>，由用户在事件页重试或人工补录。
+/// 所有外部依赖经构造注入。
 /// </summary>
 public sealed class PipelineService(
     TeacherMap teachers,
@@ -17,9 +18,12 @@ public sealed class PipelineService(
     FileArchive archive,
     CoursewareService courseware,
     HomeworkStore homework,
-    ActivityFeed feed)
+    ActivityFeed feed,
+    PendingStore pending)
 {
     private ScheduleGate.SendFunc Send => plugin.NotifyAsync;
+
+    public PendingStore Pending => pending;
 
     public event Action<IReadOnlyList<CoursewareFile>>? CoursewareSuggested;
 
@@ -80,7 +84,7 @@ public sealed class PipelineService(
         }
     }
 
-    /// <summary>上课事件：当天老师有课件则弹推荐（调用方负责弹窗，App 层订阅）。</summary>
+    /// <summary>上课事件：当天老师有课件则弹推荐（App 层订阅）。</summary>
     public void OnClassStarted(DateOnly date, string subject, string? teacherName, long? teacherQq = null)
     {
         var files = courseware.Query(date, teacherName, teacherQq);
@@ -93,13 +97,174 @@ public sealed class PipelineService(
     public Task<int> OnClassEndedAsync(CancellationToken cancel = default)
         => gate.FlushAsync(Send, cancel);
 
-    private async Task HandleSummonAsync(GroupMessageEvent ev, SenderInfo sender, CancellationToken cancel)
+    // ================= 待确认处置（事件页的出口） =================
+
+    /// <summary>重新解析：拿原消息再跑一次 AI。成功则移除待确认项。</summary>
+    public async Task<string> RetryPendingAsync(string id, CancellationToken cancel = default)
+    {
+        var item = pending.Get(id);
+        if (item is null)
+            return "该事项已不存在。";
+        pending.BumpRetry(id);
+        var ev = ToEvent(item);
+
+        var before = pending.Count;
+        switch (item.Kind)
+        {
+            case "homework":
+                await HandleHomeworkAsync(ev, item.Sender, cancel, keepOnFailure: true, resolvePendingId: id).ConfigureAwait(false);
+                break;
+            case "exchange":
+                await HandleExchangeAsync(ev, item.Sender, cancel, keepOnFailure: true, resolvePendingId: id).ConfigureAwait(false);
+                break;
+            case "summon":
+                await HandleSummonAsync(ev, item.Sender, cancel, keepOnFailure: true, resolvePendingId: id).ConfigureAwait(false);
+                break;
+            default:
+                return $"未知类型：{item.Kind}";
+        }
+        var resolved = pending.Get(id) is null;
+        return resolved ? "重新解析成功，已处理。" : "重新解析仍未成功，已保留在待确认列表。";
+    }
+
+    /// <summary>忽略：从待确认列表移除，不再处理。</summary>
+    public bool IgnorePending(string id)
+    {
+        var item = pending.Get(id);
+        if (item is null || !pending.Remove(id))
+            return false;
+        feed.Append(item.Kind, $"已忽略：{item.Title}", item.RawText);
+        return true;
+    }
+
+    /// <summary>人工补录召唤。</summary>
+    public async Task<string> ResolveSummonAsync(string id, string target, bool urgent, CancellationToken cancel = default)
+    {
+        var item = pending.Get(id);
+        if (item is null)
+            return "该事项已不存在。";
+        if (string.IsNullOrWhiteSpace(target))
+            return "请填写被叫的人。";
+        var summon = new SummonEvent
+        {
+            EventId = Guid.NewGuid().ToString(),
+            ReceivedAt = DateTimeOffset.Now,
+            Target = target.Trim(),
+            Urgent = urgent,
+            Reason = item.RawText,
+            Sender = item.Sender,
+            Source = item.Source,
+            Confidence = 1.0 // 人工确认
+        };
+        var decision = await gate.ProcessSummonAsync(summon, Send, cancel).ConfigureAwait(false);
+        pending.Remove(id);
+        feed.Append("summon", $"人工补录召唤 {summon.Target}（{(urgent ? "立刻" : "排队")}，{Desc(decision)}）", item.RawText);
+        return "已按人工录入处理。";
+    }
+
+    /// <summary>人工补录作业。</summary>
+    public string ResolveHomeworkAsync(string id, string subject, IReadOnlyList<string> items, DateOnly date)
+    {
+        var item = pending.Get(id);
+        if (item is null)
+            return "该事项已不存在。";
+        if (string.IsNullOrWhiteSpace(subject) || items.Count == 0)
+            return "请至少填写科目和一条作业内容。";
+
+        var merged = homework.AddOrMerge(new HomeworkItem
+        {
+            HomeworkId = Guid.NewGuid().ToString(),
+            Subject = subject.Trim(),
+            Date = date,
+            Items = items.Where(i => !string.IsNullOrWhiteSpace(i)).Select(i => i.Trim()).ToList(),
+            Sender = item.Sender,
+            Source = item.Source
+        });
+        pending.Remove(id);
+        feed.Append("homework", $"人工补录作业：{merged.Subject}", string.Join("；", merged.Items));
+        return "已按人工录入上墙。";
+    }
+
+    /// <summary>人工补录换课（仍走插件校验与落课）。</summary>
+    public async Task<string> ResolveExchangeAsync(
+        string id, ExchangeKind kind, ClassSlot from, ClassSlot? to, string? newSubject,
+        CancellationToken cancel = default)
+    {
+        var item = pending.Get(id);
+        if (item is null)
+            return "该事项已不存在。";
+        if (from.PeriodIndex <= 0)
+            return "请填写原节次。";
+
+        var req = new ExchangeRequest
+        {
+            RequestId = Guid.NewGuid().ToString(),
+            Kind = kind,
+            From = from,
+            To = to,
+            NewSubject = newSubject,
+            RawText = item.RawText,
+            Sender = item.Sender,
+            Source = item.Source,
+            Confidence = 1.0 // 人工确认，不受 AI 置信度门槛限制
+        };
+        ExchangeVerdict verdict;
+        try { verdict = await plugin.ExchangeAsync(req, cancel).ConfigureAwait(false); }
+        catch (Exception ex)
+        {
+            feed.Append("exchange", "人工换课提交失败", $"{item.RawText}（{ex.Message}）");
+            return $"提交失败：{ex.Message}";
+        }
+        pending.Remove(id);
+        feed.Append("exchange",
+            verdict.Legal ? $"人工换课已执行：{verdict.Message}" : $"人工换课被驳回：{verdict.Message}", item.RawText);
+        if (!verdict.Legal)
+            gate.EnqueueManual("需手动换课", verdict.Message);
+        return verdict.Message;
+    }
+
+    private static GroupMessageEvent ToEvent(PendingItem item) => new()
+    {
+        GroupId = item.Source.GroupId,
+        UserId = item.Sender.UserId,
+        MessageId = item.Source.MessageId,
+        RawMessage = item.RawText,
+        Text = item.RawText,
+        Card = item.Sender.Card,
+        Nickname = item.Sender.Nickname
+    };
+
+    private PendingItem AddPending(string kind, string title, string rawText, string reason, SenderInfo sender, MessageRef source)
+    {
+        var item = pending.Add(new PendingItem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Kind = kind,
+            Title = title,
+            RawText = rawText,
+            Reason = reason,
+            Sender = sender,
+            Source = source,
+            CreatedAt = DateTimeOffset.Now
+        });
+        feed.Append(kind, $"待确认：{title}", $"原因：{reason}");
+        return item;
+    }
+
+    // ================= 各类消息处理 =================
+
+    private async Task HandleSummonAsync(
+        GroupMessageEvent ev, SenderInfo sender, CancellationToken cancel,
+        bool keepOnFailure = false, string? resolvePendingId = null)
     {
         SummonDraft d;
         try { d = await ai.AnalyzeSummonAsync(ev.Text, cancel).ConfigureAwait(false); }
-        catch (AiException)
+        catch (AiException ex)
         {
-            // 降级：本地紧急词 + 原文，保守排队/直发。
+            if (!keepOnFailure)
+                AddPending("summon", "召唤解析失败，需人工确认被叫的人", ev.Text, ex.Message, sender,
+                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
+            // 保守降级：仍按紧急词排队/直发，不阻塞（通知里标"有人"，人工补录可纠正）
             var urgent = SummonGate.IsUrgent(ev.Text);
             var fallback = new SummonEvent
             {
@@ -113,11 +278,13 @@ public sealed class PipelineService(
                 Confidence = 0.3
             };
             var decision = await gate.ProcessSummonAsync(fallback, Send, cancel).ConfigureAwait(false);
-            feed.Append("summon", $"疑似召唤（AI 失败，已{Desc(decision)}）：{ev.Text}", $"来自{sender.TeacherName ?? "未知"}");
+            feed.Append("summon", $"疑似召唤（AI 失败，已{Desc(decision)}）", ev.Text);
             return;
         }
         if (!d.IsSummon || string.IsNullOrWhiteSpace(d.Target))
         {
+            if (resolvePendingId is not null)
+                pending.Remove(resolvePendingId);
             feed.Append("summon", "AI 判定非召唤，已忽略", ev.Text);
             return;
         }
@@ -133,16 +300,22 @@ public sealed class PipelineService(
             Confidence = d.Confidence
         };
         var result = await gate.ProcessSummonAsync(summon, Send, cancel).ConfigureAwait(false);
+        if (resolvePendingId is not null)
+            pending.Remove(resolvePendingId);
         feed.Append("summon", $"召唤{d.Target}（{(d.Urgent ? "立刻" : "排队")}，{Desc(result)}）", ev.Text);
     }
 
-    private async Task HandleHomeworkAsync(GroupMessageEvent ev, SenderInfo sender, CancellationToken cancel)
+    private async Task HandleHomeworkAsync(
+        GroupMessageEvent ev, SenderInfo sender, CancellationToken cancel,
+        bool keepOnFailure = false, string? resolvePendingId = null)
     {
         HomeworkDraft d;
         try { d = await ai.AnalyzeHomeworkAsync(ev.Text, sender.Subject, cancel).ConfigureAwait(false); }
         catch (AiException ex)
         {
-            feed.Append("homework", "作业解析失败，待确认", $"{ev.Text}（{ex.Message}）");
+            if (!keepOnFailure)
+                AddPending("homework", "作业解析失败，需人工补录", ev.Text, ex.Message, sender,
+                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
             return;
         }
         if (!d.IsHomework)
@@ -159,23 +332,35 @@ public sealed class PipelineService(
             Sender = sender,
             Source = new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }
         });
+        if (resolvePendingId is not null)
+            pending.Remove(resolvePendingId);
         feed.Append("homework", $"作业已上墙：{d.Subject}", string.Join("；", d.Items));
     }
 
-    private async Task HandleExchangeAsync(GroupMessageEvent ev, SenderInfo sender, CancellationToken cancel)
+    private async Task HandleExchangeAsync(
+        GroupMessageEvent ev, SenderInfo sender, CancellationToken cancel,
+        bool keepOnFailure = false, string? resolvePendingId = null)
     {
         ExchangeDraft d;
         try { d = await ai.AnalyzeExchangeAsync(ev.Text, cancel).ConfigureAwait(false); }
         catch (AiException ex)
         {
-            feed.Append("exchange", "换课解析失败，待确认", $"{ev.Text}（{ex.Message}）");
+            if (!keepOnFailure)
+                AddPending("exchange", "换课解析失败，需人工补录", ev.Text, ex.Message, sender,
+                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
             return;
         }
         if (!d.IsExchange)
+        {
+            if (resolvePendingId is not null)
+                pending.Remove(resolvePendingId);
             return;
+        }
         if (!Enum.TryParse<ExchangeKind>(d.Kind, ignoreCase: true, out var kind))
         {
-            feed.Append("exchange", "换课类型未知，待确认", ev.Text);
+            if (!keepOnFailure)
+                AddPending("exchange", $"换课类型未知（{d.Kind}），需人工补录", ev.Text, "AI 返回的类型无法识别", sender,
+                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
             return;
         }
         var req = new ExchangeRequest
@@ -194,9 +379,13 @@ public sealed class PipelineService(
         try { verdict = await plugin.ExchangeAsync(req, cancel).ConfigureAwait(false); }
         catch (Exception ex)
         {
-            feed.Append("exchange", "换课请求发送失败，待确认", $"{ev.Text}（{ex.Message}）");
+            if (!keepOnFailure)
+                AddPending("exchange", "换课请求发送失败，需人工确认", ev.Text, ex.Message, sender,
+                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId });
             return;
         }
+        if (resolvePendingId is not null)
+            pending.Remove(resolvePendingId);
         feed.Append("exchange", verdict.Legal ? $"换课已执行：{verdict.Message}" : $"换课非法，已排队下课通知手动：{verdict.Message}", ev.Text);
         if (!verdict.Legal)
             gate.EnqueueManual("需手动换课", verdict.Message);
