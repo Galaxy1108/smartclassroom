@@ -31,7 +31,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private bool _isNodeReady;
     private bool _isLocked;
     private bool _minimizeToTray = true;
-    private double _uiScale = UiScaling.Default;
+    private double _uiScale = ContentZoom.Default;
     private string _passwordResult = "";
     private bool _featureSummon;
     private bool _featureHomework;
@@ -56,7 +56,7 @@ public sealed class SettingsViewModel : ViewModelBase
         RefreshNodeStatus();
         OnPropertyChanged(nameof(FeatureSummary));
         // 用 Ctrl+滚轮改了缩放时，设置页滑块要跟着动（不再反向触发保存）
-        UiScaling.Changed += OnExternalScaleChanged;
+        ContentZoom.Changed += OnExternalScaleChanged;
     }
 
     public string SettingsPath { get; }
@@ -96,22 +96,22 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
-    /// <summary>界面与字体缩放；改动立即生效并落盘。</summary>
+    /// <summary>作业内容区缩放；改动立即生效并落盘。</summary>
     public double UiScale
     {
         get => _uiScale;
         set
         {
-            var clamped = UiScaling.Clamp(value);
+            var clamped = ContentZoom.Clamp(value);
             if (!Set(ref _uiScale, clamped))
                 return;
-            UiScaling.Scale = clamped;        // 立刻应用到已打开的窗口
+            ContentZoom.Scale = clamped;        // 立刻应用到已打开的窗口
             OnPropertyChanged(nameof(UiScaleLabel));
             SaveSettings();
         }
     }
 
-    public string UiScaleLabel => UiScaling.Describe(_uiScale);
+    public string UiScaleLabel => ContentZoom.Describe(_uiScale);
 
     private void OnExternalScaleChanged(double scale)
     {
@@ -724,7 +724,7 @@ public sealed class SettingsViewModel : ViewModelBase
         _riskAccepted = s.RiskAccepted;
         _adminHash = s.AdminPasswordHash;
         _minimizeToTray = s.MinimizeToTray;
-        _uiScale = UiScaling.Clamp(s.UiScale);
+        _uiScale = ContentZoom.Clamp(s.UiScale);
         _featureSummon = s.FeatureSummon;
         _featureHomework = s.FeatureHomework;
         _featureExchange = s.FeatureExchange;

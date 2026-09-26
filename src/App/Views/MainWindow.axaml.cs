@@ -1,7 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
-using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
 using FluentAvalonia.UI.Controls;
@@ -27,24 +25,9 @@ public partial class MainWindow : Window
         _refreshTimer = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background,
             (_, _) => RefreshActive());
         _refreshTimer.Start();
-        Closed += (_, _) =>
-        {
-            _refreshTimer.Stop();
-            UiScaling.Changed -= OnScaleChanged;
-        };
-        UiScaling.Changed += OnScaleChanged;
-        ApplyScale(UiScaling.Scale);
-
-        // Ctrl+滚轮缩放（隧道阶段先拿到，避免被内层 ScrollViewer 吃掉）
-        AddHandler(PointerWheelChangedEvent, OnWheelZoom, RoutingStrategies.Tunnel);
+        Closed += (_, _) => _refreshTimer.Stop();
     }
 
-    private void OnScaleChanged(double scale) => ApplyScale(scale);
-
-    private void OnWheelZoom(object? sender, PointerWheelEventArgs e) => UiScaleGesture.Handle(e);
-
-    private void ApplyScale(double scale)
-        => ContentScaler.LayoutTransform = new ScaleTransform(scale, scale);
 
     private void NavView_SelectionChanged(object? sender, NavigationViewSelectionChangedEventArgs e)
     {

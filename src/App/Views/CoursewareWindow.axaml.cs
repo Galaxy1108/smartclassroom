@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.IO;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Interactivity;
 using SmartClassroom.App.ViewModels;
 
 namespace SmartClassroom.App.Views;
@@ -12,11 +11,7 @@ public partial class CoursewareWindow : Window
     public CoursewareWindow()
     {
         InitializeComponent();
-        AddHandler(PointerWheelChangedEvent, OnWheelZoom, RoutingStrategies.Tunnel);
     }
-
-    /// <summary>课件弹窗同样支持 Ctrl+滚轮缩放（与主界面共用同一档位）。</summary>
-    private void OnWheelZoom(object? sender, PointerWheelEventArgs e) => UiScaleGesture.Handle(e);
 
     private void Card_DoubleTapped(object? sender, TappedEventArgs e)
     {

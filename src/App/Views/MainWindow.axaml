@@ -16,9 +16,7 @@
     </Design.DataContext>
 
     <Grid RowDefinitions="*,Auto">
-        <!-- 界面缩放：包住内容，字体/图标/卡片一起缩放 -->
-        <LayoutTransformControl Grid.Row="0" x:Name="ContentScaler">
-        <fa:NavigationView x:Name="NavView"
+        <fa:NavigationView Grid.Row="0" x:Name="NavView"
                            PaneDisplayMode="Auto"
                            IsSettingsVisible="False"
                            OpenPaneLength="200"
@@ -52,7 +50,6 @@
                 </StackPanel>
             </ScrollViewer>
         </fa:NavigationView>
-        </LayoutTransformControl>
 
         <Border Grid.Row="1" Padding="12,6" BorderThickness="0,1,0,0"
                 BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">

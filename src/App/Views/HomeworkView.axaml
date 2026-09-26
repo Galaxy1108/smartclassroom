@@ -7,7 +7,7 @@
         <!-- 工具栏 -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
             <Button Content="手动添加作业" Classes="accent" Click="BeginAdd_Click" />
-            <TextBlock Text="长按卡片 0.3 秒后可拖动排序（Ctrl+滚轮缩放）" FontSize="12" Opacity="0.55"
+            <TextBlock Text="长按卡片 0.3 秒后可拖动排序 · Ctrl+滚轮缩放本区域" FontSize="12" Opacity="0.55"
                        VerticalAlignment="Center" IsVisible="{Binding !IsEmpty}" />
             <TextBlock Text="{Binding AddResult}" VerticalAlignment="Center" FontSize="12"
                        Opacity="0.85" TextWrapping="Wrap" MaxWidth="460" />
@@ -40,6 +40,8 @@
 
         <!-- 自适应卡片网格：按可用宽度自动换行成多列 -->
         <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
+            <!-- 缩放只包住作业内容区：Ctrl+滚轮 / 设置页滑块 -->
+            <LayoutTransformControl x:Name="CardScaler">
             <StackPanel Spacing="8">
                 <TextBlock Text="还没有作业。老师在群里布置后会自动上墙（需开启「作业自动录入」），也可以上面手动添加。"
                            IsVisible="{Binding IsEmpty}" Opacity="0.6" TextWrapping="Wrap" />
@@ -107,6 +109,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </StackPanel>
+            </LayoutTransformControl>
         </ScrollViewer>
     </Grid>
 </UserControl>

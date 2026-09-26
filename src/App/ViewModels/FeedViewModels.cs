@@ -107,18 +107,44 @@ public sealed class HomeworkViewModel : ViewModelBase
     }
 
     /// <summary>拖拽期间挂起定时刷新，避免刷新重建卡片打断拖拽。</summary>
+    /// <summary>挂起刷新（按住/拖拽期间），避免重建卡片打断手势。</summary>
     public bool SuspendRefresh { get; set; }
+
+    private string _lastSignature = "";
 
     public IReadOnlyList<HomeworkItem> Snapshot() => _store.All;
 
-    public void Refresh()
+    /// <summary>
+    /// 刷新卡片。
+    /// **数据没变就不重建** —— 这很关键：定时器每 2 秒调一次，而无条件 Clear+重建
+    /// 会销毁正在被按住/拖动的卡片控件，导致指针捕获丢失（拖拽失效），
+    /// 在指针事件派发过程中销毁控件还可能直接崩掉应用。
+    /// </summary>
+    public void Refresh(bool force = false)
     {
-        if (SuspendRefresh)
-            return;                     // 拖拽中不重建，否则会打断手势
+        if (SuspendRefresh && !force)
+            return;
+        var signature = Signature();
+        if (!force && signature == _lastSignature && Items.Count == _store.All.Count)
+            return;
+        _lastSignature = signature;
+
         Items.Clear();
         foreach (var h in _store.All)
             Items.Add(new HomeworkCard(h, DateTime.Now));
         OnPropertyChanged(nameof(IsEmpty));
+    }
+
+    /// <summary>数据指纹：内容或顺序一变就变。</summary>
+    private string Signature()
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var h in _store.All)
+        {
+            sb.Append(h.Subject).Append('|').Append(h.Date).Append('|')
+              .Append(string.Join('\u0001', h.Items)).Append('|').Append(h.Due).Append('\u0002');
+        }
+        return sb.ToString();
     }
 
     public void AddItem(HomeworkItem item)

@@ -141,7 +141,7 @@ public static class Runtime
     /// Ctrl+滚轮会连续触发，逐个事件写文件既浪费又可能写坏；
     /// 这里停顿 600ms 后才真正保存。
     /// </summary>
-    public static void PersistUiScale(double scale)
+    public static void PersistZoom(double scale)
     {
         Settings.UiScale = scale;
         _scaleSaveTimer?.Stop();

@@ -67,11 +67,11 @@
                 <PathIcon Width="16" Height="16" Data="{StaticResource IconInfo}" VerticalAlignment="Center" />
                 <TextBlock Text="外观" Theme="{StaticResource SubtitleTextBlockStyle}" />
             </StackPanel>
-            <fa:SettingsExpander Header="界面与字体缩放"
-                                 Description="整体缩放字号、图标与卡片（80%~160%）。改完立即生效；教室屏幕远看嫌小就调大。">
+            <fa:SettingsExpander Header="作业内容缩放"
+                                 Description="只缩放「作业」页的卡片区（80%~180%），不影响其它界面。也可在作业页直接 Ctrl+滚轮。">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="10">
-                        <Slider Value="{Binding UiScale}" Minimum="0.8" Maximum="1.6"
+                        <Slider Value="{Binding UiScale}" Minimum="0.8" Maximum="1.8"
                                 TickFrequency="0.1" IsSnapToTickEnabled="True"
                                 TickPlacement="BottomRight" Width="220" />
                         <TextBlock Text="{Binding UiScaleLabel}" VerticalAlignment="Center"
