@@ -1,5 +1,7 @@
 # Classroom Enhancement 智慧课堂
 
+> 本项目代码完全由 AI 生成，仅经过基本人工验证
+
 跨平台（Linux / Windows）教室应用 + 配套 ClassIsland 插件。
 
 - `src/App/` — Avalonia + Fluent 主应用（类 WinUI3 外观）：作业墙、事件队列、课件弹窗、设置页（含 SnowLuma 下载器）。
