@@ -98,7 +98,7 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     /// <summary>监听群号（设置里是逗号分隔的文本）。</summary>
-    private List<long> ParseGroupIds()
+    internal List<long> ParseGroupIds()
         => GroupIdsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(g => long.TryParse(g, out var n) ? n : 0).Where(n => n > 0).ToList();
 
@@ -232,7 +232,7 @@ public sealed class SettingsViewModel : ViewModelBase
 
     /// <summary>QQ 连接就绪：有监听群号，且有 OneBot 地址。</summary>
     public bool QqReady
-        => ParseGroupIds().Count > 0
+        => (ParseGroupIds().Count > 0 || ListenAllGroups)
            && (OneBotHttp.Trim().Length > 0 || OneBotWs.Trim().Length > 0);
 
     /// <summary>AI 就绪：有模型；内置直连还要求服务地址，pi-ai 走 provider 目录。</summary>
@@ -1062,6 +1062,67 @@ public sealed class SettingsViewModel : ViewModelBase
         catch { return false; }
     }
 
+    /// <summary>要监听的群（设置里是逗号分隔文本，这里给界面看名字）。</summary>
+    public string GroupSummary
+    {
+        get
+        {
+            var ids = ParseGroupIds();
+            if (ListenAllGroups)
+                return "监听全部群（该账号所在的每个群）";
+            return ids.Count == 0
+                ? "未选择（不会处理任何群的消息）"
+                : $"已选 {ids.Count} 个群：{string.Join("、", ids)}";
+        }
+    }
+
+    /// <summary>true = 监听该账号所在的全部群（默认关闭，避免在无关群里触发）。</summary>
+    public bool ListenAllGroups
+    {
+        get => _listenAllGroups;
+        set
+        {
+            if (!Set(ref _listenAllGroups, value))
+                return;
+            OnPropertyChanged(nameof(GroupSummary));
+            RefreshFeatureGates();
+            SaveSettings();
+        }
+    }
+
+    private bool _listenAllGroups;
+
+    /// <summary>拉取该账号所在的群列表（用于勾选）。</summary>
+    public async Task<IReadOnlyList<GroupInfoData>> LoadGroupsAsync()
+    {
+        try
+        {
+            await TryAdoptOneBotEndpointAsync();   // 先保证地址/token 是对的
+            await using var oneBot = new OneBotClient(OneBotHttp, OneBotWs,
+                OneBotToken.Length > 0 ? OneBotToken : null);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var groups = await oneBot.GetGroupListAsync(cts.Token) ?? [];
+            AppendLog($"读到 {groups.Count} 个群");
+            return groups;
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"拉取群列表失败：{ex.Message}");
+            Toasts.Error("拉取群列表失败", ex.Message);
+            return [];
+        }
+    }
+
+    /// <summary>应用用户勾选的群。</summary>
+    public void ApplyGroups(IReadOnlyList<long> ids)
+    {
+        GroupIdsText = string.Join(",", ids);
+        OnPropertyChanged(nameof(GroupSummary));
+        SaveSettings();
+        AppendLog($"已选择监听 {ids.Count} 个群");
+        Toasts.Success("已更新监听群", ids.Count == 0 ? "当前不会处理任何群" : $"共 {ids.Count} 个群");
+    }
+
     /// <summary>从 SnowLuma 日志刷新"登录了哪些号"与端口冲突提示。</summary>
     public void RefreshLoggedInAccounts()
     {
@@ -1343,7 +1404,14 @@ public sealed class SettingsViewModel : ViewModelBase
     public string GroupIdsText
     {
         get => _groupIds;
-        set { if (Set(ref _groupIds, value)) { RefreshFeatureGates(); AutoSaveSoon(); } }
+        set
+        {
+            if (!Set(ref _groupIds, value))
+                return;
+            OnPropertyChanged(nameof(GroupSummary));
+            RefreshFeatureGates();
+            AutoSaveSoon();
+        }
     }
 
     private bool _autostart;
@@ -1907,6 +1975,7 @@ public sealed class SettingsViewModel : ViewModelBase
             _agreementsVersion = s.SnowLumaAgreementsVersion;
             _webUiPasswordManual = s.SnowLumaWebUiPassword.Length > 0;
             WebUiPassword = s.SnowLumaWebUiPassword;
+            _listenAllGroups = s.ListenAllGroups;
             _qqAccount = s.QqAccount;
             QqCandidates.Clear();
             foreach (var a in s.QqAccounts)
@@ -1955,6 +2024,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.PluginPort = PluginPort;
         s.SnowLumaAgreementsVersion = _agreementsVersion;
         s.SnowLumaWebUiPassword = _webUiPasswordManual ? WebUiPassword : "";
+        s.ListenAllGroups = ListenAllGroups;
         s.QqAccount = QqAccount;
         s.QqAccounts = QqCandidates.ToList();
         s.Teachers = Teachers.Select(t => new Teacher

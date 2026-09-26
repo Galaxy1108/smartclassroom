@@ -396,6 +396,35 @@ public sealed class ToastAndStatusTests : IDisposable
         Assert.False(new SettingsViewModel(_path).WebUiPasswordIsManual);
     }
 
+    // ================= 监听哪些群 =================
+
+    [AvaloniaFact]
+    public void GroupSummary_ExplainsWhatWillBeProcessed()
+    {
+        var vm = new SettingsViewModel(_path);
+        Assert.Contains("未选择", vm.GroupSummary);          // 没选群 = 什么都不处理
+
+        vm.ApplyGroups([1077826412, 987654321]);
+        Assert.Contains("2 个群", vm.GroupSummary);
+        Assert.Contains("1077826412", vm.GroupSummary);
+        Assert.Equal("1077826412,987654321", vm.GroupIdsText);
+        Assert.True(new SettingsViewModel(_path).GroupIdsText.Contains("987654321"));   // 落盘
+
+        vm.ListenAllGroups = true;
+        Assert.Contains("监听全部群", vm.GroupSummary);
+        Assert.True(new SettingsViewModel(_path).ListenAllGroups);
+    }
+
+    [AvaloniaFact]
+    public void ListenAllGroups_AlsoSatisfiesQqReadiness()
+    {
+        var vm = new SettingsViewModel(_path) { OneBotHttp = "http://127.0.0.1:3000" };
+        Assert.False(vm.QqReady);                            // 没群号也没开全部
+
+        vm.ListenAllGroups = true;
+        Assert.True(vm.QqReady);                             // 开了全部群就算配置好了
+    }
+
     // ================= OneBot Token 也要能填 =================
 
     [AvaloniaFact]

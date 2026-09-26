@@ -72,6 +72,10 @@ public sealed class OneBotClient : IAsyncDisposable
     public Task<FileUrlData?> GetGroupFileUrlAsync(long groupId, string fileId, long busid, CancellationToken cancel = default)
         => InvokeAsync<FileUrlData>("get_group_file_url", new { group_id = groupId, file_id = fileId, busid }, cancel);
 
+    /// <summary>该账号所在的群列表（用于"选择要监听的群"，省得手打群号）。</summary>
+    public Task<List<GroupInfoData>?> GetGroupListAsync(CancellationToken cancel = default)
+        => InvokeAsync<List<GroupInfoData>>("get_group_list", null, cancel);
+
     /// <summary>当前注入实例登录的 QQ（用于"选择账号"：有人一台机器上登过好几个号）。</summary>
     public Task<LoginInfoData?> GetLoginInfoAsync(CancellationToken cancel = default)
         => InvokeAsync<LoginInfoData>("get_login_info", null, cancel);

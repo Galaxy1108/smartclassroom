@@ -72,6 +72,19 @@ public sealed class FileUrlData
     public string Url { get; set; } = "";
 }
 
+/// <summary>get_group_list 的一项。</summary>
+public sealed class GroupInfoData
+{
+    [System.Text.Json.Serialization.JsonPropertyName("group_id")]
+    public long GroupId { get; set; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("group_name")]
+    public string GroupName { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonPropertyName("member_count")]
+    public int MemberCount { get; set; }
+}
+
 /// <summary>get_login_info 的结果：当前注入实例登录的 QQ。</summary>
 public sealed class LoginInfoData
 {

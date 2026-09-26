@@ -69,6 +69,25 @@ public sealed class OneBotActionModelTests
     }
 
     [Fact]
+    public void GroupList_MapsSnakeCaseFields()
+    {
+        // get_group_list 的真实形状
+        var json = """
+            {"status":"ok","retcode":0,"data":[
+              {"group_id":1077826412,"group_name":"✨AstrBot 4群✨","member_count":321},
+              {"group_id":987654321,"group_name":"高二(3)班","member_count":52}]}
+            """;
+
+        var envelope = System.Text.Json.JsonSerializer.Deserialize<OneBotResponse<List<GroupInfoData>>>(
+            json, OneBotJson.Options);
+
+        Assert.Equal(2, envelope!.Data!.Count);
+        Assert.Equal(1077826412, envelope.Data[0].GroupId);
+        Assert.Equal("✨AstrBot 4群✨", envelope.Data[0].GroupName);
+        Assert.Equal(52, envelope.Data[1].MemberCount);
+    }
+
+    [Fact]
     public void FileUrl_MapsUrl()
     {
         var json = """{"status":"ok","retcode":0,"data":{"url":"http://x/f"}}""";

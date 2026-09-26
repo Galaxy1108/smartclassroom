@@ -60,9 +60,11 @@ public static class Runtime
         };
         _saveTimer.Start();
 
-        var configured = Settings.GroupIds.Count > 0
+        var configured = (Settings.GroupIds.Count > 0 || Settings.ListenAllGroups)
             && Settings.AiBaseUrl.Length > 0 && Settings.AiModel.Length > 0;
         status.StatusText = configured ? "正在连接 QQ…" : "未配置：在设置页填写 AI / QQ 后重启生效";
+        if (Settings.ListenAllGroups)
+            Feed.Append("qq", "已开启「监听全部群」", "该账号所在的每个群都会被处理", ActivitySeverity.Warning);
 
         var statusProvider = new ClassIslandStatusProvider();
         var gate = new ScheduleGate(statusProvider);
@@ -215,18 +217,21 @@ public static class Runtime
     private static async Task RunQqLoopAsync(OneBotClient oneBot, PipelineService pipeline, MainViewModel status, CancellationToken cancel)
     {
         var groups = new HashSet<long>(Settings.GroupIds);
+        var listenAll = Settings.ListenAllGroups;
         while (!cancel.IsCancellationRequested)
         {
             try
             {
                 await oneBot.RunEventLoopAsync(async (ev, ct) =>
                 {
+                    // 没列群号（或开了「监听全部群」）时不按群过滤
+                    var wanted = listenAll || groups.Count == 0;
                     switch (ev)
                     {
-                        case GroupMessageEvent m when groups.Contains(m.GroupId):
+                        case GroupMessageEvent m when wanted || groups.Contains(m.GroupId):
                             await pipeline.OnGroupMessageAsync(m, ct);
                             break;
-                        case GroupUploadEvent u when groups.Contains(u.GroupId):
+                        case GroupUploadEvent u when wanted || groups.Contains(u.GroupId):
                             await pipeline.OnGroupUploadAsync(u, ct);
                             break;
                     }

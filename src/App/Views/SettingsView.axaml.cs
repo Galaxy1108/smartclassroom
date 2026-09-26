@@ -197,6 +197,21 @@ public partial class SettingsView : UserControl
     private async void Stop_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => await Vm.StopAsync();
 
+    /// <summary>从 OneBot 拉群列表并让用户勾选要监听的群。</summary>
+    private async void PickGroups_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var groups = await Vm.LoadGroupsAsync();
+        if (groups.Count == 0)
+        {
+            Toasts.Warn("没读到群列表", "确认 OneBot 已在线（可先点「检测并选择账号」）。");
+            return;
+        }
+        var picked = await Dialogs.PickGroupsAsync(groups, Vm.ParseGroupIds());
+        if (picked is null)
+            return;   // 取消
+        Vm.ApplyGroups(picked);
+    }
+
     /// <summary>复制 WebUI 初始密码（它默认只打到 stdout，用户看不到）。</summary>
     private async void CopyWebUiPassword_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {

@@ -36,6 +36,9 @@ public sealed class AppSettings
     /// </summary>
     public string SnowLumaAgreementsVersion { get; set; } = "";
 
+    /// <summary>true = 监听该账号所在的**全部群**（默认 false：只监听 GroupIds 里列的群）。</summary>
+    public bool ListenAllGroups { get; set; } = false;
+
     /// <summary>选定的班级 QQ 账号（0 = 未指定）。一台机器上登过好几个号时用它区分。</summary>
     public long QqAccount { get; set; }
 
@@ -95,6 +98,7 @@ public sealed class AppSettings
         OneBotWs = d.OneBotWs;
         OneBotToken = d.OneBotToken;
         GroupIds = [];
+        ListenAllGroups = false;
         QqAccount = 0;
         QqAccounts = [];
         SnowLumaAgreementsVersion = "";

@@ -246,6 +246,71 @@ public static class Dialogs
         }
     }
 
+    /// <summary>
+    /// 从群列表里多选要监听的群（省得手打群号）。返回 null = 取消。
+    /// </summary>
+    public static async Task<IReadOnlyList<long>?> PickGroupsAsync(
+        IReadOnlyList<GroupInfoData> groups, IReadOnlyCollection<long> selected)
+    {
+        var owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (owner is null)
+            return null;
+
+        var labels = groups
+            .Select(g => $"{g.GroupName}（{g.GroupId}）· {g.MemberCount} 人")
+            .ToList();
+        var list = new ListBox
+        {
+            ItemsSource = labels,
+            SelectionMode = SelectionMode.Multiple,
+            MaxHeight = 320,
+            MinWidth = 420
+        };
+        for (var i = 0; i < groups.Count; i++)
+        {
+            if (selected.Contains(groups[i].GroupId))
+                list.SelectedItems!.Add(labels[i]);
+        }
+
+        var content = new StackPanel
+        {
+            Spacing = 8,
+            Children =
+            {
+                new TextBlock
+                {
+                    Text = "勾选要监听的群（只处理这些群的消息）。班级号所在的群可能很多，"
+                         + "建议只勾班级群，避免在无关群里触发 AI 与通知。",
+                    TextWrapping = TextWrapping.Wrap, MaxWidth = 440, Opacity = 0.85
+                },
+                list
+            }
+        };
+        var dialog = new ContentDialog
+        {
+            Title = "选择要监听的群",
+            Content = content,
+            PrimaryButtonText = "使用选中的群",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary
+        };
+
+        ContentDialogResult result;
+        try { result = await dialog.ShowAsync(owner); }
+        catch { return null; }
+        if (result != ContentDialogResult.Primary)
+            return null;
+
+        var picked = new List<long>();
+        foreach (var item in list.SelectedItems ?? new List<object>())
+        {
+            var idx = labels.IndexOf(item as string ?? "");
+            if (idx >= 0)
+                picked.Add(groups[idx].GroupId);
+        }
+        return picked;
+    }
+
     private static ScrollViewer WrapText(string message) => new()
     {
         MaxHeight = 360,

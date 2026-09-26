@@ -481,9 +481,23 @@
                     <TextBox Text="{Binding OneBotToken}" PasswordChar="•" MinWidth="280" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
-            <fa:SettingsExpander Header="监听群号">
+            <fa:SettingsExpander Header="监听群号"
+                                 Description="只处理这些群的消息；可点「选择群…」从账号所在的群列表里勾选">
                 <fa:SettingsExpander.Footer>
-                    <TextBox Text="{Binding GroupIdsText}" MinWidth="280" Watermark="如 123456,789012" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBox Text="{Binding GroupIdsText}" MinWidth="220" Watermark="如 123456,789012" />
+                        <Button Content="选择群…" Click="PickGroups_Click"
+                                IsEnabled="{Binding !ListenAllGroups}" />
+                    </StackPanel>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <TextBlock Text="{Binding GroupSummary}" FontSize="12" Opacity="0.7"
+                       TextWrapping="Wrap" Margin="2,0,0,0" />
+
+            <fa:SettingsExpander Header="监听全部群"
+                                 Description="开启后该账号所在的每个群都会被处理（班级号往往在几十个群里，容易误触发）">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding ListenAllGroups}" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
             <fa:SettingsExpander Header="开机自启 SnowLuma"
