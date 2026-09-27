@@ -43,6 +43,9 @@ public static class Runtime
     /// <summary>已提示过"该群没监听"的群（每个群只提示一次）。</summary>
     private static readonly HashSet<long> _ignoredGroups = [];
 
+    /// <summary>已提示过"没开私聊监听"的发件人（每个只提示一次）。</summary>
+    private static readonly HashSet<long> _ignoredPrivate = [];
+
     /// <summary>
     /// 把"解锁后是否记住 10 分钟"应用到 AuthGate。
     ///
@@ -474,6 +477,22 @@ public static class Runtime
                             var row = Feed.Begin("qq", "收到私聊",
                                 $"{p.Nickname ?? $"QQ{p.UserId}"}：{Trim(p.Text)}");
                             await pipeline.OnPrivateMessageAsync(p, ct, row);
+                            break;
+                        }
+                        case PrivateMessageEvent ignoredPrivate:
+                        {
+                            // 没开「监听老师私聊」也要留一条记录 —— 用户实测：老师发了图，
+                            // 因为还没加进名单，连"被忽略"的记录都看不到，像是消息没收到。
+                            // 每个发件人只提示一次，避免刷屏。
+                            if (_ignoredPrivate.Add(ignoredPrivate.UserId))
+                            {
+                                var row = Feed.Begin("qq", "收到私聊",
+                                    $"{ignoredPrivate.Nickname ?? $"QQ{ignoredPrivate.UserId}"}：{Trim(ignoredPrivate.Text)}");
+                                Feed.Complete(row, "已忽略（没有开启「监听老师私聊」）",
+                                    "要处理它就在 设置 → QQ 连接 里打开「监听老师私聊」，"
+                                    + "并把这个 QQ 加进老师映射",
+                                    ActivitySeverity.Muted);
+                            }
                             break;
                         }
                     }
