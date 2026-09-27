@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using AutoStartHelper = SmartClassroom.App.AutoStart;
 using System.IO;
 using SmartClassroom.Core;
 using SmartClassroom.Core.AI;
@@ -199,6 +200,24 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     public string UiScaleLabel => ContentZoom.Describe(_uiScale);
+
+    /// <summary>应用自身的开机自启。改完立刻写系统（不成功只记日志）。</summary>
+    public bool AutoStart
+    {
+        get => _autoStart;
+        set
+        {
+            if (!Set(ref _autoStart, value))
+                return;
+            if (!AutoStartHelper.Apply(value))
+                AppendLog(value ? "开启自启动失败（写入系统项被拒绝）。" : "关闭自启动失败。");
+            else
+                AppendLog(value ? "已开启开机自启。" : "已关闭开机自启。");
+            SaveSettings();
+        }
+    }
+
+    private bool _autoStart;
 
     /// <summary>作业卡片独立缩放（作业页 Ctrl+滚轮也能调）。</summary>
     public double CardScale
@@ -2481,6 +2500,7 @@ public sealed class SettingsViewModel : ViewModelBase
             _minimizeToTray = s.MinimizeToTray;
             _uiScale = ContentZoom.Clamp(s.UiScale);
             _cardScale = ContentZoom.Clamp(s.CardScale);
+            _autoStart = s.AutoStart;
             OnPropertyChanged(nameof(CardScale));
             OnPropertyChanged(nameof(CardScaleLabel));
             _theme = AppTheme.Normalize(s.Theme);
@@ -2552,6 +2572,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.MinimizeToTray = MinimizeToTray;
         s.UiScale = UiScale;
         s.CardScale = CardScale;
+        s.AutoStart = AutoStart;
         s.Theme = _theme;
 
         SettingsStore.Save(s, SettingsPath);

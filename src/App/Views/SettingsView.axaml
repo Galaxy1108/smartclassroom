@@ -152,6 +152,13 @@
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
 
+            <fa:SettingsExpander Header="开机自启"
+                                 Description="登录后自动启动智慧课堂（随 SnowLuma 一起起来，不用手动开）">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding AutoStart}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
             <fa:SettingsExpander Header="作业卡片缩放"
                                  Description="仅作用于「作业」页的卡片，与界面缩放互相独立；也可以在作业页按 Ctrl+滚轮">
                 <fa:SettingsExpander.Footer>
