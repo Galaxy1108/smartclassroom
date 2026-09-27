@@ -9,7 +9,7 @@
 
         <!-- 卡片外观抽成资源：列表和拖拽时的"虚"卡片共用同一模板，保证长得一样 -->
         <DataTemplate x:Key="HomeworkCardTemplate" x:DataType="vm:HomeworkCard">
-            <Border Classes="hwcard" MinHeight="120"
+            <Border Classes="hwcard" MinHeight="120" Classes.selected="{Binding IsSelected}"
                     CornerRadius="8" BorderThickness="1" ClipToBounds="True"
                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
@@ -18,12 +18,8 @@
                     <Border Grid.Column="0" Background="{Binding AccentColor}" />
                     <StackPanel Grid.Column="1" Margin="12,10,12,10" Spacing="6">
                         <Grid ColumnDefinitions="*,Auto">
-                            <Button Grid.Column="1" Content="⋯" FontSize="14" Padding="8,0"
-                                    VerticalAlignment="Top" Click="CardMenu_Click"
-                                    ToolTip.Tip="编辑 / 删除" />
-                        </Grid>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" FontSize="16"
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" FontSize="16"
                                        Foreground="{Binding AccentColor}" VerticalAlignment="Center" />
                             <Border CornerRadius="4" Padding="6,1"
                                     Background="{DynamicResource ControlFillColorSecondaryBrush}">
@@ -31,7 +27,8 @@
                             </Border>
                             <TextBlock Text="{Binding DateLabel}" FontSize="12" Opacity="0.6"
                                        VerticalAlignment="Center" />
-                        </StackPanel>
+                            </StackPanel>
+                        </Grid>
                         <ItemsControl ItemsSource="{Binding Items}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:HomeworkLine">
@@ -66,6 +63,8 @@
             <Button Content="手动添加作业" Classes="accent" Click="BeginAdd_Click"
                     IsEnabled="{Binding !IsLocked}" />
             <Button Content="解锁" Click="Unlock_Click" IsVisible="{Binding IsLocked}" />
+            <Button Content="编辑" Click="EditSelected_Click" IsEnabled="{Binding HasSelection}" />
+            <Button Content="删除" Click="DeleteSelected_Click" IsEnabled="{Binding HasSelection}" />
             <TextBlock Text="长按卡片 0.3 秒可拖动排序 · 右键卡片可编辑/删除 · Ctrl+滚轮缩放本区域" FontSize="12" Opacity="0.55"
                        VerticalAlignment="Center" IsVisible="{Binding !IsEmpty}" />
             <TextBlock Text="{Binding AddResult}" VerticalAlignment="Center" FontSize="12"

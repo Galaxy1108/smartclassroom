@@ -186,11 +186,12 @@ public sealed class HomeworkContextMenuTests
     }
 
     /// <summary>
-    /// 卡片右上角的 ⋯ 按钮也要能弹菜单（可见入口，不依赖右键 ——
-    /// 用户那边右键一直不生效，所以给一个一定能点到的入口）。
+    /// 卡片右上角的 ⋯ 按钮在他环境里收不到点击，所以改成了**工具栏按钮**：
+    /// 点卡片选中 → 工具栏「编辑/删除」可用。这条路径和「手动添加作业」同一层，
+    /// 不经过卡片上的指针处理，一定能点到。
     /// </summary>
     [AvaloniaFact]
-    public void MenuButton_OpensMenu()
+    public void SelectingCard_EnablesToolbarActions()
     {
         var store = new HomeworkStore();
         store.AddOrMerge(new HomeworkItem
@@ -200,21 +201,18 @@ public sealed class HomeworkContextMenuTests
             Sender = new SmartClassroom.Contracts.SenderInfo { UserId = 0, TeacherName = "手动添加" },
             Source = new SmartClassroom.Contracts.MessageRef { GroupId = 0, MessageId = 0 }
         });
-        var view = new SmartClassroom.App.Views.HomeworkView
-        {
-            DataContext = new HomeworkViewModel(store, () => new Dictionary<string, string>())
-        };
+        var vm = new HomeworkViewModel(store, () => new Dictionary<string, string>());
+        var view = new SmartClassroom.App.Views.HomeworkView { DataContext = vm };
         var window = new Window { Width = 900, Height = 600, Content = view };
         window.Show();
         Dispatcher.UIThread.RunJobs();
 
-        var button = view.GetVisualDescendants().OfType<Button>()
-            .FirstOrDefault(b => (b.Content as string) == "⋯");
-        Assert.NotNull(button);
-        button!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-        Dispatcher.UIThread.RunJobs();
-
-        Assert.Equal(1, view.MenuOpenCount);
+        Assert.False(vm.HasSelection);
+        vm.Select(vm.Items[0]);
+        Assert.True(vm.HasSelection);
+        Assert.True(vm.Items[0].IsSelected);
+        Assert.Contains("编辑", view.GetVisualDescendants().OfType<Button>()
+            .Select(b => b.Content as string));
         window.Close();
     }
 }

@@ -231,6 +231,19 @@ public sealed class HomeworkViewModel : ViewModelBase
         return sb.ToString();
     }
 
+    /// <summary>当前选中的卡片（工具栏的编辑/删除作用于它）。</summary>
+    public HomeworkCard? Selected { get; private set; }
+    public bool HasSelection => Selected is not null;
+
+    public void Select(HomeworkCard? card)
+    {
+        Selected = card;
+        foreach (var item in Items)
+            item.IsSelected = ReferenceEquals(item, card);
+        OnPropertyChanged(nameof(Selected));
+        OnPropertyChanged(nameof(HasSelection));
+    }
+
     /// <summary>删除一条作业（作业页卡片上的「删除」）。</summary>
     public bool Delete(string homeworkId)
     {
@@ -601,7 +614,7 @@ public sealed class PendingRow(PendingItem item)
 /// 作业卡片视图行：把原始数据整理成卡片要显示的样式信息
 /// （主题色、相对日期、条目列表），避免在 XAML 里做逻辑。
 /// </summary>
-public sealed class HomeworkCard
+public sealed class HomeworkCard : ViewModelBase
 {
     /// <summary>科目配色板：按科目名稳定取色，同一个科目每次颜色一致。</summary>
     private static readonly string[] Palette =
@@ -639,6 +652,21 @@ public sealed class HomeworkCard
 
     /// <summary>对应的作业 id（编辑/删除时用）。</summary>
     public string HomeworkId { get; }
+
+    /// <summary>是否被选中（工具栏的编辑/删除作用于选中的那张）。</summary>
+    public bool IsSelected
+    {
+        get => _selected;
+        set
+        {
+            if (_selected == value)
+                return;
+            _selected = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private bool _selected;
 
     public string Subject { get; }
     public DateOnly Date { get; }

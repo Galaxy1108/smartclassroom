@@ -147,6 +147,8 @@ public partial class HomeworkView : UserControl
             var card = FindCardVisual(index);
             if (card is null)
                 return;
+            // 左键点一下就选中它（工具栏的编辑/删除作用于选中项）
+            Vm.Select(card.DataContext as HomeworkCard);
 
             _dragCard = card;
             _sourceIndex = index;
@@ -382,11 +384,18 @@ public partial class HomeworkView : UserControl
         return null;
     }
 
-    /// <summary>卡片右上角 ⋯ 按钮：点它弹同一个菜单（可见的入口，不依赖右键）。</summary>
-    private void CardMenu_Click(object? sender, RoutedEventArgs e)
+    /// <summary>工具栏「编辑」：作用于选中的卡片。</summary>
+    private async void EditSelected_Click(object? sender, RoutedEventArgs e)
     {
-        if ((sender as Button)?.DataContext is HomeworkCard card && sender is Control anchor)
-            OpenCardMenu(card, anchor);
+        if (Vm.Selected is { } card)
+            await EditCardAsync(card);
+    }
+
+    /// <summary>工具栏「删除」：作用于选中的卡片。</summary>
+    private async void DeleteSelected_Click(object? sender, RoutedEventArgs e)
+    {
+        if (Vm.Selected is { } card)
+            await DeleteCardAsync(card);
     }
 
     private async Task EditCardAsync(HomeworkCard card)
