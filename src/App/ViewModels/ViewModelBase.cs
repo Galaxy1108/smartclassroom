@@ -55,9 +55,10 @@ public sealed class SubjectColorRow : ViewModelBase
     /// </summary>
     public Avalonia.Media.Color PickerColor
     {
+        // "默认"时显示**和卡片一样**的色板色（以前写死蓝色，两边看起来不一致）
         get => Avalonia.Media.Color.TryParse(Color, out var c)
             ? c
-            : Avalonia.Media.Color.Parse("#0F6CBD");
+            : Avalonia.Media.Color.Parse(HomeworkCard.PaletteColorFor(Subject));
         set
         {
             var hex = $"#{value.R:X2}{value.G:X2}{value.B:X2}";

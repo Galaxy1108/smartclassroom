@@ -1,3 +1,7 @@
+using Avalonia.Threading;
+using Avalonia.Input;
+using Avalonia.VisualTree;
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using SmartClassroom.App.ViewModels;
 using SmartClassroom.App.Views;
@@ -132,5 +136,52 @@ public sealed class SubjectColorPickerTests
     {
         var row = new SubjectColorRow("数学", "#0F7B0F");
         Assert.Equal(Avalonia.Media.Color.Parse("#0F7B0F"), row.PickerColor);
+    }
+}
+
+/// <summary>
+/// 右键卡片要能弹出编辑/删除菜单。
+/// 踩过的坑：用 Control.Parent（逻辑树）找卡片，模板子控件的逻辑父级是 null
+/// → 找不到卡片 → 菜单怎么点都不弹（用户连报两次）。
+/// 这里真的往卡片上发一次右键 PointerPressed，断言菜单弹出。
+/// </summary>
+public sealed class HomeworkContextMenuTests
+{
+    [AvaloniaFact]
+    public void RightClickOnCard_OpensMenu()
+    {
+        var store = new HomeworkStore();
+        store.AddOrMerge(new HomeworkItem
+        {
+            HomeworkId = "h1",
+            Subject = "英语",
+            Date = DateOnly.FromDateTime(DateTime.Now),
+            Items = ["背单词"],
+            Sender = new SmartClassroom.Contracts.SenderInfo { UserId = 0, TeacherName = "手动添加" },
+            Source = new SmartClassroom.Contracts.MessageRef { GroupId = 0, MessageId = 0 }
+        });
+
+        var view = new SmartClassroom.App.Views.HomeworkView
+        {
+            DataContext = new HomeworkViewModel(store, () => new Dictionary<string, string>())
+        };
+        var window = new Window { Width = 900, Height = 600, Content = view };
+        window.Show();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        // 找到卡片上的任意一个可见控件（就是用户右键点到的东西）
+        var target = view.GetVisualDescendants().OfType<TextBlock>()
+            .FirstOrDefault(t => t.Text == "英语");
+        Assert.NotNull(target);
+
+        var args = new Avalonia.Input.PointerPressedEventArgs(
+            target!, new Avalonia.Input.Pointer(0, Avalonia.Input.PointerType.Mouse, true), target!, default,
+            0, new Avalonia.Input.PointerPointProperties(Avalonia.Input.RawInputModifiers.RightMouseButton, Avalonia.Input.PointerUpdateKind.RightButtonPressed),
+            Avalonia.Input.KeyModifiers.None);
+        target!.RaiseEvent(args);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(1, view.MenuOpenCount);
+        window.Close();
     }
 }

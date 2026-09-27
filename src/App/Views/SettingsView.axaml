@@ -97,6 +97,9 @@
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
 
+            <TextBlock Text="{Binding FeatureSummary}" FontSize="12" Opacity="0.75"
+                       TextWrapping="Wrap" Margin="2,4,0,0" />
+
             <!-- ================= 外观 ================= -->
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">
                 <PathIcon Width="16" Height="16" Data="{StaticResource IconInfo}" VerticalAlignment="Center" />
@@ -175,8 +178,6 @@
                        FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
                        TextWrapping="Wrap" Margin="2,0,0,2" />
 
-            <TextBlock Text="{Binding FeatureSummary}" FontSize="12" Opacity="0.75"
-                       TextWrapping="Wrap" Margin="2,4,0,0" />
 
 
             <!-- ================= AI ================= -->

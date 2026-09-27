@@ -54,6 +54,9 @@ public partial class HomeworkView : UserControl
     /// </summary>
     internal bool DragHandlersAttached { get; private set; }
 
+    /// <summary>右键菜单弹出次数（测试用：验证右键真的能弹菜单）。</summary>
+    internal int MenuOpenCount { get; private set; }
+
     // ================= 缩放（仅本页卡片区，独立于全局缩放） =================
 
     private void ApplyZoom(double scale)
@@ -88,9 +91,6 @@ public partial class HomeworkView : UserControl
 
     private void Card_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        // 锁定时不许拖拽（控件禁用管不到自绘的拖拽）
-        if (Vm.IsLocked)
-            return;
         // 右键：直接弹出菜单（模板里挂 ContextMenu 实测不弹，代码里弹最可靠）
         if (e.GetCurrentPoint(null).Properties.IsRightButtonPressed)
         {
@@ -104,10 +104,14 @@ public partial class HomeworkView : UserControl
                 menu.Items.Add(edit);
                 menu.Items.Add(del);
                 menu.Open(e.Source as Control ?? this);
+                MenuOpenCount++;   // 测试钩子：确认菜单真的弹了
             }
             e.Handled = true;
             return;
         }
+        // 锁定时不许拖拽（控件禁用管不到自绘的拖拽）
+        if (Vm.IsLocked)
+            return;
         // 点在按钮/菜单上也不开始拖拽
         if (e.Source is Button || e.Source is MenuItem || e.Source is ContextMenu)
             return;
@@ -344,10 +348,18 @@ public partial class HomeworkView : UserControl
         Vm.RefreshLockState();
     }
 
-    /// <summary>从事件来源往上找它属于哪张卡片。</summary>
+    /// <summary>
+    /// 从事件来源找出它属于哪张卡片。
+    ///
+    /// ⚠️ 不能走 <c>Control.Parent</c>：那是**逻辑树**，模板里的子控件（TextBlock 等）
+    /// 逻辑父级是 null —— 实测就是这里找不到卡片，导致右键菜单怎么点都不弹。
+    /// DataContext 会从卡片继承下来，直接用它最可靠；再兜一层可视树向上找。
+    /// </summary>
     private static HomeworkCard? FindCard(Control? source)
     {
-        for (var c = source; c is not null; c = c.Parent as Control)
+        if (source?.DataContext is HomeworkCard direct)
+            return direct;
+        for (var c = source as Avalonia.Visual; c is not null; c = c.GetVisualParent())
             if (c.DataContext is HomeworkCard card)
                 return card;
         return null;

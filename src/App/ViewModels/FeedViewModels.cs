@@ -660,6 +660,10 @@ public sealed class HomeworkCard
     /// </summary>
     public string DueLabel => string.IsNullOrWhiteSpace(Due) ? "未说明截止" : Due!;
 
+    /// <summary>某科目在默认色板里的颜色（设置页显示"默认"时用它，保证和卡片一致）。</summary>
+    public static string PaletteColorFor(string subject)
+        => Palette[Math.Abs(StableHash(subject ?? "")) % Palette.Length];
+
     private static int StableHash(string s)
     {
         unchecked
