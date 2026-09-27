@@ -75,7 +75,7 @@ public sealed class AiAnalyzer(IAiClient ai)
     {
         var ctx = context ?? SummonContext.Empty;
         var system = $$"""
-            你分析班级QQ群里的消息，判断是否为"叫某人过去/上来"类召唤。
+            你分析班级QQ群里的消息（**可能带图片：截图里的字也要看**），判断是否为"叫某人过去/上来"类召唤。
             **没点名具体的人也算**（"你们过来一下""都到操场集合""我的儿子们给我滚过来"都是召唤）。
             只输出 JSON：{"is_summon":true/false,"target":"被叫的人名，没点名就空字符串","teacher":"叫人的老师姓名，能确定才填，否则空字符串","urgent":true/false,"title":"通知标题","body":"通知正文","confidence":0-1}
             target 为空时，title/body 用"你们/大家"这类泛指（例：title="老师叫你们过去"）。
@@ -107,10 +107,13 @@ public sealed class AiAnalyzer(IAiClient ai)
     /// 返回 "homework" / "exchange" / "summon" / "none"。
     /// </summary>
     public async Task<string?> AnalyzeKindAsync(string text, string? senderSubject,
-        CancellationToken cancel = default, Action<string>? onProgress = null)
+        CancellationToken cancel = default, Action<string>? onProgress = null,
+        IReadOnlyList<AiImage>? images = null)
     {
         var system = $$"""
-            你是班级群消息分类器。只输出 JSON：{"category":"homework|exchange|summon|none"}
+            你是班级群消息分类器。只输出 JSON：{"category":"homework|exchange|summon|notice|none"}
+            **消息可能带图片：图片里的字也要看** —— 老师常发作业/通知截图，
+            正文只是"[图片]"占位符时**必须看图**再判断，别直接判 none。
 
             summon：要求（某）人过去/上来/去某处 —— **即使句子里出现"作业"，只要重点是人过去，就是 summon**
               例："小明现在来一下" → summon
@@ -165,7 +168,7 @@ public sealed class AiAnalyzer(IAiClient ai)
 
     /// <summary>把老师的通知整理成一条简短提醒（标题 + 正文）。</summary>
     public async Task<NoticeDraft> AnalyzeNoticeAsync(string text, CancellationToken cancel = default,
-        Action<string>? onProgress = null)
+        Action<string>? onProgress = null, IReadOnlyList<AiImage>? images = null)
     {
         var system = $$"""
             把老师发的话整理成一条给学生看的提醒。只输出 JSON：{"is_notice":true/false,"title":"标题","body":"正文"}
@@ -180,12 +183,14 @@ public sealed class AiAnalyzer(IAiClient ai)
             例："12,13,14 号没交作业，快点交上来" → {"is_notice":true,"title":"12、13、14 号速交作业","body":"昨天作业 12、13、14 号未交"}
             例："中午吃什么" → {"is_notice":false,"title":"","body":""}
             """;
-        var raw = await ai.AskAsync(system, text, cancel, onProgress).ConfigureAwait(false);
+        var raw = await ai.AskAsync(system, text, cancel, onProgress, images).ConfigureAwait(false);
         var d = JsonSerializer.Deserialize<NoticeDraft>(AiGateway.ExtractJson(raw), Json);
         return d ?? throw new AiException("通知解析为空");
     }
 
-    public async Task<HomeworkDraft> AnalyzeHomeworkAsync(string text, string? senderSubject, CancellationToken cancel = default, Action<string>? onProgress = null)
+    public async Task<HomeworkDraft> AnalyzeHomeworkAsync(string text, string? senderSubject,
+        CancellationToken cancel = default, Action<string>? onProgress = null,
+        IReadOnlyList<AiImage>? images = null)
     {
         var system = $$"""
             你整理老师布置的作业。发送者科目为"{{senderSubject ?? "未知"}}"（可作参考，以消息内容为准）。
@@ -201,7 +206,7 @@ public sealed class AiAnalyzer(IAiClient ai)
               消息里"明天上课前交"、今天是 2026-09-26 → due = "2026-09-27（明天上课前交）"
               没提截止 → due = ""
             """;
-        var raw = await ai.AskAsync(system, text, cancel, onProgress).ConfigureAwait(false);
+        var raw = await ai.AskAsync(system, text, cancel, onProgress, images).ConfigureAwait(false);
         var d = JsonSerializer.Deserialize<HomeworkDraft>(AiGateway.ExtractJson(raw), Json);
         return d ?? throw new AiException("作业解析为空");
     }

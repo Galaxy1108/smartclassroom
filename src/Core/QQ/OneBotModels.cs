@@ -32,6 +32,8 @@ public class OneBotEvent
 /// </summary>
 public interface IIncomingMessage
 {
+    /// <summary>消息里的图片（可下载的直链）。视觉模型靠它读截图里的字。</summary>
+    List<UploadedImage> Images => [];
     long UserId { get; }
     long GroupId { get; }
     long MessageId { get; }
@@ -48,6 +50,7 @@ public sealed class GroupMessageEvent : OneBotEvent, IIncomingMessage
     public string Text { get; set; } = "";
     public string? Card { get; set; }
     public string? Nickname { get; set; }
+    public List<UploadedImage> Images { get; set; } = [];
 }
 
 /// <summary>
@@ -64,6 +67,7 @@ public sealed class PrivateMessageEvent : OneBotEvent, IIncomingMessage
     public string RawMessage { get; set; } = "";
     public string Text { get; set; } = "";
     public string? Nickname { get; set; }
+    public List<UploadedImage> Images { get; set; } = [];
 }
 
 /// <summary>群文件上传通知（notice.group_upload）。</summary>
@@ -76,6 +80,13 @@ public sealed class GroupUploadEvent : OneBotEvent, IIncomingMessage
 
     /// <summary>文件名当作"文本"，便于统一走发送者闸门与记录。</summary>
     public string Text => File.Name;
+}
+
+/// <summary>消息里的一张图片（直链 + 建议文件名）。</summary>
+public sealed class UploadedImage
+{
+    public string Url { get; set; } = "";
+    public string Name { get; set; } = "image.png";
 }
 
 public sealed class UploadedFile

@@ -24,7 +24,7 @@ public sealed class AiGateway(AiOptions options, HttpClient? http = null) : IAiC
     private readonly string _sessionId = OpenCodeCompat.NewSessionId();
 
     public async Task<string> AskAsync(string system, string user, CancellationToken cancel = default,
-        Action<string>? onProgress = null)
+        Action<string>? onProgress = null, IReadOnlyList<AiImage>? images = null)
     {
         for (var attempt = 1; ; attempt++)
         {
@@ -32,7 +32,7 @@ public sealed class AiGateway(AiOptions options, HttpClient? http = null) : IAiC
             {
                 if (attempt > 1)
                     onProgress?.Invoke($"正在重试（第 {attempt}/{AiRetry.MaxAttempts} 次）…");
-                return await AskOnceAsync(system, user, cancel).ConfigureAwait(false);
+                return await AskOnceAsync(system, user, cancel, images).ConfigureAwait(false);
             }
             catch (Exception ex) when (attempt < AiRetry.MaxAttempts && !cancel.IsCancellationRequested
                                        && ex is not OperationCanceledException)
@@ -50,8 +50,21 @@ public sealed class AiGateway(AiOptions options, HttpClient? http = null) : IAiC
         }
     }
 
-    private async Task<string> AskOnceAsync(string system, string user, CancellationToken cancel)
+    private async Task<string> AskOnceAsync(string system, string user, CancellationToken cancel,
+        IReadOnlyList<AiImage>? images = null)
     {
+        // 有图片时用 OpenAI 的内容数组（data URI），否则就是纯字符串 —— 纯文本端点收到数组可能报错
+        object userContent = user;
+        if (images is { Count: > 0 })
+        {
+            var parts = new List<object> { new { type = "text", text = user } };
+            parts.AddRange(images.Select(i => (object)new
+            {
+                type = "image_url",
+                image_url = new { url = $"data:{i.MimeType};base64,{i.Data}" }
+            }));
+            userContent = parts;
+        }
         var body = new
         {
             model = options.Model,
@@ -59,7 +72,7 @@ public sealed class AiGateway(AiOptions options, HttpClient? http = null) : IAiC
             messages = new object[]
             {
                 new { role = "system", content = system },
-                new { role = "user", content = user }
+                new { role = "user", content = userContent }
             }
         };
         using var req = new HttpRequestMessage(HttpMethod.Post,

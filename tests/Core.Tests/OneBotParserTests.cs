@@ -220,7 +220,7 @@ public sealed class OneBotFileSegmentTests
 public sealed class OneBotImageSegmentTests
 {
     [Fact]
-    public void Image_WithUrl_BecomesFileEvent()
+    public void Image_WithUrl_IsAttachedToMessage()
     {
         var json = """
             {"post_type":"message","message_type":"group","time":1,"self_id":2,"group_id":100200300,
@@ -229,11 +229,13 @@ public sealed class OneBotImageSegmentTests
              "sender":{"card":"张老师"}}
             """;
 
-        var ev = Assert.IsType<GroupUploadEvent>(OneBotParser.Parse(json));
+        // 图片挂在消息上（交给视觉模型读），不再是"文件事件"
+        var ev = Assert.IsType<GroupMessageEvent>(OneBotParser.Parse(json));
 
-        Assert.Equal(100200300L, ev.GroupId);
-        Assert.EndsWith(".jpg", ev.File.Name);
-        Assert.True(ev.File.HasUrl);
+        var img = Assert.Single(ev.Images);
+        Assert.Equal("http://127.0.0.1:3000/get_image?x=1", img.Url);
+        Assert.EndsWith(".jpg", img.Name);
+        Assert.Equal("[图片]", ev.Text);
     }
 
     [Fact]

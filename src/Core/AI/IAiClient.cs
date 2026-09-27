@@ -12,8 +12,9 @@ public interface IAiClient
     /// 让界面能把"AI 请求失败，正在重试（第 2 次）"实时写在任务进度下面
     /// （用户明确要求：失败也要实时可见，并且要重试）。
     /// </param>
+    /// <param name="images">随消息一起发给模型的图片（视觉模型能读截图里的字）。</param>
     Task<string> AskAsync(string system, string user, CancellationToken cancel = default,
-        Action<string>? onProgress = null);
+        Action<string>? onProgress = null, IReadOnlyList<AiImage>? images = null);
 }
 
 /// <summary>
@@ -44,4 +45,11 @@ public static class AiRetry
         var text = ex.Message.Replace('\n', ' ').Trim();
         return text.Length <= 80 ? text : text[..80] + "…";
     }
+}
+
+/// <summary>发给模型的图片（base64 + MIME）。老师发的作业/通知截图靠它读懂。</summary>
+public sealed record AiImage(string Data, string MimeType)
+{
+    public const int MaxBytes = 4 * 1024 * 1024;   // 单张上限 4MB
+    public const int MaxCount = 3;                 // 一条消息最多 3 张
 }

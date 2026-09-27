@@ -110,6 +110,42 @@ public sealed class PipelineService(
            : kind.HasFlag(RuleEngine.Kind.Notice) ? "通知"
            : "未知";
 
+    /// <summary>下载消息里的图片用（独立 HttpClient，别和 OneBot 的混在一起）。</summary>
+    private static readonly HttpClient imageHttp = new() { Timeout = TimeSpan.FromSeconds(20) };
+
+    /// <summary>
+    /// 把消息里的图片下载成 base64 交给模型（视觉模型能读截图里的字）。
+    /// 老师发的作业/通知截图非常常见，读不懂图等于漏消息。
+    /// 单张超过 4MB 或下载失败就跳过，不影响文本处理。
+    /// </summary>
+    private async Task<IReadOnlyList<AiImage>?> LoadImagesAsync(IIncomingMessage ev, CancellationToken cancel)
+    {
+        if (ev.Images.Count == 0)
+            return null;
+        var result = new List<AiImage>();
+        foreach (var img in ev.Images.Take(AiImage.MaxCount))
+        {
+            try
+            {
+                using var res = await imageHttp.GetAsync(img.Url, cancel).ConfigureAwait(false);
+                if (!res.IsSuccessStatusCode)
+                    continue;
+                var bytes = await res.Content.ReadAsByteArrayAsync(cancel).ConfigureAwait(false);
+                if (bytes.Length == 0 || bytes.Length > AiImage.MaxBytes)
+                    continue;
+                var mime = res.Content.Headers.ContentType?.MediaType
+                           ?? (img.Name.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
+                               ? "image/jpeg" : "image/png");
+                result.Add(new AiImage(Convert.ToBase64String(bytes), mime));
+            }
+            catch (Exception)
+            {
+                // 单张图片拿不到就当没有，文本照常处理
+            }
+        }
+        return result.Count > 0 ? result : null;
+    }
+
     private static string Weekday(DateOnly date) => date.DayOfWeek switch
     {
         DayOfWeek.Monday => "周一",
@@ -214,8 +250,16 @@ public sealed class PipelineService(
         if (progressId is { } pid)
             feed.Update(pid, "正在处理消息", "交给 AI 分类…");
         // AI 的失败与重试也实时写在进度下面（用户要求：失败也要可见，并且要重试）
-        var kind = await ai.AnalyzeKindAsync(ev.Text, sender.Subject, cancel,
-            msg => { if (progressId is { } p2) feed.Update(p2, "正在处理消息", msg); })
+        // 图片消息：下载后一起给模型（视觉模型能读截图里的字）
+        var images = await LoadImagesAsync(ev, cancel).ConfigureAwait(false);
+        if (images is not null && progressId is { } ip)
+            feed.Update(ip, "正在处理消息", $"已读取 {images.Count} 张图片，交给 AI 分类…");
+        // 带图片时明确提示模型看图判断（否则纯 "[图片]" 占位符会让它判成"无关"）
+        var classifyText = images is null
+            ? ev.Text
+            : $"{ev.Text}\n（本条消息带图片，请结合图片里的内容判断）";
+        var kind = await ai.AnalyzeKindAsync(classifyText, sender.Subject, cancel,
+            msg => { if (progressId is { } p2) feed.Update(p2, "正在处理消息", msg); }, images)
             .ConfigureAwait(false);
         var mapped = kind switch
         {
@@ -624,7 +668,8 @@ public sealed class PipelineService(
         try
         {
             d = await ai.AnalyzeNoticeAsync(ev.Text, cancel,
-                msg => UpdateRow(rowId, "正在整理通知", msg)).ConfigureAwait(false);
+                msg => UpdateRow(rowId, "正在整理通知", msg),
+                await LoadImagesAsync(ev, cancel).ConfigureAwait(false)).ConfigureAwait(false);
         }
         catch (AiException ex)
         {
@@ -654,7 +699,8 @@ public sealed class PipelineService(
         try
         {
             d = await ai.AnalyzeHomeworkAsync(ev.Text, sender.Subject, cancel,
-                msg => UpdateRow(rowId, "正在整理作业", msg)).ConfigureAwait(false);
+                msg => UpdateRow(rowId, "正在整理作业", msg),
+                await LoadImagesAsync(ev, cancel).ConfigureAwait(false)).ConfigureAwait(false);
         }
         catch (AiException ex)
         {

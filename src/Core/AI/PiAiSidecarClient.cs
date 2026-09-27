@@ -64,7 +64,7 @@ public sealed class PiAiSidecarClient : IAiClient, IAsyncDisposable
     // ---- 高层 API ----
 
     public async Task<string> AskAsync(string system, string user, CancellationToken cancel = default,
-        Action<string>? onProgress = null)
+        Action<string>? onProgress = null, IReadOnlyList<AiImage>? images = null)
     {
         // 端点会抽风（实测一次请求挂了 76 秒还没结果），所以失败要重试，
         // 并且把"第几次、为什么失败"实时报给界面。
@@ -83,7 +83,11 @@ public sealed class PiAiSidecarClient : IAiClient, IAsyncDisposable
                     reasoning = _options.Reasoning,
                     maxTokens = _options.MaxTokens,
                     system,
-                    user
+                    user,
+                    // 图片走 pi-ai 的内容数组；没有图片时不传这个字段
+                    images = images is { Count: > 0 }
+                        ? images.Select(i => new { data = i.Data, mimeType = i.MimeType }).ToArray()
+                        : null
                 }, cancel).ConfigureAwait(false);
                 return data.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "";
             }

@@ -6,6 +6,7 @@
 //   {"id":"2","cmd":"providers"}
 //   {"id":"3","cmd":"models","provider":"openai"}
 //   {"id":"4","cmd":"complete","provider":"openai","model":"gpt-4o-mini","system":"...","user":"...","apiKey":"..."}
+//   {"id":"6","cmd":"complete",...,"images":[{"data":"<base64>","mimeType":"image/png"}]}   // 图片（视觉模型）
 //   {"id":"5","cmd":"complete","baseUrl":"https://x/v1","model":"qwen-flash","system":"...","user":"..."}  // 自定义 OpenAI 兼容端点
 //
 // 响应：
@@ -34,6 +35,22 @@ const log = (...a) => process.stderr.write(`[sidecar] ${a.join(' ')}\n`);
 const OPENCODE_SESSION_HEADER = 'x-opencode-session';
 const SESSION_ID = 'smartclassroom-' + randomUUID();
 
+/**
+ * 用户消息内容。带图片时用 pi-ai 的内容数组
+ * （{type:'image', data:<base64>, mimeType}），否则就是纯字符串。
+ */
+function buildUserContent(req) {
+  const text = req.user ?? '';
+  const images = Array.isArray(req.images) ? req.images : [];
+  if (images.length === 0) return text;
+  return [
+    { type: 'text', text },
+    ...images
+      .filter((i) => i && typeof i.data === 'string' && i.data.length > 0)
+      .map((i) => ({ type: 'image', data: i.data, mimeType: i.mimeType || 'image/png' })),
+  ];
+}
+
 function isOpenCodeEndpoint(baseUrl) {
   try {
     const host = new URL(baseUrl).hostname.toLowerCase();
@@ -57,7 +74,7 @@ function models() {
 }
 
 /** 端点是否为「自定义 OpenAI 兼容」——有 baseUrl 就自己造一个临时 provider。 */
-function customProvider(baseUrl, modelId, apiKey, reasoningLevel, sessionId) {
+function customProvider(baseUrl, modelId, apiKey, reasoningLevel, sessionId, hasImages = false) {
   const model = {
     id: modelId,
     name: modelId,
@@ -67,7 +84,8 @@ function customProvider(baseUrl, modelId, apiKey, reasoningLevel, sessionId) {
     // 由调用方声明的推理等级决定是否声明"支持推理"：
     // 不声明就不会给端点发它可能不认识的参数；声明了 pi-ai 才会按等级压低思考量。
     reasoning: !!reasoningLevel && reasoningLevel !== 'off',
-    input: ['text'],
+    // 自定义端点：带图片时声明支持图片，否则 pi-ai 会把图片丢掉
+    input: hasImages ? ['text', 'image'] : ['text'],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 128000,
     maxTokens: 8192,
@@ -131,12 +149,17 @@ async function handle(req) {
   if (cmd === 'complete') {
     const context = {
       systemPrompt: req.system ?? '',
-      messages: [{ role: 'user', content: req.user ?? '', timestamp: Date.now() }],
+      messages: [{
+        role: 'user',
+        content: buildUserContent(req),
+        timestamp: Date.now(),
+      }],
     };
 
     let model;
     if (req.baseUrl) {
-      const provider = customProvider(req.baseUrl, req.model, req.apiKey, req.reasoning, sessionIdOf(req));
+      const provider = customProvider(req.baseUrl, req.model, req.apiKey, req.reasoning,
+        sessionIdOf(req), Array.isArray(req.images) && req.images.length > 0);
       const m = createModels();
       m.setProvider(provider);
       model = m.getModel('smartclassroom-custom', req.model);
