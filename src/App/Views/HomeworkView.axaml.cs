@@ -323,4 +323,29 @@ public partial class HomeworkView : UserControl
                 attempt >= 3 ? "已连续输错 3 次，请稍后再试。" : "请重新输入管理员密码。"));
         Vm.RefreshLockState();
     }
+
+    /// <summary>编辑卡片：把该条填进表单（提交即就地改掉）。</summary>
+    private async void EditCard_Click(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is not HomeworkCard card)
+            return;
+        var ok = await Runtime.Auth.RequireAsync(
+            reason => PasswordDialog.PromptAsync("修改作业", reason), "修改作业需要管理员密码");
+        if (!ok)
+            return;
+        Vm.BeginEdit(card.HomeworkId);
+    }
+
+    /// <summary>删除卡片。</summary>
+    private async void DeleteCard_Click(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is not HomeworkCard card)
+            return;
+        var ok = await Runtime.Auth.RequireAsync(
+            reason => PasswordDialog.PromptAsync("删除作业", reason), "删除作业需要管理员密码");
+        if (!ok)
+            return;
+        if (Vm.Delete(card.HomeworkId))
+            Runtime.SaveState();
+    }
 }

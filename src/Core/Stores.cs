@@ -10,6 +10,30 @@ public sealed class HomeworkStore
     /// <summary>按当前显示顺序返回（新添加的在前，可被手动拖拽重排）。</summary>
     public IReadOnlyList<HomeworkItem> All => _items.ToList();
 
+    /// <summary>按 HomeworkId 删除（作业页的「删除」）。返回是否删掉了。</summary>
+    public bool Remove(string homeworkId)
+    {
+        var index = _items.FindIndex(h => h.HomeworkId == homeworkId);
+        if (index < 0)
+            return false;
+        _items.RemoveAt(index);
+        return true;
+    }
+
+    /// <summary>按 HomeworkId 取一条。</summary>
+    public HomeworkItem? Get(string homeworkId)
+        => _items.FirstOrDefault(h => h.HomeworkId == homeworkId);
+
+    /// <summary>按 HomeworkId 就地替换（作业页的「编辑」）。</summary>
+    public bool Replace(HomeworkItem item)
+    {
+        var index = _items.FindIndex(h => h.HomeworkId == item.HomeworkId);
+        if (index < 0)
+            return false;
+        _items[index] = item;
+        return true;
+    }
+
     /// <summary>拖拽重排：把 <paramref name="from"/> 位置的条目移动到 <paramref name="to"/>。</summary>
     public bool Move(int from, int to)
     {

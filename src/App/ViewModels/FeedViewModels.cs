@@ -32,6 +32,9 @@ public sealed class HomeworkViewModel : ViewModelBase
     /// <summary>解锁后刷新界面（各页共用）。</summary>
     public void RefreshLockState() => OnPropertyChanged(nameof(IsLocked));
 
+    /// <summary>没锁就能改作业（卡片上的编辑/删除按钮据此启用）。</summary>
+    public bool IsEditable => !IsLocked;
+
     /// <summary>当前生效的科目颜色（科目名 → #RRGGBB）。</summary>
     public IReadOnlyDictionary<string, string> SubjectColors
         => _colorSource?.Invoke() ?? new Dictionary<string, string>();
@@ -83,7 +86,11 @@ public sealed class HomeworkViewModel : ViewModelBase
         FormDue = "";
     }
 
-    public void CancelAdd() => IsAdding = false;
+    public void CancelAdd()
+    {
+        IsAdding = false;
+        _editingId = null;
+    }
 
     /// <summary>提交手动添加。成功返回 true。校验失败时保留表单内容，方便改。</summary>
     public bool SubmitAdd()
@@ -102,6 +109,24 @@ public sealed class HomeworkViewModel : ViewModelBase
             return false;
         }
         var date = DateOnly.TryParse(FormDate, out var d) ? d : DateOnly.FromDateTime(DateTime.Now);
+
+        // 编辑模式：就地替换那一条（保留原来的发送者与来源）
+        if (_editingId is { } editing && _store.Get(editing) is { } old)
+        {
+            _store.Replace(old with
+            {
+                Subject = FormSubject.Trim(),
+                Date = date,
+                Items = items,
+                Due = string.IsNullOrWhiteSpace(FormDue) ? null : FormDue.Trim()
+            });
+            AddResult = $"已修改：{FormSubject.Trim()}（{date:MM-dd}）";
+            _editingId = null;
+            IsAdding = false;
+            Refresh();
+            return true;
+        }
+
         _store.AddOrMerge(new HomeworkItem
         {
             HomeworkId = Guid.NewGuid().ToString(),
@@ -205,6 +230,32 @@ public sealed class HomeworkViewModel : ViewModelBase
             sb.Append(kv.Key).Append('=').Append(kv.Value).Append('\u0003');
         return sb.ToString();
     }
+
+    /// <summary>删除一条作业（作业页卡片上的「删除」）。</summary>
+    public bool Delete(string homeworkId)
+    {
+        if (!_store.Remove(homeworkId))
+            return false;
+        Refresh();
+        return true;
+    }
+
+    /// <summary>把一条作业填进表单，进入编辑模式（再点提交即就地改掉）。</summary>
+    public void BeginEdit(string homeworkId)
+    {
+        var item = _store.Get(homeworkId);
+        if (item is null)
+            return;
+        _editingId = homeworkId;
+        FormSubject = item.Subject;
+        FormDate = item.Date.ToString("yyyy-MM-dd");
+        FormItems = string.Join("\n", item.Items);
+        FormDue = item.Due ?? "";
+        IsAdding = true;
+        OnPropertyChanged(nameof(IsAdding));
+    }
+
+    private string? _editingId;
 
     public void AddItem(HomeworkItem item)
     {
@@ -563,6 +614,7 @@ public sealed class HomeworkCard
     public HomeworkCard(HomeworkItem item, DateTime now,
         IReadOnlyDictionary<string, string>? customColors = null)
     {
+        HomeworkId = item.HomeworkId;
         Subject = item.Subject;
         Date = item.Date;
         Due = item.Due;
@@ -584,6 +636,9 @@ public sealed class HomeworkCard
             : Palette[Math.Abs(StableHash(item.Subject)) % Palette.Length];
         ItemCountLabel = item.Items.Count + " 项";
     }
+
+    /// <summary>对应的作业 id（编辑/删除时用）。</summary>
+    public string HomeworkId { get; }
 
     public string Subject { get; }
     public DateOnly Date { get; }
