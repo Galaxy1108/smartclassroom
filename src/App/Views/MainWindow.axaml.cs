@@ -25,6 +25,8 @@ public partial class MainWindow : Window
         ApplyTheme(AppTheme.Current);
         AppTheme.Changed += ApplyTheme;
         _homeVm = new HomeworkViewModel(Runtime.Homework, () => Runtime.Settings.SubjectColors);
+        // 设置页改完科目配色 → 立刻重建卡片（不然要等切页或定时刷新才换色）
+        SettingsViewModel.SubjectColorsChanged += () => Dispatcher.UIThread.Post(() => _homeVm.Refresh());
         _eventsVm = new EventsViewModel(Runtime.Feed, Runtime.Pending, Runtime.Pipeline);
         ToastList.ItemsSource = Toasts.Items;   // 右下角的应用内通知
         Navigate("home");

@@ -91,9 +91,25 @@ public partial class HomeworkView : UserControl
         // 锁定时不许拖拽（控件禁用管不到自绘的拖拽）
         if (Vm.IsLocked)
             return;
-        // 右键留给上下文菜单；点在按钮/菜单上也不开始拖拽
-        if (e.GetCurrentPoint(null).Properties.IsRightButtonPressed
-            || e.Source is Button || e.Source is MenuItem || e.Source is ContextMenu)
+        // 右键：直接弹出菜单（模板里挂 ContextMenu 实测不弹，代码里弹最可靠）
+        if (e.GetCurrentPoint(null).Properties.IsRightButtonPressed)
+        {
+            if (FindCard(e.Source as Control) is { } card)
+            {
+                var menu = new ContextMenu();
+                var edit = new MenuItem { Header = "编辑" };
+                edit.Click += async (_, _) => await EditCardAsync(card);
+                var del = new MenuItem { Header = "删除" };
+                del.Click += async (_, _) => await DeleteCardAsync(card);
+                menu.Items.Add(edit);
+                menu.Items.Add(del);
+                menu.Open(e.Source as Control ?? this);
+            }
+            e.Handled = true;
+            return;
+        }
+        // 点在按钮/菜单上也不开始拖拽
+        if (e.Source is Button || e.Source is MenuItem || e.Source is ContextMenu)
             return;
 
         try
@@ -328,11 +344,17 @@ public partial class HomeworkView : UserControl
         Vm.RefreshLockState();
     }
 
-    /// <summary>编辑卡片：把该条填进表单（提交即就地改掉）。</summary>
-    private async void EditCard_Click(object? sender, RoutedEventArgs e)
+    /// <summary>从事件来源往上找它属于哪张卡片。</summary>
+    private static HomeworkCard? FindCard(Control? source)
     {
-        if ((sender as MenuItem)?.DataContext is not HomeworkCard card)
-            return;
+        for (var c = source; c is not null; c = c.Parent as Control)
+            if (c.DataContext is HomeworkCard card)
+                return card;
+        return null;
+    }
+
+    private async Task EditCardAsync(HomeworkCard card)
+    {
         var ok = await Runtime.Auth.RequireAsync(
             reason => PasswordDialog.PromptAsync("修改作业", reason), "修改作业需要管理员密码");
         if (!ok)
@@ -340,11 +362,8 @@ public partial class HomeworkView : UserControl
         Vm.BeginEdit(card.HomeworkId);
     }
 
-    /// <summary>删除卡片。</summary>
-    private async void DeleteCard_Click(object? sender, RoutedEventArgs e)
+    private async Task DeleteCardAsync(HomeworkCard card)
     {
-        if ((sender as MenuItem)?.DataContext is not HomeworkCard card)
-            return;
         var ok = await Runtime.Auth.RequireAsync(
             reason => PasswordDialog.PromptAsync("删除作业", reason), "删除作业需要管理员密码");
         if (!ok)

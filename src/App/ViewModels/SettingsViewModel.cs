@@ -585,6 +585,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 else
                     Settings.SubjectColors[s] = color;
                 SaveSettings();
+                SubjectColorsChanged?.Invoke();   // 让作业页立刻换色（否则要等切页/定时刷新）
                 AppendLog($"科目配色：{s} → {color}");
             };
             SubjectColorRows.Add(row);
@@ -593,6 +594,9 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     public bool HasSubjectColors => SubjectColorRows.Count > 0;
+
+    /// <summary>科目配色变化时通知（作业页据此立即重建卡片）。</summary>
+    public static event Action? SubjectColorsChanged;
 
     public bool FeatureSummon
     {

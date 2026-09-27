@@ -104,3 +104,33 @@ public sealed class SubjectColorTests
         Assert.Equal("#123456", vm.Items[0].AccentColor);
     }
 }
+
+/// <summary>
+/// 科目颜色：改色必须落到设置里并反映到卡片。
+/// 踩过的坑：选色盘的 Color 绑定默认是单向，拖完色盘等于没改（用户实测"选色没有生效"），
+/// 所以 XAML 里显式写了 Mode=TwoWay；这里把"改了要生效"这条链锁住。
+/// </summary>
+public sealed class SubjectColorPickerTests
+{
+    [AvaloniaFact]
+    public void PickerColor_WritesThroughToSettingsAndCards()
+    {
+        var colors = new Dictionary<string, string>();
+        var changed = 0;
+        var row = new SubjectColorRow("英语", "默认");
+        row.Changed += (subject, color) => { colors[subject] = color; changed++; };
+
+        row.PickerColor = Avalonia.Media.Color.Parse("#FF8800");
+
+        Assert.Equal(1, changed);
+        Assert.Equal("#FF8800", colors["英语"]);
+        Assert.Equal("#FF8800", row.Color);
+    }
+
+    [AvaloniaFact]
+    public void PickerColor_ReflectsCurrentValue()
+    {
+        var row = new SubjectColorRow("数学", "#0F7B0F");
+        Assert.Equal(Avalonia.Media.Color.Parse("#0F7B0F"), row.PickerColor);
+    }
+}

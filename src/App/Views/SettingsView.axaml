@@ -97,39 +97,6 @@
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
 
-            <!-- ================= 科目颜色 ================= -->
-            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">
-                <PathIcon Width="16" Height="16" Data="{StaticResource IconSettings}" VerticalAlignment="Center" />
-                <TextBlock Text="科目颜色" Theme="{StaticResource SubtitleTextBlockStyle}" />
-            </StackPanel>
-            <TextBlock Text="作业卡片按科目配色；在这里给每个科目指定颜色（默认 = 按科目名自动取色）"
-                       FontSize="12" Opacity="0.7" TextWrapping="Wrap" Margin="2,0,0,6" />
-            <TextBlock Text="还没有作业，等作业上墙后就能在这里给每个科目配色。"
-                       FontSize="12" Opacity="0.7" IsVisible="{Binding !HasSubjectColors}" Margin="2,0,0,6" />
-            <ItemsControl ItemsSource="{Binding SubjectColorRows}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:SubjectColorRow">
-                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="2,2,0,2">
-                            <TextBlock Text="{Binding Subject}" Width="120" VerticalAlignment="Center" />
-                            <!-- 选色盘：Avalonia 官方 ColorPicker（FluentAvalonia 主题已带样式），
-                                 点色块展开完整色盘；旁边的「默认」恢复自动配色 -->
-                            <ColorPicker Color="{Binding PickerColor}" MinWidth="72" />
-                            <Button Content="默认" FontSize="12" Padding="8,3" Click="ResetSubjectColor_Click"
-                                    Tag="{Binding}" />
-                        </StackPanel>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <TextBlock Text="{Binding NoticeGateHint}" IsVisible="{Binding !CanEnableNotice}"
-                       FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
-                       TextWrapping="Wrap" Margin="2,0,0,2" />
-            <TextBlock Text="{Binding CoursewareGateHint}" IsVisible="{Binding !CanEnableCoursewarePopup}"
-                       FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
-                       TextWrapping="Wrap" Margin="2,0,0,2" />
-
-            <TextBlock Text="{Binding FeatureSummary}" FontSize="12" Opacity="0.75"
-                       TextWrapping="Wrap" Margin="2,4,0,0" />
-
             <!-- ================= 外观 ================= -->
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">
                 <PathIcon Width="16" Height="16" Data="{StaticResource IconInfo}" VerticalAlignment="Center" />
@@ -175,6 +142,42 @@
                     </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
+
+            <!-- ================= 科目颜色 ================= -->
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">
+                <PathIcon Width="16" Height="16" Data="{StaticResource IconSettings}" VerticalAlignment="Center" />
+                <TextBlock Text="科目颜色" Theme="{StaticResource SubtitleTextBlockStyle}" />
+            </StackPanel>
+            <TextBlock Text="作业卡片按科目配色；在这里给每个科目指定颜色（默认 = 按科目名自动取色）"
+                       FontSize="12" Opacity="0.7" TextWrapping="Wrap" Margin="2,0,0,6" />
+            <TextBlock Text="还没有作业，等作业上墙后就能在这里给每个科目配色。"
+                       FontSize="12" Opacity="0.7" IsVisible="{Binding !HasSubjectColors}" Margin="2,0,0,6" />
+            <ItemsControl ItemsSource="{Binding SubjectColorRows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SubjectColorRow">
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="2,2,0,2">
+                            <TextBlock Text="{Binding Subject}" Width="120" VerticalAlignment="Center" />
+                            <!-- 选色盘：Avalonia 官方 ColorPicker（FluentAvalonia 主题已带样式），
+                                 点色块展开完整色盘；旁边的「默认」恢复自动配色 -->
+                            <!-- ⚠️ 必须显式 TwoWay：ColorPicker.Color 的默认绑定模式是单向，
+                                 不写回的话拖完色盘等于没改（用户实测"选色没有生效"）。 -->
+                            <ColorPicker Color="{Binding PickerColor, Mode=TwoWay}" MinWidth="72" />
+                            <Button Content="默认" FontSize="12" Padding="8,3" Click="ResetSubjectColor_Click"
+                                    Tag="{Binding}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="{Binding NoticeGateHint}" IsVisible="{Binding !CanEnableNotice}"
+                       FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
+                       TextWrapping="Wrap" Margin="2,0,0,2" />
+            <TextBlock Text="{Binding CoursewareGateHint}" IsVisible="{Binding !CanEnableCoursewarePopup}"
+                       FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
+                       TextWrapping="Wrap" Margin="2,0,0,2" />
+
+            <TextBlock Text="{Binding FeatureSummary}" FontSize="12" Opacity="0.75"
+                       TextWrapping="Wrap" Margin="2,4,0,0" />
+
 
             <!-- ================= AI ================= -->
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,4">
