@@ -45,7 +45,14 @@ public static class OneBotParser
         // 群里直接发文件时也是一个 file 段 —— 当作上传事件处理（否则会变成一条空文本消息）
         if (ExtractFile(root) is { } groupFile)
             return ToFileEvent(root, groupFile, ev.GroupId, ev.UserId);
+        // 图片：能拿到直链就当文件归档（老师发的作业/通知截图很常见），
+        // 同时给文本一个占位符，别让事件页显示一片空白。
+        var (imagePlaceholder, imageFile) = ExtractImages(root, ev.MessageId);
+        if (imageFile is not null)
+            return ToFileEvent(root, imageFile, ev.GroupId, ev.UserId);
         (ev.RawMessage, ev.Text) = ExtractText(root);
+        if (imagePlaceholder.Length > 0)
+            ev.Text = ev.Text.Length > 0 ? $"{ev.Text} {imagePlaceholder}" : imagePlaceholder;
         return ev;
     }
 
@@ -53,6 +60,44 @@ public static class OneBotParser
     /// 消息里的 file 段（SnowLuma 对私聊/群文件都会给：
     /// data = { file, file_id, name, size, url, file_hash }）。
     /// </summary>
+    /// <summary>
+    /// 消息里的图片段。**不能只认文本段**：老师发的作业/通知截图就是图片，
+    /// 以前整条被当成"没有内容的文本"丢掉（用户："图片是被忽略掉"）。
+    /// 返回 (占位文本, 可归档的图片文件)。
+    /// </summary>
+    private static (string Placeholder, UploadedFile? File) ExtractImages(JsonElement root, long messageId)
+    {
+        if (!root.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Array)
+            return ("", null);
+        var count = 0;
+        UploadedFile? first = null;
+        foreach (var seg in message.EnumerateArray())
+        {
+            if (seg.GetStringOrNull("type") != "image" || !seg.TryGetProperty("data", out var data))
+                continue;
+            count++;
+            var url = data.GetStringOrNull("url") ?? data.GetStringOrNull("file") ?? "";
+            if (first is null && url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                // 扩展名优先看段里的 file 字段（"abc.jpg"），再看 URL 路径
+                //（SnowLuma 的图片直链常常没有扩展名，例如 /get_image?x=1）。
+                var raw = data.GetStringOrNull("file") ?? "";
+                var ext = Path.GetExtension(raw);
+                if (ext.Length is 0 or > 5)
+                    ext = Path.GetExtension(new Uri(url).AbsolutePath);
+                if (ext.Length is 0 or > 5) ext = ".png";
+                first = new UploadedFile
+                {
+                    Id = data.GetStringOrNull("file") ?? $"img-{messageId}",
+                    Name = $"图片_{messageId}{ext}",
+                    Size = 0,
+                    Url = url
+                };
+            }
+        }
+        return (count == 0 ? "" : count == 1 ? "[图片]" : $"[{count} 张图片]", first);
+    }
+
     private static UploadedFile? ExtractFile(JsonElement root)
     {
         if (!root.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Array)
@@ -101,7 +146,12 @@ public static class OneBotParser
         // 否则整条消息会被当成"没有内容的文本"丢掉 —— 用户看到的就是"文件没保存"。
         if (ExtractFile(root) is { } privateFile)
             return ToFileEvent(root, privateFile, 0, ev.UserId);
+        var (imagePlaceholder, imageFile) = ExtractImages(root, ev.MessageId);
+        if (imageFile is not null)
+            return ToFileEvent(root, imageFile, 0, ev.UserId);
         (ev.RawMessage, ev.Text) = ExtractText(root);
+        if (imagePlaceholder.Length > 0)
+            ev.Text = ev.Text.Length > 0 ? $"{ev.Text} {imagePlaceholder}" : imagePlaceholder;
         return ev;
     }
 

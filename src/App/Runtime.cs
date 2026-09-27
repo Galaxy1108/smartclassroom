@@ -370,7 +370,7 @@ public static class Runtime
                                     $"{ignored.Card ?? ignored.Nickname ?? $"QQ{ignored.UserId}"}：{Trim(ignored.Text)}");
                                 Feed.Complete(row, "已忽略（该群没有监听）",
                                     $"群 {ignored.GroupId} 不在监听列表里；在「监听群号」里点「选择群…」把它加上",
-                                    ActivitySeverity.Warning);
+                                    ActivitySeverity.Muted);   // 灰色：什么都没发生，别报警
                             }
                             break;
                         case GroupUploadEvent u when wanted || groups.Contains(u.GroupId):

@@ -212,3 +212,57 @@ public sealed class OneBotFileSegmentTests
         Assert.Equal("小明来一下", ev.Text);
     }
 }
+
+/// <summary>
+/// 图片消息不能整条丢掉（用户："图片是被忽略掉，可能认为是富文本消息"）。
+/// 老师发的作业/通知截图很常见：能拿到直链就当文件归档，同时给文本一个占位符。
+/// </summary>
+public sealed class OneBotImageSegmentTests
+{
+    [Fact]
+    public void Image_WithUrl_BecomesFileEvent()
+    {
+        var json = """
+            {"post_type":"message","message_type":"group","time":1,"self_id":2,"group_id":100200300,
+             "user_id":10001,"message_id":42,
+             "message":[{"type":"image","data":{"file":"abc.jpg","url":"http://127.0.0.1:3000/get_image?x=1"}}],
+             "sender":{"card":"张老师"}}
+            """;
+
+        var ev = Assert.IsType<GroupUploadEvent>(OneBotParser.Parse(json));
+
+        Assert.Equal(100200300L, ev.GroupId);
+        Assert.EndsWith(".jpg", ev.File.Name);
+        Assert.True(ev.File.HasUrl);
+    }
+
+    [Fact]
+    public void Image_WithoutUrl_LeavesPlaceholderText()
+    {
+        var json = """
+            {"post_type":"message","message_type":"group","time":1,"self_id":2,"group_id":100200300,
+             "user_id":10001,"message_id":42,
+             "message":[{"type":"text","data":{"text":"看这个"}},
+                        {"type":"image","data":{"file":"abc.jpg"}}],
+             "sender":{"card":"张老师"}}
+            """;
+
+        var ev = Assert.IsType<GroupMessageEvent>(OneBotParser.Parse(json));
+
+        Assert.Equal("看这个 [图片]", ev.Text);   // 不再是空文本
+    }
+
+    [Fact]
+    public void MultipleImages_GetCountedPlaceholder()
+    {
+        var json = """
+            {"post_type":"message","message_type":"private","time":1,"self_id":2,"user_id":10001,
+             "message_id":42,
+             "message":[{"type":"image","data":{"file":"a.jpg"}},{"type":"image","data":{"file":"b.jpg"}}],
+             "sender":{"nickname":"张老师"}}
+            """;
+
+        var ev = Assert.IsType<PrivateMessageEvent>(OneBotParser.Parse(json));
+        Assert.Equal("[2 张图片]", ev.Text);
+    }
+}
