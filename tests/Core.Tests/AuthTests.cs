@@ -72,6 +72,7 @@ public sealed class AuthGateTests
     public void TryUnlock_CorrectPassword_UnlocksSession()
     {
         var gate = WithPassword("1234");
+        gate.SessionMinutes = 10;   // 打开"记住 10 分钟"才有会话窗口
         Assert.False(gate.TryUnlock("0000"));
         Assert.False(gate.IsUnlocked);
         Assert.True(gate.TryUnlock("1234"));
@@ -115,6 +116,7 @@ public sealed class AuthGateTests
     public async Task Require_AfterUnlock_SkipsPromptForSession()
     {
         var gate = WithPassword("1234");
+        gate.SessionMinutes = 10;   // 会话内免重复输入要显式打开（默认是每次都要）
         await gate.RequireAsync(_ => Prompt("1234"), "first");
         var prompted = false;
         var ok = await gate.RequireAsync(_ => { prompted = true; return Prompt("1234"); }, "second");
@@ -138,9 +140,36 @@ public sealed class AuthGateTests
     public void Lock_InvalidatesSession()
     {
         var gate = WithPassword("1234");
+        gate.SessionMinutes = 10;   // 同上
         gate.TryUnlock("1234");
         Assert.True(gate.IsUnlocked);
         gate.Lock();
         Assert.False(gate.IsUnlocked);
+    }
+}
+
+/// <summary>
+/// 默认策略：**每一次操作都要管理员密码**（SessionMinutes = 0）。
+/// 用户明确要求"我需要每一次操作都需要管理员密码"。
+/// </summary>
+public sealed class AuthGateEveryOperationTests
+{
+    [Fact]
+    public void DefaultPolicy_AsksEveryTime()
+    {
+        var gate = new AuthGate(() => PasswordHasher.Hash("pw"));   // 默认 SessionMinutes = 0
+
+        Assert.False(gate.IsUnlocked);          // 一开始就是锁的
+        Assert.True(gate.TryUnlock("pw"));      // 验证通过
+        Assert.False(gate.IsUnlocked);          // 但下一次操作还要再输
+    }
+
+    [Fact]
+    public void RememberWindow_KeepsUnlocked()
+    {
+        var gate = new AuthGate(() => PasswordHasher.Hash("pw")) { SessionMinutes = 10 };
+
+        Assert.True(gate.TryUnlock("pw"));
+        Assert.True(gate.IsUnlocked);
     }
 }

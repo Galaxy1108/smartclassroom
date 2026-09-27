@@ -200,8 +200,27 @@ public sealed class PipelineTests
 
         await p.OnGroupMessageAsync(Msg("今天你们下午有个活动，2:00 到大礼堂"));
 
-        await p.OnClassEndedAsync();                   // 同上：下课时发
+        await p.OnClassEndedAsync();                   // 上课中：排队，下课时发
         Assert.Contains(_sent, s => s.Channel == "manual");
+    }
+
+    /// <summary>
+    /// **不在上课就立刻发**。实测 bug：以前无条件下排队、只有下课事件才 flush ——
+    /// 周末/假期没有下课事件，通知永远卡在队列里（事件页写着"已转发（已排队）"，
+    /// ClassIsland 一条都没收到）。
+    /// </summary>
+    [Fact]
+    public async Task Notice_WhenNotInClass_SendsImmediately()
+    {
+        var replies = new Queue<string>([
+            """{"category":"notice"}""",
+            """{"is_notice":true,"title":"班级拿了第二名","body":"喜大普奔，你们拿到了第二！"}"""
+        ]);
+        var p = BuildQueue(replies, inClass: false);
+
+        await p.OnGroupMessageAsync(Msg("喜大普奔哇，你们看看！！！你们拿到了第二哇"));
+
+        Assert.Contains(_sent, s => s.Channel == "manual");   // 不用等下课
     }
 
     // ================= 权限：只认老师名单里的人 =================

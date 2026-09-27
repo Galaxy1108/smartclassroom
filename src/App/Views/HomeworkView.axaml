@@ -54,7 +54,9 @@
     <Grid RowDefinitions="Auto,Auto,*" HorizontalAlignment="Stretch">
         <!-- 工具栏 -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
-            <Button Content="手动添加作业" Classes="accent" Click="BeginAdd_Click" />
+            <Button Content="手动添加作业" Classes="accent" Click="BeginAdd_Click"
+                    IsEnabled="{Binding !IsLocked}" />
+            <Button Content="解锁" Click="Unlock_Click" IsVisible="{Binding IsLocked}" />
             <TextBlock Text="长按卡片 0.3 秒可拖动排序 · Ctrl+滚轮缩放本区域" FontSize="12" Opacity="0.55"
                        VerticalAlignment="Center" IsVisible="{Binding !IsEmpty}" />
             <TextBlock Text="{Binding AddResult}" VerticalAlignment="Center" FontSize="12"

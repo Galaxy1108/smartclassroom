@@ -94,4 +94,12 @@ public partial class EventsView : UserControl
             Vm.Report($"复制失败：{App.Describe(ex)}");
         }
     }
+
+    /// <summary>事件页的处置操作都要先过管理员密码。</summary>
+    private async void Unlock_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        await Runtime.Auth.RequireAsync(
+            reason => PasswordDialog.PromptAsync("解锁", reason), "处置待处理事项需要管理员密码");
+        Vm.RefreshLockState();
+    }
 }

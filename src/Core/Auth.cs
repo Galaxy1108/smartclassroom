@@ -52,7 +52,12 @@ public static class PasswordHasher
 /// </summary>
 public sealed class AuthGate(Func<string?> passwordHashProvider)
 {
-    public const int SessionMinutes = 10;
+    /// <summary>
+    /// 解锁后的免输入窗口（分钟）。**默认 0 = 每一次操作都要重新输密码**
+    /// （用户明确要求："我需要每一次操作都需要管理员密码"）。
+    /// 想省事可以在设置里打开"解锁后 10 分钟内免重复输入"。
+    /// </summary>
+    public int SessionMinutes { get; set; }
     private DateTimeOffset? _unlockedUntil;
 
     /// <summary>是否已设置密码。</summary>
@@ -68,6 +73,7 @@ public sealed class AuthGate(Func<string?> passwordHashProvider)
             return true;
         if (!PasswordHasher.Verify(password, passwordHashProvider()))
             return false;
+        // SessionMinutes = 0 时立刻过期 → 下一次操作还要再输一次
         _unlockedUntil = DateTimeOffset.Now.AddMinutes(SessionMinutes);
         return true;
     }

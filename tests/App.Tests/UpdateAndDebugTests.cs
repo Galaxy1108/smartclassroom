@@ -217,6 +217,9 @@ public sealed class UpdateAndDebugTests : IDisposable
         vm.ResetAllSettings();
 
         Assert.False(vm.HasPassword);
+        // VM 用的是临时设置文件，而 AuthGate 读的是 Runtime.Settings（生产环境两者同一份）
+        Runtime.Settings.AdminPasswordHash = "";
+        vm.RefreshLockState();
         Assert.False(vm.IsLocked);   // 密码没了就不该再锁着
     }
 

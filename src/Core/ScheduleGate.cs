@@ -59,6 +59,25 @@ public sealed class ScheduleGate(IClassStatusProvider status)
         _queue[key] = new QueuedNotification(key, NotifyChannels.Manual, title, body, DateTimeOffset.Now);
     }
 
+    /// <summary>
+    /// 发一条"需要人工介入"类的提醒。**不在上课就立刻发**，上课才排队等下课。
+    ///
+    /// 以前这里无条件下排队、只有下课事件才 flush —— 周末/假期没有下课事件，
+    /// 通知就永远卡在队列里（实测：事件页写着"已转发（已排队）"，ClassIsland 一条都没收到）。
+    /// </summary>
+    public async Task<GateDecision> SendManualAsync(string title, string body, SendFunc send,
+        CancellationToken cancel = default)
+    {
+        var inClass = await status.IsInClassAsync(cancel).ConfigureAwait(false);
+        if (!inClass)
+        {
+            await send(NotifyChannels.Manual, title, body, cancel).ConfigureAwait(false);
+            return GateDecision.SentNow;
+        }
+        EnqueueManual(title, body);
+        return GateDecision.Queued;
+    }
+
     /// <summary>下课时调用：把排队通知按原通道依次发出并清空。</summary>
     public async Task<int> FlushAsync(SendFunc send, CancellationToken cancel = default)
     {

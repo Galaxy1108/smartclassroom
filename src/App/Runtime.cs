@@ -43,6 +43,10 @@ public static class Runtime
     /// <summary>已提示过"该群没监听"的群（每个群只提示一次）。</summary>
     private static readonly HashSet<long> _ignoredGroups = [];
 
+    /// <summary>把"解锁后是否记住 10 分钟"应用到 AuthGate。</summary>
+    private static void ApplyAuthPolicy(AppSettings s)
+        => Auth.SessionMinutes = s.RememberUnlock ? 10 : 0;
+
     private static TeacherMap? _liveTeachers;
     private static PipelineService? _livePipeline;
 
@@ -55,6 +59,7 @@ public static class Runtime
     {
         try
         {
+            ApplyAuthPolicy(s);
             _liveTeachers?.Reload(s.Teachers);
             _livePipeline?.UpdateFlags(s.ToFeatureFlags());
         }
@@ -73,6 +78,7 @@ public static class Runtime
         _cts = new CancellationTokenSource();
         var cancel = _cts.Token;
         Settings = SettingsStore.Load();
+        ApplyAuthPolicy(Settings);
         SettingsLoaded = true;
         LoadState();
         PruneExpiredHomework();   // 过期作业直接删掉（不保留历史）

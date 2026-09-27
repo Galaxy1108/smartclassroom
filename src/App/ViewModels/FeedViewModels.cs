@@ -23,6 +23,15 @@ public sealed class HomeworkViewModel : ViewModelBase
 
     public ObservableCollection<HomeworkCard> Items { get; } = new();
 
+    /// <summary>
+    /// 是否处于锁定状态（设了管理员密码且本次操作未验证）。
+    /// 作业页的增删改、拖拽都要先解锁 —— 用户要求"每一次操作都需要管理员密码"。
+    /// </summary>
+    public bool IsLocked => Runtime.Auth.IsEnabled && !Runtime.Auth.IsUnlocked;
+
+    /// <summary>解锁后刷新界面（各页共用）。</summary>
+    public void RefreshLockState() => OnPropertyChanged(nameof(IsLocked));
+
     /// <summary>当前生效的科目颜色（科目名 → #RRGGBB）。</summary>
     public IReadOnlyDictionary<string, string> SubjectColors
         => _colorSource?.Invoke() ?? new Dictionary<string, string>();
@@ -248,6 +257,11 @@ public sealed class EventsViewModel : ViewModelBase
 
     private string _actionResult = "";
     public string ActionResult { get => _actionResult; private set => Set(ref _actionResult, value); }
+
+    /// <summary>锁定状态：待处理的重新解析/补录/忽略、时间线清空都要先解锁。</summary>
+    public bool IsLocked => Runtime.Auth.IsEnabled && !Runtime.Auth.IsUnlocked;
+
+    public void RefreshLockState() => OnPropertyChanged(nameof(IsLocked));
 
     /// <summary>时间线自己的操作反馈（复制/清空），与上方待处理区的 ActionResult 分开显示。</summary>
     private string _timelineResult = "";

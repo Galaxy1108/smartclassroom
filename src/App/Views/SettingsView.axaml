@@ -588,6 +588,12 @@
                     </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
+            <fa:SettingsExpander Header="解锁后 10 分钟内免重复输入"
+                                 Description="默认关闭 = 每一次操作都要输管理员密码（改设置、改作业、处置待处理都要）">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding RememberUnlock}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
             <TextBlock Text="{Binding PasswordResult}" FontSize="12" Opacity="0.8"
                        TextWrapping="Wrap" Margin="2,0,0,0" />
 

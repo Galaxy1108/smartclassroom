@@ -46,7 +46,8 @@ public sealed class SettingsPasswordTests : IDisposable
         Assert.True(vm.HasPassword);
         Assert.Contains("已设置", vm.PasswordResult);
         Assert.True(Runtime.Auth.IsEnabled);       // 立刻生效，无需重启
-        Assert.True(Runtime.Auth.IsUnlocked);       // 刚输过密码，当前会话放行
+        // 默认策略是"每一次操作都要密码"（SessionMinutes = 0），所以设完密码后并不保持解锁
+        Assert.False(Runtime.Auth.IsUnlocked);
         Assert.True(PasswordHasher.Verify("s3cret", Runtime.Settings.AdminPasswordHash));
     }
 

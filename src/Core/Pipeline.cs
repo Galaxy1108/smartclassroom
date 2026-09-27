@@ -534,8 +534,8 @@ public sealed class PipelineService(
         });
         Finish(rowId, $"需要人工介入：{title}", $"原因：{reason} · {Trim(rawText)}",
             ActivitySeverity.Warning);
-        // 上课时排队、下课时发 —— 与召唤通知同一套调度门
-        gate.EnqueueManual($"需要人工介入：{title}", reason);
+        // 上课时排队、下课时发；不在上课就立刻发（与召唤通知同一套调度门）
+        _ = gate.SendManualAsync($"需要人工介入：{title}", reason, Send);
         return item;
     }
 
@@ -639,8 +639,10 @@ public sealed class PipelineService(
         }
         var who = sender.TeacherName ?? sender.Card ?? sender.Nickname ?? "老师";
         var body = d.Body.Trim().Length > 0 ? d.Body.Trim() : ev.Text;
-        gate.EnqueueManual(d.Title.Trim(), $"{who}：{body}");
-        Finish(rowId, $"已执行：通知已转发（{Desc(GateDecision.Queued)}）",
+        // 不在上课就立刻发（否则周末/假期没有下课事件，通知会永远卡在队列里）
+        var decision = await gate.SendManualAsync(d.Title.Trim(), $"{who}：{body}", Send, cancel)
+            .ConfigureAwait(false);
+        Finish(rowId, $"已执行：通知已转发（{Desc(decision)}）",
             $"{d.Title.Trim()} · {body}");
     }
 

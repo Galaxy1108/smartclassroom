@@ -84,6 +84,14 @@
     </UserControl.Styles>
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="8" MaxWidth="900" HorizontalAlignment="Stretch">
+            <!-- 锁定提示：设了管理员密码时，重新解析/补录/忽略/清空都要先解锁 -->
+            <local:NoticeBar Severity="Warning" IsVisible="{Binding IsLocked}"
+                             Title="已锁定"
+                             Message="已启用管理员密码：重新解析、人工补录、忽略、清空时间线都需要先解锁。">
+                <local:NoticeBar.ActionContent>
+                    <Button Content="解锁" Classes="accent" Click="Unlock_Click" />
+                </local:NoticeBar.ActionContent>
+            </local:NoticeBar>
 
             <!-- ============ 待处理：AI 没处理掉的群消息，这里给出口 ============ -->
             <local:NoticeBar Severity="Informational" IsVisible="{Binding RequiresPassword}"
@@ -117,9 +125,9 @@
                                                TextWrapping="Wrap" MaxWidth="520" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2,0,0">
-                                    <Button Content="重新解析" Classes="accent" Click="Retry_Click" Tag="{Binding}" />
-                                    <Button Content="手动录入" Click="Edit_Click" Tag="{Binding}" />
-                                    <Button Content="忽略" Click="Ignore_Click" Tag="{Binding}" />
+                                    <Button Content="重新解析" Classes="accent" Click="Retry_Click" Tag="{Binding}"  IsEnabled="{Binding !IsLocked}" />
+                                    <Button Content="手动录入" Click="Edit_Click" Tag="{Binding}"  IsEnabled="{Binding !IsLocked}" />
+                                    <Button Content="忽略" Click="Ignore_Click" Tag="{Binding}"  IsEnabled="{Binding !IsLocked}" />
                                 </StackPanel>
                             </StackPanel>
                         </Border>

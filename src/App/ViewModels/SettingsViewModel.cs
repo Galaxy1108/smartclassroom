@@ -112,6 +112,24 @@ public sealed class SettingsViewModel : ViewModelBase
 
     // ================= 管理员密码 / 关闭行为 =================
 
+    /// <summary>
+    /// 解锁后 10 分钟内免重复输入密码。**默认关 = 每一次操作都要密码**
+    /// （用户要求："我需要每一次操作都需要管理员密码"）。
+    /// </summary>
+    public bool RememberUnlock
+    {
+        get => _rememberUnlock;
+        set
+        {
+            if (!Set(ref _rememberUnlock, value))
+                return;
+            Runtime.Auth.SessionMinutes = value ? 10 : 0;
+            SaveSettings();
+        }
+    }
+
+    private bool _rememberUnlock;
+
     /// <summary>设置了密码且当前会话未认证时，设置内容整体锁定（只读）。</summary>
     public bool IsLocked { get => _isLocked; private set => Set(ref _isLocked, value); }
 
@@ -2276,6 +2294,7 @@ public sealed class SettingsViewModel : ViewModelBase
     /// </summary>
     public void ResetAllSettings()
     {
+        // 密码也会被清掉 → 锁定状态必须跟着刷新（否则界面还显示"已锁定"）
         SettingsStore.Reset(SettingsPath);
         _shared?.ResetToDefaults();
         LoadSettings();               // 回到默认值（有共享对象时读的就是刚复位的那份）
@@ -2323,6 +2342,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 QqCandidates.Add(a);
             _riskAccepted = s.RiskAccepted;
             _adminHash = s.AdminPasswordHash;
+            _rememberUnlock = s.RememberUnlock;
             _minimizeToTray = s.MinimizeToTray;
             _uiScale = ContentZoom.Clamp(s.UiScale);
             _featureSummon = s.FeatureSummon;
@@ -2387,6 +2407,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.FeatureCoursewarePopup = FeatureCoursewarePopup;
         s.FeatureNotice = FeatureNotice;
         s.AdminPasswordHash = _adminHash;
+        s.RememberUnlock = RememberUnlock;
         s.MinimizeToTray = MinimizeToTray;
         s.UiScale = UiScale;
 

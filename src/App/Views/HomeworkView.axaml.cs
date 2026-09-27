@@ -88,6 +88,10 @@ public partial class HomeworkView : UserControl
 
     private void Card_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        // 锁定时不许拖拽（控件禁用管不到自绘的拖拽）
+        if (Vm.IsLocked)
+            return;
+
         try
         {
             if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
@@ -309,4 +313,12 @@ public partial class HomeworkView : UserControl
     /// </summary>
     private int IndexAt(Point p)
         => GridHitTest.IndexAt(Containers().Select(c => c.Bounds).ToList(), p);
+
+    /// <summary>作业页的增删改都要先过管理员密码（用户要求"每一次操作都需要管理员密码"）。</summary>
+    private async void Unlock_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        await Runtime.Auth.RequireAsync(
+            reason => PasswordDialog.PromptAsync("解锁", reason), "修改作业需要管理员密码");
+        Vm.RefreshLockState();
+    }
 }
