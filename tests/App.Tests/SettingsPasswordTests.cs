@@ -135,3 +135,51 @@ public sealed class UnlockWindowTests
         Runtime.Auth.Lock();
     }
 }
+
+/// <summary>
+/// 老师信息要能就地修改（用户："无法修改老师信息，删除重建以后还是原科目"）。
+/// 以前 TeacherRow 是 record（init-only），只能删了重建。
+/// </summary>
+public sealed class TeacherEditTests
+{
+    [AvaloniaFact]
+    public void EditTeacher_UpdatesTheRowInPlace()
+    {
+        var vm = new SettingsViewModel(Path.Combine(Path.GetTempPath(), "sc-teacher-" + Guid.NewGuid().ToString("N") + ".json"));
+        vm.NewTeacherQq = "2131023099";
+        vm.NewTeacherName = "王子诚";
+        vm.NewTeacherSubject = "信息";
+        vm.AddTeacher();
+
+        var row = Assert.Single(vm.Teachers);
+        Assert.Equal("信息", row.Subject);
+
+        vm.BeginEditTeacher(row);
+        Assert.True(vm.IsEditingTeacher);
+        Assert.Equal("保存修改", vm.TeacherFormTitle);
+        Assert.Equal("信息", vm.NewTeacherSubject);      // 表单被填上了
+
+        vm.NewTeacherSubject = "信息技术";
+        vm.AddTeacher();                                  // 保存修改
+
+        Assert.False(vm.IsEditingTeacher);
+        Assert.Single(vm.Teachers);                       // 没有多出一行
+        Assert.Equal("信息技术", vm.Teachers[0].Subject); // 就地改掉了
+        Assert.Equal("", vm.TeacherEditHint);            // 保存后退出编辑态
+    }
+
+    [AvaloniaFact]
+    public void CancelEdit_ClearsTheForm()
+    {
+        var vm = new SettingsViewModel(Path.Combine(Path.GetTempPath(), "sc-teacher-" + Guid.NewGuid().ToString("N") + ".json"));
+        vm.NewTeacherQq = "1"; vm.NewTeacherName = "A"; vm.NewTeacherSubject = "语文";
+        vm.AddTeacher();
+        vm.BeginEditTeacher(vm.Teachers[0]);
+
+        vm.CancelEditTeacher();
+
+        Assert.False(vm.IsEditingTeacher);
+        Assert.Equal("", vm.NewTeacherName);
+        Assert.Equal("", vm.NewTeacherSubject);
+    }
+}

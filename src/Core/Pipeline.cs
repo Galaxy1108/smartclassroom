@@ -337,11 +337,33 @@ public sealed class PipelineService(
             outcome = await archive.HandleAsync(ev, sender, async (e, ct) =>
             {
                 // 文件段自带直链（私聊文件就是这种情况）就直接用；
-                // 群文件没带 url 时才去调 get_group_file_url。
-                if (e.File.HasUrl)
-                    return e.File.Url;
-                try { return (await oneBot.GetGroupFileUrlAsync(e.GroupId, e.File.Id, e.File.Busid, ct))?.Url; }
-                catch { return null; }
+                // 私聊文件没有直链时用 get_private_file_url，群文件用 get_group_file_url。
+                var url = e.File.HasUrl ? e.File.Url : null;
+                if (string.IsNullOrEmpty(url))
+                {
+                    if (e.GroupId == 0)
+                    {
+                        url = await oneBot.GetPrivateFileUrlAsync(e.UserId, e.File.Id, "", ct)
+                            .ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            url = (await oneBot.GetGroupFileUrlAsync(e.GroupId, e.File.Id, e.File.Busid, ct)
+                                .ConfigureAwait(false))?.Url;
+                        }
+                        catch (Exception)
+                        {
+                            url = null;
+                        }
+                    }
+                }
+                // 让 QQ 端也"接收"这个文件：我们直接拉 URL 只是旁观者下载，
+                // 老师那边会一直显示"未接收"（用户反馈），所以要请 SnowLuma 自己下。
+                if (!string.IsNullOrEmpty(url))
+                    await oneBot.TriggerDownloadAsync(url!, e.File.Name, ct).ConfigureAwait(false);
+                return url;
             }, cancel).ConfigureAwait(false);
         }
         catch (Exception ex)

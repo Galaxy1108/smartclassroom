@@ -319,6 +319,7 @@
                                 <TextBlock Text="{Binding Qq}" Width="110" Opacity="0.7" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding Name}" Width="120" FontWeight="SemiBold" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding Subject}" Width="120" VerticalAlignment="Center" />
+                                <Button Content="编辑" Click="EditTeacher_Click" Tag="{Binding}" />
                                 <Button Content="删除" Click="RemoveTeacher_Click" Tag="{Binding}" />
                             </StackPanel>
                         </Border>
@@ -329,8 +330,12 @@
                 <TextBox Watermark="QQ 号" Text="{Binding NewTeacherQq}" Width="120" />
                 <TextBox Watermark="姓名/名片" Text="{Binding NewTeacherName}" Width="130" />
                 <TextBox Watermark="科目" Text="{Binding NewTeacherSubject}" Width="120" />
-                <Button Content="添加" Classes="accent" Click="AddTeacher_Click" />
+                <Button Content="{Binding TeacherFormTitle}" Classes="accent" Click="AddTeacher_Click" />
+                <Button Content="取消" Click="CancelEditTeacher_Click" IsVisible="{Binding IsEditingTeacher}" />
             </StackPanel>
+            <TextBlock Text="{Binding TeacherEditHint}" IsVisible="{Binding IsEditingTeacher}"
+                       FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
+                       TextWrapping="Wrap" Margin="2,2,0,0" />
 
             <!-- ================= 文件归档 ================= -->
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">

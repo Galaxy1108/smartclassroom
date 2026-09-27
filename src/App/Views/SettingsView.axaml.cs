@@ -1,3 +1,4 @@
+using Avalonia.Interactivity;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
@@ -367,4 +368,12 @@ public partial class SettingsView : UserControl
 
     private void ClearLog_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => Vm.ClearLog();
+
+    private void EditTeacher_Click(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is TeacherRow row)
+            Vm.BeginEditTeacher(row);
+    }
+
+    private void CancelEditTeacher_Click(object? sender, RoutedEventArgs e) => Vm.CancelEditTeacher();
 }

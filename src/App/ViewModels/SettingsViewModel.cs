@@ -9,7 +9,29 @@ using SmartClassroom.Core.Updates;
 namespace SmartClassroom.App.ViewModels;
 
 public sealed record AiProviderPreset(string Name, string BaseUrl);
-public sealed record TeacherRow(string Qq, string Name, string Subject);
+/// <summary>
+/// 老师映射里的一行。**必须是可变的**：以前是 record（init-only），
+/// 只能删了重建 —— 用户反馈"无法修改老师信息，删除重建以后还是原科目"。
+/// 现在可以就地改，列表也会立刻刷新。
+/// </summary>
+public sealed class TeacherRow : ViewModelBase
+{
+    public TeacherRow(string qq, string name, string subject)
+    {
+        _qq = qq;
+        _name = name;
+        _subject = subject;
+    }
+
+    private string _qq;
+    public string Qq { get => _qq; set => Set(ref _qq, value); }
+
+    private string _name;
+    public string Name { get => _name; set => Set(ref _name, value); }
+
+    private string _subject;
+    public string Subject { get => _subject; set => Set(ref _subject, value); }
+}
 public sealed record EngineOption(AiEngine Engine, string Title, string Description);
 
 /// <summary>
@@ -1030,11 +1052,52 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _newSubject = "";
     public string NewTeacherSubject { get => _newSubject; set => Set(ref _newSubject, value); }
 
+    /// <summary>正在编辑的老师行（null = 新增模式）。</summary>
+    private TeacherRow? _editingTeacher;
+
+    public bool IsEditingTeacher => _editingTeacher is not null;
+    public string TeacherFormTitle => _editingTeacher is null ? "添加" : "保存修改";
+    public string TeacherEditHint => _editingTeacher is null
+        ? ""
+        : $"正在修改 {_editingTeacher.Name}（QQ {_editingTeacher.Qq}），改完点「保存修改」。";
+
+    /// <summary>点某行的「编辑」：把该行内容填进表单，按钮变成"保存修改"。</summary>
+    public void BeginEditTeacher(TeacherRow row)
+    {
+        _editingTeacher = row;
+        NewTeacherQq = row.Qq;
+        NewTeacherName = row.Name;
+        NewTeacherSubject = row.Subject;
+        OnPropertyChanged(nameof(IsEditingTeacher));
+        OnPropertyChanged(nameof(TeacherFormTitle));
+        OnPropertyChanged(nameof(TeacherEditHint));
+    }
+
+    public void CancelEditTeacher()
+    {
+        _editingTeacher = null;
+        NewTeacherQq = NewTeacherName = NewTeacherSubject = "";
+        OnPropertyChanged(nameof(IsEditingTeacher));
+        OnPropertyChanged(nameof(TeacherFormTitle));
+        OnPropertyChanged(nameof(TeacherEditHint));
+    }
+
     public void AddTeacher()
     {
         if (NewTeacherName.Trim().Length == 0 || NewTeacherSubject.Trim().Length == 0)
         {
             AppendLog("老师姓名和科目不能为空。");
+            return;
+        }
+        if (_editingTeacher is { } editing)
+        {
+            // 改的是同一行对象：列表立刻刷新，保存后老师映射也会热重载
+            editing.Qq = NewTeacherQq.Trim();
+            editing.Name = NewTeacherName.Trim();
+            editing.Subject = NewTeacherSubject.Trim();
+            AppendLog($"已修改老师：{editing.Name}（{editing.Subject}）");
+            CancelEditTeacher();
+            SaveSettings();
             return;
         }
         Teachers.Add(new TeacherRow(NewTeacherQq.Trim(), NewTeacherName.Trim(), NewTeacherSubject.Trim()));

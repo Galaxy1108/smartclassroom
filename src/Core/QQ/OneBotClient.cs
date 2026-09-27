@@ -99,6 +99,44 @@ public sealed class OneBotClient : IAsyncDisposable
         }
     }
 
+    /// <summary>私聊文件的下载直链（私聊文件用这个，别用群文件那个接口）。</summary>
+    public async Task<string?> GetPrivateFileUrlAsync(long userId, string fileId, string fileHash,
+        CancellationToken cancel = default)
+    {
+        try
+        {
+            var data = await InvokeAsync<JsonElement>("get_private_file_url",
+                new { user_id = userId, file_id = fileId, file_hash = fileHash }, cancel).ConfigureAwait(false);
+            return data.TryGetProperty("url", out var u) ? u.GetString() : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 让 SnowLuma **自己去下载**这个文件。
+    ///
+    /// 为什么必须多做这一步：我们直接拉 URL 只是"旁观者"下载，QQ 客户端并没有接收，
+    /// 老师那边一直显示"未接收"（用户反馈）。调 download_file 之后由 QQ 协议层拉取，
+    /// 对方才会看到已接收。失败不影响我们自己的下载（best-effort）。
+    /// </summary>
+    public async Task<bool> TriggerDownloadAsync(string url, string name, CancellationToken cancel = default)
+    {
+        if (url.Length == 0)
+            return false;
+        try
+        {
+            await InvokeAsync<JsonElement>("download_file", new { url, name }, cancel).ConfigureAwait(false);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     /// <summary>通用动作调用：POST /{action}，retcode != 0 抛 OneBotException。</summary>
     public async Task<T?> InvokeAsync<T>(string action, object? args, CancellationToken cancel = default)
     {
