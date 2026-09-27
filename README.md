@@ -68,6 +68,8 @@ pkg/                 打包脚本与产物
 
 ## 文档
 
+在线版：**<https://docs.galaxy1108.top/smartclassroom/>**（由 Cloudflare 隧道发布，源文件就是下面的 Markdown）
+
 | 文档 | 内容 |
 |---|---|
 | [docs/ai.md](docs/ai.md) | AI 引擎、各角色提示词、判定来源与耗时、视觉解析、失败重试 |

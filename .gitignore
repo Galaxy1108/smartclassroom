@@ -51,3 +51,4 @@ tools/ai-sidecar/package-lock.json
 tools/*.hits.log
 pkg/smartclassroom.png
 artifacts/
+docs-site-dist/

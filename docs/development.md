@@ -56,3 +56,24 @@ bash pkg/build-linux.sh && bash pkg/build-windows.sh
 # 4. 发 Release
 gh release create vX.Y.Z pkg/*.pkg.tar.zst pkg/*-win-x64.zip pkg/*.cipx --notes-file notes.md
 ```
+
+## 文档站
+
+`README.md` 与 `docs/*.md` 会被渲染成一个静态站点（侧栏导航、跟随系统深浅色、零外网依赖）：
+
+```bash
+node tools/docs-site/build.mjs --base /smartclassroom/   # 只构建 → docs-site-dist/
+bash tools/docs-site/deploy.sh                           # 构建 + 上传 + 自检
+```
+
+部署目标（Cloudflare 隧道后面的 Windows 服务器）：
+
+| 项 | 值 |
+|---|---|
+| 站点目录 | `C:\data\web\smartclassroom-docs` |
+| 静态服务 | `C:\data\web\docs-server.mjs`（端口 6187，无依赖的极简 Node 服务器） |
+| 开机自启 | 计划任务 `SmartClassroomDocs`（SYSTEM 身份，失败自动重启 3 次） |
+| 隧道入口 | `docs.galaxy1108.top → http://127.0.0.1:6187`（`C:\data\web\config.yml`） |
+| 公开地址 | <https://docs.galaxy1108.top/smartclassroom/> |
+
+改文档只要重跑 `deploy.sh`：服务器直接读磁盘文件，**不用重启任何服务**。

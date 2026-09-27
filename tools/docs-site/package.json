@@ -1,0 +1,9 @@
+{
+  "name": "smartclassroom-docs-site",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "把仓库里的 Markdown 文档渲染成静态文档站",
+  "scripts": { "build": "node build.mjs" },
+  "dependencies": { "marked": "^14.1.3" }
+}
