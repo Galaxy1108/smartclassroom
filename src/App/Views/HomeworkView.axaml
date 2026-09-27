@@ -17,6 +17,11 @@
                 <Grid ColumnDefinitions="6,*">
                     <Border Grid.Column="0" Background="{Binding AccentColor}" />
                     <StackPanel Grid.Column="1" Margin="12,10,12,10" Spacing="6">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <Button Grid.Column="1" Content="⋯" FontSize="14" Padding="8,0"
+                                    VerticalAlignment="Top" Click="CardMenu_Click"
+                                    ToolTip.Tip="编辑 / 删除" />
+                        </Grid>
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" FontSize="16"
                                        Foreground="{Binding AccentColor}" VerticalAlignment="Center" />

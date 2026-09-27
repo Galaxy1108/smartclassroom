@@ -184,4 +184,37 @@ public sealed class HomeworkContextMenuTests
         Assert.Equal(1, view.MenuOpenCount);
         window.Close();
     }
+
+    /// <summary>
+    /// 卡片右上角的 ⋯ 按钮也要能弹菜单（可见入口，不依赖右键 ——
+    /// 用户那边右键一直不生效，所以给一个一定能点到的入口）。
+    /// </summary>
+    [AvaloniaFact]
+    public void MenuButton_OpensMenu()
+    {
+        var store = new HomeworkStore();
+        store.AddOrMerge(new HomeworkItem
+        {
+            HomeworkId = "h1", Subject = "英语", Date = DateOnly.FromDateTime(DateTime.Now),
+            Items = ["背单词"],
+            Sender = new SmartClassroom.Contracts.SenderInfo { UserId = 0, TeacherName = "手动添加" },
+            Source = new SmartClassroom.Contracts.MessageRef { GroupId = 0, MessageId = 0 }
+        });
+        var view = new SmartClassroom.App.Views.HomeworkView
+        {
+            DataContext = new HomeworkViewModel(store, () => new Dictionary<string, string>())
+        };
+        var window = new Window { Width = 900, Height = 600, Content = view };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var button = view.GetVisualDescendants().OfType<Button>()
+            .FirstOrDefault(b => (b.Content as string) == "⋯");
+        Assert.NotNull(button);
+        button!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(1, view.MenuOpenCount);
+        window.Close();
+    }
 }

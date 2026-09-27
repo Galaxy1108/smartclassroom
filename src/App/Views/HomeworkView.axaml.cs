@@ -34,6 +34,9 @@ public partial class HomeworkView : UserControl
         // 之前把处理器写在 DataTemplate 的 Border 里——把卡片外观抽成资源模板时漏抄了那几行，
         // 结果没人接事件、拖拽彻底失效。挂在列表上就不会因为改模板而再丢。
         HomeworkList.AddHandler(PointerPressedEvent, Card_PointerPressed, RoutingStrategies.Tunnel);
+        // 右键菜单走框架标准的 ContextRequested（右键/长按都会触发它），
+        // 比自己在 PointerPressed 里判断更可靠 —— 实测后者在某些环境下收不到。
+        HomeworkList.AddHandler(ContextRequestedEvent, Card_ContextRequested, RoutingStrategies.Tunnel);
         HomeworkList.AddHandler(PointerMovedEvent, Card_PointerMoved, RoutingStrategies.Tunnel);
         HomeworkList.AddHandler(PointerReleasedEvent, Card_PointerReleased, RoutingStrategies.Tunnel);
         HomeworkList.AddHandler(PointerCaptureLostEvent, Card_PointerCaptureLost, RoutingStrategies.Tunnel);
@@ -89,23 +92,37 @@ public partial class HomeworkView : UserControl
     //   · 松手才真正落位（调用 MoveItemLive 重排一次）。
     // 这样既没有卡片乱跳，也不需要拖拽中反复改集合（那正是之前丢指针捕获/崩溃的根源）。
 
+    /// <summary>框架标准的"请求上下文菜单"事件：右键或长按都会走到这里。</summary>
+    private void Card_ContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (FindCard(e.Source as Control) is { } card)
+        {
+            OpenCardMenu(card, e.Source as Control ?? this);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>弹出卡片的编辑/删除菜单（右键与 ⋯ 按钮共用）。</summary>
+    private void OpenCardMenu(HomeworkCard card, Control anchor)
+    {
+        var menu = new ContextMenu();
+        var edit = new MenuItem { Header = "编辑" };
+        edit.Click += async (_, _) => await EditCardAsync(card);
+        var del = new MenuItem { Header = "删除" };
+        del.Click += async (_, _) => await DeleteCardAsync(card);
+        menu.Items.Add(edit);
+        menu.Items.Add(del);
+        menu.Open(anchor);
+        MenuOpenCount++;
+    }
+
     private void Card_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
         // 右键：直接弹出菜单（模板里挂 ContextMenu 实测不弹，代码里弹最可靠）
         if (e.GetCurrentPoint(null).Properties.IsRightButtonPressed)
         {
             if (FindCard(e.Source as Control) is { } card)
-            {
-                var menu = new ContextMenu();
-                var edit = new MenuItem { Header = "编辑" };
-                edit.Click += async (_, _) => await EditCardAsync(card);
-                var del = new MenuItem { Header = "删除" };
-                del.Click += async (_, _) => await DeleteCardAsync(card);
-                menu.Items.Add(edit);
-                menu.Items.Add(del);
-                menu.Open(e.Source as Control ?? this);
-                MenuOpenCount++;   // 测试钩子：确认菜单真的弹了
-            }
+                OpenCardMenu(card, e.Source as Control ?? this);
             e.Handled = true;
             return;
         }
@@ -363,6 +380,13 @@ public partial class HomeworkView : UserControl
             if (c.DataContext is HomeworkCard card)
                 return card;
         return null;
+    }
+
+    /// <summary>卡片右上角 ⋯ 按钮：点它弹同一个菜单（可见的入口，不依赖右键）。</summary>
+    private void CardMenu_Click(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.DataContext is HomeworkCard card && sender is Control anchor)
+            OpenCardMenu(card, anchor);
     }
 
     private async Task EditCardAsync(HomeworkCard card)
