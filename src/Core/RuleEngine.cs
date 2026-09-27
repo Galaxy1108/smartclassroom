@@ -126,9 +126,13 @@ public sealed class AiAnalyzer(IAiClient ai)
               **催交/点名/检查不算布置**：
               例："昨天作业 12,13,14 号没有交，快点交上来" → notice
               例："还有谁没交作业的赶紧交" → notice
-            notice：通知类（活动、集合、时间地点、催交、提醒带东西等）
+            notice：**老师发给全班的信息**（活动、集合、时间地点、催交、提醒带东西、表扬祝贺、结果公布等）
               例："今天你们下午有个活动，2:00 到大礼堂" → notice
               例："明天记得带课本" → notice
+              例："喜大普奔哇，你们看看！！！你们拿到了第二哇，哈哈哈哈！！！！" → notice（向全班公布好消息）
+              例："这次考试平均分 82，比上次进步了" → notice
+              只有**闲聊/提问/与全班无关**才是 none
+              例："中午吃什么" → none
             exchange：调课/换课/代课/串课/改到别的节次
               例："第三节和第五节换一下" → exchange
             none：闲聊、提问、通知等
@@ -164,11 +168,17 @@ public sealed class AiAnalyzer(IAiClient ai)
         Action<string>? onProgress = null)
     {
         var system = $$"""
-            把老师发的通知整理成一条给学生看的提醒。只输出 JSON：{"is_notice":true/false,"title":"标题","body":"正文"}
-            - title 不超过 14 字，说清"做什么/什么时候"，例："今天下午 2:00 到大礼堂"
-            - body 保留关键信息（时间、地点、对象），例："下午有个活动，2:00 到大礼堂"
-            - 今天是 {{DateTime.Now:yyyy-MM-dd}}；催交类通知（"12,13,14 号没交"）也算 notice
-            - 不是通知（闲聊、提问）就 is_notice=false
+            把老师发的话整理成一条给学生看的提醒。只输出 JSON：{"is_notice":true/false,"title":"标题","body":"正文"}
+
+            **只要老师是在向全班说一件事，就算 notice**（活动、集合、时间地点、催交、提醒带东西、
+            表扬祝贺、公布成绩/名次、要求等）。只有闲聊、提问、与全班无关才是 is_notice=false。
+            - title 不超过 14 字，一句话概括，例："今天下午 2:00 到大礼堂"、"班级拿了第二名"
+            - body 保留关键信息，例："下午有个活动，2:00 到大礼堂"
+            - 今天是 {{DateTime.Now:yyyy-MM-dd}}
+            例："喜大普奔哇，你们看看！！！你们拿到了第二哇" → {"is_notice":true,"title":"班级拿了第二名","body":"喜大普奔，你们拿到了第二！"}
+            例："这次考试平均分 82，比上次进步了" → {"is_notice":true,"title":"平均分 82，有进步","body":"这次考试平均分 82，比上次进步了"}
+            例："12,13,14 号没交作业，快点交上来" → {"is_notice":true,"title":"12、13、14 号速交作业","body":"昨天作业 12、13、14 号未交"}
+            例："中午吃什么" → {"is_notice":false,"title":"","body":""}
             """;
         var raw = await ai.AskAsync(system, text, cancel, onProgress).ConfigureAwait(false);
         var d = JsonSerializer.Deserialize<NoticeDraft>(AiGateway.ExtractJson(raw), Json);

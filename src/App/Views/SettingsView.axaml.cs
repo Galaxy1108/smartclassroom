@@ -27,6 +27,7 @@ public partial class SettingsView : UserControl
         base.OnDataContextChanged(e);
         if (DataContext is SettingsViewModel vm)
         {
+            vm.RefreshSubjectColors();
             vm.ConsentPrompt = async docs => await Dialogs.ConsentAsync(docs);
             // 缺群号时由视图弹窗选群（在线了却开不了开关最让人困惑）
             vm.GroupPicker = async () =>

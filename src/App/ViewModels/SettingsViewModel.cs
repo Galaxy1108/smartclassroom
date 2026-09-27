@@ -25,6 +25,10 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>与 Runtime 共用的设置对象（测试里为 null）。见构造函数注释。</summary>
     private readonly AppSettings? _shared;
 
+    /// <summary>当前设置对象：真实运行时与 Runtime 共用同一份；测试里退化为本地一份。</summary>
+    private AppSettings Settings => _shared ?? _localSettings;
+    private readonly AppSettings _localSettings = new();
+
     private readonly UpdateChecker _updates;
 
     /// <summary>正在从文件/共享对象装载设置：此时不允许任何自动落盘，避免写回半截数据。</summary>
@@ -447,6 +451,45 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     private bool _featureNotice;
+
+    // ---------- 科目颜色（用户："我希望我能修改作业卡片的颜色"） ----------
+
+    /// <summary>可选颜色（与作业卡片默认色板一致，外加"默认"）。</summary>
+    public static IReadOnlyList<string> ColorChoices { get; } =
+        ["默认", "#0F6CBD", "#0F7B0F", "#9D5D00", "#B10E1C", "#5C2E91",
+         "#00766C", "#8A3707", "#4F6BED", "#6B4E00", "#7A0E4B", "#0078D4", "#C239B3"];
+
+    public ObservableCollection<SubjectColorRow> SubjectColorRows { get; } = new();
+
+    /// <summary>把"当前作业里出现过的科目 + 已配过颜色的科目"列出来，供用户改色。</summary>
+    public void RefreshSubjectColors()
+    {
+        var subjects = Runtime.Homework.All.Select(h => h.Subject.Trim())
+            .Concat(Settings.SubjectColors.Keys)
+            .Where(s => s.Length > 0)
+            .Distinct()
+            .OrderBy(s => s, StringComparer.CurrentCulture)
+            .ToList();
+        SubjectColorRows.Clear();
+        foreach (var subject in subjects)
+        {
+            var row = new SubjectColorRow(subject,
+                Settings.SubjectColors.TryGetValue(subject, out var c) ? c : "默认");
+            row.Changed += (s, color) =>
+            {
+                if (color == "默认")
+                    Settings.SubjectColors.Remove(s);
+                else
+                    Settings.SubjectColors[s] = color;
+                SaveSettings();
+                AppendLog($"科目配色：{s} → {color}");
+            };
+            SubjectColorRows.Add(row);
+        }
+        OnPropertyChanged(nameof(HasSubjectColors));
+    }
+
+    public bool HasSubjectColors => SubjectColorRows.Count > 0;
 
     public bool FeatureSummon
     {
@@ -2306,7 +2349,7 @@ public sealed class SettingsViewModel : ViewModelBase
     public void SaveSettings(bool quiet = false)
     {
         var groups = ParseGroupIds();
-        var s = _shared ?? new AppSettings();
+        var s = Settings;
         s.AiEngine = AiEngine.ToStorage();
         s.AiProvider = SelectedProvider?.Id ?? AiModelProviderHint;
         s.AiReasoning = AiReasoning;

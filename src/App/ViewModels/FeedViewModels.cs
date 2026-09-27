@@ -11,13 +11,21 @@ public sealed class HomeworkViewModel : ViewModelBase
 
     public HomeworkViewModel() : this(new HomeworkStore()) { }
 
-    public HomeworkViewModel(HomeworkStore store)
+    public HomeworkViewModel(HomeworkStore store, Func<IReadOnlyDictionary<string, string>>? colorSource = null)
     {
         _store = store;
+        _colorSource = colorSource;
         Refresh();
     }
 
+    /// <summary>科目配色的来源（运行时读设置；测试里不传就用默认色板）。</summary>
+    private readonly Func<IReadOnlyDictionary<string, string>>? _colorSource;
+
     public ObservableCollection<HomeworkCard> Items { get; } = new();
+
+    /// <summary>当前生效的科目颜色（科目名 → #RRGGBB）。</summary>
+    public IReadOnlyDictionary<string, string> SubjectColors
+        => _colorSource?.Invoke() ?? new Dictionary<string, string>();
 
     public bool IsEmpty => Items.Count == 0;
 
@@ -166,7 +174,7 @@ public sealed class HomeworkViewModel : ViewModelBase
         {
             if (all[i].Date < today)
                 continue;   // 过期项（正常情况下已被清理）
-            Items.Add(new HomeworkCard(all[i], now));
+            Items.Add(new HomeworkCard(all[i], now, SubjectColors));
             _visibleStoreIndex.Add(i);
         }
         OnPropertyChanged(nameof(IsEmpty));
@@ -183,6 +191,9 @@ public sealed class HomeworkViewModel : ViewModelBase
             sb.Append(h.Subject).Append('|').Append(h.Date).Append('|')
               .Append(string.Join('\u0001', h.Items)).Append('|').Append(h.Due).Append('\u0002');
         }
+        // 配色也算进指纹：设置页改了颜色，卡片下一轮刷新就会换色
+        foreach (var kv in SubjectColors)
+            sb.Append(kv.Key).Append('=').Append(kv.Value).Append('\u0003');
         return sb.ToString();
     }
 
@@ -531,7 +542,9 @@ public sealed class HomeworkCard
         "#00766C", "#8A3707", "#4F6BED", "#6B4E00", "#7A0E4B"
     ];
 
-    public HomeworkCard(HomeworkItem item, DateTime now)
+    /// <param name="customColors">用户配置的科目颜色（科目名 → #RRGGBB），没配就用默认色板。</param>
+    public HomeworkCard(HomeworkItem item, DateTime now,
+        IReadOnlyDictionary<string, string>? customColors = null)
     {
         Subject = item.Subject;
         Date = item.Date;
@@ -547,7 +560,11 @@ public sealed class HomeworkCard
             : item.Date < today ? "已过期"
             : "还有 " + (item.Date.DayNumber - today.DayNumber) + " 天";
 
-        AccentColor = Palette[Math.Abs(StableHash(item.Subject)) % Palette.Length];
+        AccentColor = customColors is not null
+                      && customColors.TryGetValue(item.Subject.Trim(), out var custom)
+                      && custom.Length > 0
+            ? custom
+            : Palette[Math.Abs(StableHash(item.Subject)) % Palette.Length];
         ItemCountLabel = item.Items.Count + " 项";
     }
 

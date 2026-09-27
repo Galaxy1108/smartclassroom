@@ -18,7 +18,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        _homeVm = new HomeworkViewModel(Runtime.Homework);
+        _homeVm = new HomeworkViewModel(Runtime.Homework, () => Runtime.Settings.SubjectColors);
         _eventsVm = new EventsViewModel(Runtime.Feed, Runtime.Pending, Runtime.Pipeline);
         ToastList.ItemsSource = Toasts.Items;   // 右下角的应用内通知
         Navigate("home");

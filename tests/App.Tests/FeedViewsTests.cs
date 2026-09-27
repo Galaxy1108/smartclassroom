@@ -46,3 +46,61 @@ public sealed class FeedViewsTests
         Assert.Same(vm, view.DataContext);
     }
 }
+
+/// <summary>
+/// 科目颜色可自定义（用户："我希望我能修改作业卡片的颜色"）。
+/// 没配的科目仍按科目名稳定取默认色板里的颜色（同一科目每次颜色一致）。
+/// </summary>
+public sealed class SubjectColorTests
+{
+    private static HomeworkItem Item(string subject) => new()
+    {
+        HomeworkId = Guid.NewGuid().ToString(),
+        Subject = subject,
+        Date = DateOnly.FromDateTime(DateTime.Now),
+        Items = ["练习册P10"],
+        Sender = new SmartClassroom.Contracts.SenderInfo { UserId = 1, TeacherName = "张老师", Subject = subject },
+        Source = new SmartClassroom.Contracts.MessageRef { GroupId = 1, MessageId = 1 }
+    };
+
+    [AvaloniaFact]
+    public void CustomColor_Wins_OverPalette()
+    {
+        var store = new HomeworkStore();
+        store.AddOrMerge(Item("数学"));
+        var colors = new Dictionary<string, string> { ["数学"] = "#0078D4" };
+
+        var vm = new HomeworkViewModel(store, () => colors);
+
+        Assert.Equal("#0078D4", vm.Items[0].AccentColor);
+    }
+
+    [AvaloniaFact]
+    public void UnconfiguredSubject_UsesStablePaletteColor()
+    {
+        var store = new HomeworkStore();
+        store.AddOrMerge(Item("语文"));
+
+        var a = new HomeworkViewModel(store, () => new Dictionary<string, string>());
+        var b = new HomeworkViewModel(store, () => new Dictionary<string, string>());
+
+        Assert.StartsWith("#", a.Items[0].AccentColor);
+        Assert.Equal(a.Items[0].AccentColor, b.Items[0].AccentColor);   // 稳定：同一科目同一颜色
+    }
+
+    [AvaloniaFact]
+    public void ChangingColor_RefreshesCards()
+    {
+        var store = new HomeworkStore();
+        store.AddOrMerge(Item("数学"));
+        var colors = new Dictionary<string, string>();
+        var vm = new HomeworkViewModel(store, () => colors);
+        var before = vm.Items[0].AccentColor;
+
+        colors["数学"] = "#123456";   // 故意用色板里没有的颜色
+        vm.Refresh();
+
+        Assert.NotEqual(before, vm.Items[0].AccentColor);
+        Assert.Equal("#123456", vm.Items[0].AccentColor);
+    }
+}

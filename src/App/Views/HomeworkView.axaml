@@ -40,8 +40,9 @@
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <TextBlock Text="{Binding Sender}" FontSize="11" Opacity="0.5" />
                             <TextBlock Text="{Binding ItemCountLabel}" FontSize="11" Opacity="0.5" />
-                            <!-- 截止时间：AI 把"后天交"换算成具体日期；没提就说"未说明截止"，不瞎编 -->
+                            <!-- 截止时间：AI 把"后天交"换算成具体日期；**没写截止就不显示这一行** -->
                             <TextBlock Text="{Binding DueLabel, StringFormat='截止：{0}'}" FontSize="11"
+                                       IsVisible="{Binding HasDue}"
                                        Foreground="{DynamicResource SeverityWarningAccentBrush}" />
                         </StackPanel>
                     </StackPanel>
@@ -73,7 +74,8 @@
                     <TextBlock Text="日期" VerticalAlignment="Center" Width="44" />
                     <TextBox Text="{Binding FormDate}" Width="130" Watermark="yyyy-MM-dd" />
                     <TextBlock Text="截止" VerticalAlignment="Center" Width="44" />
-                    <TextBox Text="{Binding FormDue}" Width="120" Watermark="可空" />
+                    <TextBox Text="{Binding FormDue}" Width="170"
+                             Watermark="可空；不用交就写「无需提交」" />
                 </StackPanel>
                 <TextBlock Text="作业条目（一行一条，同科目同日会自动合并去重）" FontSize="12" Opacity="0.7" />
                 <TextBox Text="{Binding FormItems}" AcceptsReturn="True" Height="90"

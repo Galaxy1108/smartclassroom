@@ -95,6 +95,12 @@ public sealed class AppSettings
     /// <summary>老师通知转发（活动/集合/催交等 → ClassIsland 提醒）。默认关。</summary>
     public bool FeatureNotice { get; set; } = false;
 
+    /// <summary>
+    /// 科目颜色（科目名 → #RRGGBB）。没配的科目按科目名稳定取默认色板里的颜色。
+    /// 用户要求："我希望我能修改作业卡片的颜色"。
+    /// </summary>
+    public Dictionary<string, string> SubjectColors { get; set; } = new();
+
     // ---- 关闭行为 / 管理员密码 ----
 
     /// <summary>关闭主窗口时收回到托盘（默认开启）。托盘不可用时自动退化为直接退出。</summary>
@@ -145,6 +151,7 @@ public sealed class AppSettings
         FeatureFileArchive = d.FeatureFileArchive;
         FeatureCoursewarePopup = d.FeatureCoursewarePopup;
         FeatureNotice = d.FeatureNotice;
+        SubjectColors = new Dictionary<string, string>(d.SubjectColors);
         MinimizeToTray = d.MinimizeToTray;
         UiScale = d.UiScale;
         AdminPasswordHash = d.AdminPasswordHash;
