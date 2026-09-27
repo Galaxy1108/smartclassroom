@@ -88,7 +88,8 @@ bash tools/docs-site/deploy.sh                          # 构建 + 同步服务�
 `主版本.次版本.修订号`，规则见仓库根目录的 [CHANGELOG.md](../CHANGELOG.md)：
 
 - **修订号**（第三位）是默认选择：修 bug、小改进、小功能都只动它；
-- **次版本**只在有意义的里程碑才动（新功能板块、架构调整、不兼容变更）；
+- **次版本**只在中型功能变更时动（新增功能板块、明显改变使用方式）；
+- **主版本**用于不兼容变更（配置格式不兼容、插件接口变更、需要用户迁移）；
 - 发版时四处版本号要一起改：`src/App/SmartClassroom.App.csproj` 的 `<Version>`、
   `pkg/PKGBUILD` 的 `pkgver`、`src/ClassIslandPlugin/manifest.yml` 的 `version`、
   `src/ClassIslandPlugin/BridgeServer.cs` 的 `PluginVersion`。
