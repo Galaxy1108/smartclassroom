@@ -6,12 +6,19 @@
              x:DataType="vm:HomeworkViewModel">
 
     <UserControl.Resources>
+        <!-- 卡片右键菜单：编辑 / 删除（DataContext 会继承卡片，处理里直接取） -->
+        <ContextMenu x:Key="HomeworkCardMenu">
+            <MenuItem Header="编辑" Click="EditCard_Click" />
+            <MenuItem Header="删除" Click="DeleteCard_Click" />
+        </ContextMenu>
+
         <!-- 卡片外观抽成资源：列表和拖拽时的"虚"卡片共用同一模板，保证长得一样 -->
         <DataTemplate x:Key="HomeworkCardTemplate" x:DataType="vm:HomeworkCard">
             <Border Classes="hwcard" MinHeight="120"
                     CornerRadius="8" BorderThickness="1" ClipToBounds="True"
                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
-                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            ContextMenu="{StaticResource HomeworkCardMenu}">
                 <Grid ColumnDefinitions="6,*">
                     <Border Grid.Column="0" Background="{Binding AccentColor}" />
                     <StackPanel Grid.Column="1" Margin="12,10,12,10" Spacing="6">
@@ -61,7 +68,7 @@
             <Button Content="手动添加作业" Classes="accent" Click="BeginAdd_Click"
                     IsEnabled="{Binding !IsLocked}" />
             <Button Content="解锁" Click="Unlock_Click" IsVisible="{Binding IsLocked}" />
-            <TextBlock Text="长按卡片 0.3 秒可拖动排序 · Ctrl+滚轮缩放本区域" FontSize="12" Opacity="0.55"
+            <TextBlock Text="长按卡片 0.3 秒可拖动排序 · 右键卡片可编辑/删除 · Ctrl+滚轮缩放本区域" FontSize="12" Opacity="0.55"
                        VerticalAlignment="Center" IsVisible="{Binding !IsEmpty}" />
             <TextBlock Text="{Binding AddResult}" VerticalAlignment="Center" FontSize="12"
                        Opacity="0.85" TextWrapping="Wrap" MaxWidth="440" />

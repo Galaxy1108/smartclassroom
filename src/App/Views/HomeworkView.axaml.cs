@@ -91,6 +91,10 @@ public partial class HomeworkView : UserControl
         // 锁定时不许拖拽（控件禁用管不到自绘的拖拽）
         if (Vm.IsLocked)
             return;
+        // 右键留给上下文菜单；点在按钮/菜单上也不开始拖拽
+        if (e.GetCurrentPoint(null).Properties.IsRightButtonPressed
+            || e.Source is Button || e.Source is MenuItem || e.Source is ContextMenu)
+            return;
 
         try
         {
@@ -327,7 +331,7 @@ public partial class HomeworkView : UserControl
     /// <summary>编辑卡片：把该条填进表单（提交即就地改掉）。</summary>
     private async void EditCard_Click(object? sender, RoutedEventArgs e)
     {
-        if ((sender as Button)?.Tag is not HomeworkCard card)
+        if ((sender as MenuItem)?.DataContext is not HomeworkCard card)
             return;
         var ok = await Runtime.Auth.RequireAsync(
             reason => PasswordDialog.PromptAsync("修改作业", reason), "修改作业需要管理员密码");
@@ -339,7 +343,7 @@ public partial class HomeworkView : UserControl
     /// <summary>删除卡片。</summary>
     private async void DeleteCard_Click(object? sender, RoutedEventArgs e)
     {
-        if ((sender as Button)?.Tag is not HomeworkCard card)
+        if ((sender as MenuItem)?.DataContext is not HomeworkCard card)
             return;
         var ok = await Runtime.Auth.RequireAsync(
             reason => PasswordDialog.PromptAsync("删除作业", reason), "删除作业需要管理员密码");
