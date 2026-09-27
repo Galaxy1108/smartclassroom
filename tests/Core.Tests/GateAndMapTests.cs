@@ -68,16 +68,16 @@ public sealed class TeacherMapReloadTests
     public void Reload_TakesEffectImmediately()
     {
         var map = new TeacherMap([new Teacher { Qq = 10001, Name = "张老师", Subject = "数学" }]);
-        Assert.False(map.IsKnown(3667627856));
+        Assert.False(map.IsKnown(10002));
 
         map.Reload([
             new Teacher { Qq = 10001, Name = "张老师", Subject = "数学" },
-            new Teacher { Qq = 3667627856, Name = "Strong猪", Subject = "道法" }
+            new Teacher { Qq = 10002, Name = "李老师", Subject = "道法" }
         ]);
 
-        Assert.True(map.IsKnown(3667627856));
-        Assert.Equal("Strong猪", map.ToSender(3667627856, null, null).TeacherName);
-        Assert.Equal("道法", map.ToSender(3667627856, null, null).Subject);
+        Assert.True(map.IsKnown(10002));
+        Assert.Equal("李老师", map.ToSender(10002, null, null).TeacherName);
+        Assert.Equal("道法", map.ToSender(10002, null, null).Subject);
     }
 
     [Fact]

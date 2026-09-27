@@ -140,11 +140,11 @@ public sealed class PipelineTests
         var feed = new ActivityFeed();
         var p = BuildQueue([], inClass: false, feed: feed);
 
-        var row = feed.Begin("qq", "收到私聊", "QQ99999：肖鸡到我办公室来");
+        var row = feed.Begin("qq", "收到私聊", "QQ99999：小明到我办公室来");
         await p.OnPrivateMessageAsync(new PrivateMessageEvent
         {
-            UserId = 99999, MessageId = 5, RawMessage = "肖鸡到我办公室来", Text = "肖鸡到我办公室来",
-            Nickname = "Strong猪"
+            UserId = 99999, MessageId = 5, RawMessage = "小明到我办公室来", Text = "小明到我办公室来",
+            Nickname = "李老师"
         }, rowId: row);
 
         var entry = Assert.Single(feed.Entries);
@@ -263,14 +263,14 @@ public sealed class PipelineTests
         // 这条消息里带"作业"二字，本地关键词会错判成作业，所以必须 AI 先分类成 summon。
         var replies = new Queue<string>([
             """{"category":"summon"}""",
-            """{"is_summon":true,"target":"王子诚","teacher":"","urgent":true,"title":"请王子诚上来发作业","body":"王子诚（信息）：王子诚你上来把作业发一下","confidence":0.9}"""
+            """{"is_summon":true,"target":"张老师","teacher":"","urgent":true,"title":"请张老师上来发作业","body":"张老师（信息）：张三你上来把作业发一下","confidence":0.9}"""
         ]);
         var p = BuildQueue(replies, inClass: true);   // urgent=true → 上课时也立刻发
 
-        await p.OnGroupMessageAsync(Msg("王子诚你上来把作业发一下"));
+        await p.OnGroupMessageAsync(Msg("张三你上来把作业发一下"));
 
         Assert.Single(_sent);
-        Assert.Equal("请王子诚上来发作业", _sent[0].Title);
+        Assert.Equal("请张老师上来发作业", _sent[0].Title);
     }
 
     [Fact]

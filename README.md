@@ -72,13 +72,16 @@ pkg/                 打包脚本与产物
 
 | 文档 | 内容 |
 |---|---|
-| [docs/ai.md](docs/ai.md) | AI 引擎、各角色提示词、判定来源与耗时、视觉解析、失败重试 |
-| [docs/qq-snowluma.md](docs/qq-snowluma.md) | SnowLuma 启动与注入、端口/token、文件与图片归档、系统下载目录 |
-| [docs/classisland.md](docs/classisland.md) | 插件安装、通知渠道与模板、课表接口、临时层、下课队列、课件弹窗 |
-| [docs/settings.md](docs/settings.md) | 每个设置项、功能门槛、管理员密码、热应用、单实例、持久化 |
-| [docs/events.md](docs/events.md) | 「事件」页：判定来源、耗时、三种结果、配色与复制 |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | 常见问题与踩坑记录（含平台兼容） |
-| [docs/development.md](docs/development.md) | 构建、测试、打包、发版流程 |
+| [快速开始](docs/getting-started.md) | 十分钟从安装到验证 |
+| [配置参考](docs/configuration.md) | 每个设置项、功能门槛、管理员密码、数据位置 |
+| [架构与数据流](docs/architecture.md) | 一条消息从 QQ 到教室经历了什么 |
+| [AI 引擎与提示词](docs/ai.md) | 引擎选择、各角色输出契约、视觉解析、失败重试 |
+| [事件与排查记录](docs/events.md) | 判定来源、耗时、三种结果、待处理 |
+| [QQ / SnowLuma](docs/qq-snowluma.md) | 启动注入、端口与令牌、文件与图片归档 |
+| [ClassIsland](docs/classisland.md) | 插件、通知渠道、课表、临时层、课件弹窗 |
+| [常见问题与排查](docs/troubleshooting.md) | 症状对照表、平台差异、日志位置 |
+| [术语表](docs/glossary.md) | 文档与界面里出现的名词 |
+| [开发与发布](docs/development.md) | 构建、测试、打包、发版、文档站 |
 
 ## 许可
 

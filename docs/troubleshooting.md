@@ -2,7 +2,7 @@
 
 > 开发过程中真实踩过的坑，以及对应的现象与修法。遇到怪事先翻这里。
 > 细节实现分别在 [AI](ai.md) / [QQ](qq-snowluma.md) / [ClassIsland](classisland.md) /
-> [设置](settings.md) / [事件页](events.md) 里。
+> [设置](configuration.md) / [事件页](events.md) 里。
 
 ## 平台兼容（Linux / Windows）
 

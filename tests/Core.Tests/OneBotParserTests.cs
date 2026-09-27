@@ -281,9 +281,9 @@ public sealed class SelfSentMessageTests
     {
         var json = """
             {"post_type":"message_sent","message_type":"private","time":1,"self_id":3768914943,
-             "user_id":2131023099,"message_id":7,
+             "user_id":10001,"message_id":7,
              "message":[{"type":"file","data":{"name":"屏幕录像.mp4","file_id":"v1","size":420000}}],
-             "sender":{"nickname":"王子诚"}}
+             "sender":{"nickname":"张老师"}}
             """;
 
         Assert.Null(OneBotParser.Parse(json));
@@ -306,8 +306,8 @@ public sealed class SelfSentMessageTests
     {
         var json = """
             {"post_type":"message","message_type":"private","time":1,"self_id":3768914943,
-             "user_id":2131023099,"message_id":9,
-             "message":[{"type":"text","data":{"text":"作业"}}],"sender":{"nickname":"王子诚"}}
+             "user_id":10001,"message_id":9,
+             "message":[{"type":"text","data":{"text":"作业"}}],"sender":{"nickname":"张老师"}}
             """;
 
         Assert.NotNull(OneBotParser.Parse(json));

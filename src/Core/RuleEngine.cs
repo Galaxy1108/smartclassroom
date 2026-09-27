@@ -84,7 +84,7 @@ public sealed class AiAnalyzer(IAiClient ai)
             body 是通知里的小字，格式：老师（科目）：原话摘要。
             例子：
               消息"小明现在来一下" → {"is_summon":true,"target":"小明","urgent":true,"title":"现在请小明过去","body":"张老师（数学）：小明现在来一下"}
-              消息"王子诚你上来把作业发一下" → {"is_summon":true,"target":"王子诚","urgent":false,"title":"请王子诚上来发作业","body":"李老师（语文）：王子诚你上来把作业发一下"}
+              消息"张三你上来把作业发一下" → {"is_summon":true,"target":"张老师","urgent":false,"title":"请张老师上来发作业","body":"李老师（语文）：张三你上来把作业发一下"}
               消息"张三来办公室一趟" → {"is_summon":true,"target":"张三","urgent":false,"title":"请张三去办公室","body":"王老师：张三来办公室一趟"}
             urgent 仅当出现"现在/立刻/马上/立即/赶紧"等要求立即过去的词时为 true。
 
@@ -117,7 +117,7 @@ public sealed class AiAnalyzer(IAiClient ai)
 
             summon：要求（某）人过去/上来/去某处 —— **即使句子里出现"作业"，只要重点是人过去，就是 summon**
               例："小明现在来一下" → summon
-              例："王子诚你上来把作业发一下" → summon（重点是人上来）
+              例："张三你上来把作业发一下" → summon（重点是人上来）
               例："张三来办公室" → summon
               **没点名具体的人也算**（叫一群人、口语化喊人）：
               例："你们几个过来一下" → summon（target 留空）

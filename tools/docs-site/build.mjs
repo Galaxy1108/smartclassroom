@@ -27,14 +27,21 @@ const base = argOf('--base', '/smartclassroom').replace(/\/$/, '');
 const outDir = resolve(repo, argOf('--out', 'docs-site-dist'));
 
 // 文档清单：源文件 → 路由名 / 侧栏标题 / 一句话描述
+// "---标题---" 是 Fumadocs 的侧栏分组分隔符，用来把文档站分成几个区块
 const PAGES = [
   ['README.md', 'index', '总览', '智慧课堂是什么、装什么、怎么开始'],
-  ['docs/ai.md', 'ai', 'AI 引擎与提示词', '引擎选择、各角色输出契约、视觉解析、失败重试'],
-  ['docs/qq-snowluma.md', 'qq-snowluma', 'QQ / SnowLuma 集成', '启动注入、端口与令牌、文件与图片归档'],
-  ['docs/classisland.md', 'classisland', 'ClassIsland 集成', '插件安装、通知渠道、课表、临时层、课件弹窗'],
-  ['docs/settings.md', 'settings', '设置项说明', '每个设置项、功能门槛、管理员密码、数据位置'],
-  ['docs/events.md', 'events', '「事件」页', '判定来源、耗时、三种结果、待处理'],
+  ['docs/getting-started.md', 'getting-started', '快速开始', '十分钟从安装到验证'],
+  ['docs/configuration.md', 'configuration', '配置参考', '每个设置项、功能门槛、管理员密码'],
+  ['---核心机制---', '', '', ''],
+  ['docs/architecture.md', 'architecture', '架构与数据流', '一条消息从 QQ 到教室经历了什么'],
+  ['docs/ai.md', 'ai', 'AI 引擎与提示词', '引擎选择、各角色输出契约、视觉解析'],
+  ['docs/events.md', 'events', '事件与排查记录', '判定来源、耗时、三种结果、待处理'],
+  ['---集成---', '', '', ''],
+  ['docs/qq-snowluma.md', 'qq-snowluma', 'QQ / SnowLuma', '启动注入、端口与令牌、文件归档'],
+  ['docs/classisland.md', 'classisland', 'ClassIsland', '插件、通知渠道、课表、临时层、课件弹窗'],
+  ['---其它---', '', '', ''],
   ['docs/troubleshooting.md', 'troubleshooting', '常见问题与排查', '症状对照表、平台差异、日志位置'],
+  ['docs/glossary.md', 'glossary', '术语表', '文档与界面里出现的名词'],
   ['docs/development.md', 'development', '开发与发布', '构建、测试、打包、发版、文档站'],
 ];
 
@@ -80,6 +87,7 @@ rmSync(contentDir, { recursive: true, force: true });
 mkdirSync(contentDir, { recursive: true });
 
 for (const [src, route, title, desc] of PAGES) {
+  if (route === '') continue;              // 侧栏分隔符
   const raw = readFileSync(join(repo, src), 'utf8');
   const fm = frontMatter(raw, title, desc);
   const body = mdxSafe(rewriteLinks(raw.replace(/^#\s+.+$/m, '').trimStart()));
@@ -90,8 +98,12 @@ for (const [src, route, title, desc] of PAGES) {
   console.log(`  ✓ ${src} → content/docs/${route}.mdx`);
 }
 
+// 侧栏：分组分隔符用 ---标题--- 形式
 writeFileSync(join(contentDir, 'meta.json'),
-  JSON.stringify({ title: '文档', pages: PAGES.map((p) => p[1]) }, null, 2) + '\n');
+  JSON.stringify({
+    title: '文档',
+    pages: PAGES.map((p) => (p[1] === '' ? `---${p[0].replace(/^-+|-+$/g, '')}---` : p[1])),
+  }, null, 2) + '\n');
 
 console.log('② 配置 basePath');
 const nextConfig = `import { createMDX } from 'fumadocs-mdx/next';

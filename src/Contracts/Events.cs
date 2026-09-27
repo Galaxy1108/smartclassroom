@@ -35,7 +35,7 @@ public sealed record SummonEvent
 
     /// <summary>
     /// 通知的遮罩大字。发送者与被叫的人**同名**时不写两遍
-    /// （实测出现过"王子诚请（现在）王子诚过去"这种蠢话）。
+    /// （实测出现过"张老师请（现在）张老师过去"这种蠢话）。
     /// </summary>
     public string MaskText
         => !string.IsNullOrWhiteSpace(AiTitle) ? AiTitle!.Trim()

@@ -146,8 +146,8 @@ public sealed class TeacherEditTests
     public void EditTeacher_UpdatesTheRowInPlace()
     {
         var vm = new SettingsViewModel(Path.Combine(Path.GetTempPath(), "sc-teacher-" + Guid.NewGuid().ToString("N") + ".json"));
-        vm.NewTeacherQq = "2131023099";
-        vm.NewTeacherName = "王子诚";
+        vm.NewTeacherQq = "10001";
+        vm.NewTeacherName = "张老师";
         vm.NewTeacherSubject = "信息";
         vm.AddTeacher();
 
