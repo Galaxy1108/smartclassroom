@@ -118,6 +118,10 @@ public static class Runtime
         ApplyAuthPolicy(Settings);
         SettingsLoaded = true;
         LoadState();
+        // 上次要是被强杀/异常退出，会留下永远"处理中"的卡片（实测有 66.8s 这种），启动时收尾
+        if (Feed.CloseDangling() is > 0 and var dangling)
+            Feed.Append("state", $"已收尾 {dangling} 条中断记录", "上次运行没有正常结束",
+                ActivitySeverity.Warning);
         PruneExpiredHomework();   // 过期作业直接删掉（不保留历史）
         if (Settings.ArchiveRoot.Length > 0)
             Courseware.RebuildFromArchive(Settings.ArchiveRoot);
@@ -206,6 +210,7 @@ public static class Runtime
         });
 
         _ = RunQqLoopAsync(oneBot, pipeline, status, cancel);
+        _ = RunClassEndWatchdogAsync(statusProvider, pipeline, cancel);
         _ = TryConnectClassIslandAsync(statusProvider, status, cancel, pipeline);
     }
 
@@ -475,6 +480,44 @@ public static class Runtime
                 Dispatcher.UIThread.Post(() => status.StatusText = "QQ 未连接（重连中…）");
                 try { await Task.Delay(5000, cancel); } catch { break; }
             }
+        }
+    }
+
+    /// <summary>
+    /// 下课兜底：**不依赖 ClassIsland 的通知设置**。
+    ///
+    /// 排队通知本来靠 ClassIsland 的"下课/放学"IPC 通知来 flush ——
+    /// 但用户要是把那些通知关了，队列就永远发不出去（用户问过"你确定可以触发吗"）。
+    /// 这里自己轮询上课状态，发现"上课 → 不在上课"就 flush 一次。
+    /// </summary>
+    private static async Task RunClassEndWatchdogAsync(ClassIslandStatusProvider provider,
+        PipelineService pipeline, CancellationToken cancel)
+    {
+        var wasInClass = false;
+        while (!cancel.IsCancellationRequested)
+        {
+            try { await Task.Delay(TimeSpan.FromSeconds(15), cancel).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return; }
+
+            bool inClass;
+            try { inClass = await provider.IsInClassAsync(cancel).ConfigureAwait(false); }
+            catch (Exception) { continue; }
+
+            if (wasInClass && !inClass)
+            {
+                try
+                {
+                    var sent = await pipeline.OnClassEndedAsync(cancel).ConfigureAwait(false);
+                    if (sent > 0)
+                        Feed.Append("qq", $"下课时发出 {sent} 条排队通知", "（状态轮询兜底触发）",
+                            ActivitySeverity.Success);
+                }
+                catch (Exception)
+                {
+                    // flush 失败下次再说
+                }
+            }
+            wasInClass = inClass;
         }
     }
 

@@ -78,13 +78,29 @@ public sealed class ScheduleGate(IClassStatusProvider status)
         return GateDecision.Queued;
     }
 
-    /// <summary>下课时调用：把排队通知按原通道依次发出并清空。</summary>
-    public async Task<int> FlushAsync(SendFunc send, CancellationToken cancel = default)
+    /// <summary>
+    /// 两条排队通知之间的间隔。ClassIsland 的通知是**叠着显示**的，
+    /// 一次全发出去会糊成一团（用户要求："要一个一个触发，使用带等待的通知，
+    /// 要不然会一下子一起发送"）。所以按间隔逐条发。
+    /// </summary>
+    public static TimeSpan Spacing { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>下课时调用：把排队通知按原通道**逐条**发出（间隔 <see cref="Spacing"/>）并清空。</summary>
+    public async Task<int> FlushAsync(SendFunc send, CancellationToken cancel = default,
+        TimeSpan? spacing = null)
     {
         var items = _queue.Values.OrderBy(q => q.EnqueuedAt).ToList();
         _queue.Clear();
-        foreach (var q in items)
-            await send(q.Channel, q.Title, q.Body, cancel).ConfigureAwait(false);
+        var gap = spacing ?? Spacing;
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (i > 0 && gap > TimeSpan.Zero)
+            {
+                try { await Task.Delay(gap, cancel).ConfigureAwait(false); }
+                catch (OperationCanceledException) { break; }
+            }
+            await send(items[i].Channel, items[i].Title, items[i].Body, cancel).ConfigureAwait(false);
+        }
         return items.Count;
     }
 }

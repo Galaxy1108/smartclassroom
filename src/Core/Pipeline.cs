@@ -36,7 +36,19 @@ public sealed class PipelineService(
     /// </summary>
     public void UpdateFlags(FeatureFlags next) => flags = next;
 
-    private ScheduleGate.SendFunc Send => plugin.NotifyAsync;
+    /// <summary>即时发送（不等显示完成）。</summary>
+    private async Task SendAsync(string channel, string title, string body, CancellationToken cancel)
+        => await plugin.NotifyAsync(channel, title, body, cancel).ConfigureAwait(false);
+
+    private ScheduleGate.SendFunc Send => SendAsync;
+
+    /// <summary>
+    /// 排队通知用的发送方式：**等到提醒显示完成再返回**（ClassIsland 的
+    /// ShowNotificationAsync 就是这个语义），这样一条一条放，不会一次性糊上去。
+    /// </summary>
+    private async Task SendAndWaitAsync(string channel, string title, string body,
+        CancellationToken cancel)
+        => await plugin.NotifyAsync(channel, title, body, cancel, wait: true).ConfigureAwait(false);
 
     public PendingStore Pending => pending;
 
@@ -469,7 +481,8 @@ public sealed class PipelineService(
 
     /// <summary>下课/放学事件：flush 排队通知（经原通道发出）。</summary>
     public Task<int> OnClassEndedAsync(CancellationToken cancel = default)
-        => gate.FlushAsync(Send, cancel);
+        // 2 秒兜底间隔：万一插件是旧版（不认识 wait），也不至于全部同时弹出
+        => gate.FlushAsync(SendAndWaitAsync, cancel, spacing: TimeSpan.FromSeconds(2));
 
     // ================= 待确认处置（事件页的出口） =================
 
@@ -766,7 +779,12 @@ public sealed class PipelineService(
             return;
         }
         if (!d.IsHomework)
+        {
+            // ⚠️ 这里以前直接 return —— 行永远停在"正在处理：作业"，
+            // 实测出现"处理中 66.8s"这种永不结束的卡片。
+            Finish(rowId, "已忽略（AI 判定不是作业）", $"{Trim(ev.Text)} · AI 判定", ActivitySeverity.Muted);
             return;
+        }
         // 日期纠偏：模型给的日期离今天太远时按今天算，避免作业挂到错误的一天
         var today = DateOnly.FromDateTime(DateTime.Now);
         var date = RuleEngine.CoerceHomeworkDate(d.Date, today);

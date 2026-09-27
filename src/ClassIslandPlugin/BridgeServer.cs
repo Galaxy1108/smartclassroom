@@ -152,7 +152,7 @@ public class BridgeServer(ExchangeService exchange) : IHostedService
             var lessons = IAppHost.GetService<ILessonsService>();
             await WriteJsonAsync(stream, 200, new PluginStatus
             {
-                PluginVersion = "0.43.1",
+                PluginVersion = "0.43.2",
                 ClassPlanLoaded = lessons.IsClassPlanLoaded
             }).ConfigureAwait(false);
             return;
@@ -195,8 +195,18 @@ public class BridgeServer(ExchangeService exchange) : IHostedService
             };
             // ⚠️ ClassIsland 的提醒 API 必须在 UI 线程上调用，否则抛 "Call from invalid thread"
             //（实测：HTTP 线程直接调用会得到空响应）。这里切回 UI 线程再发。
-            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
-                () => provider.Notify(channel, req.Title, req.Body));
+            if (req.Wait)
+            {
+                // 等到提醒显示完成再返回：调用方（下课时 flush 队列）靠它一条一条放
+                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
+                    async () => await provider.NotifyAsync(channel, req.Title, req.Body)
+                        .ConfigureAwait(true)).ConfigureAwait(false);
+            }
+            else
+            {
+                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
+                    () => provider.Notify(channel, req.Title, req.Body));
+            }
             await WriteJsonAsync(stream, 200, new { ok = true }).ConfigureAwait(false);
             return;
         }

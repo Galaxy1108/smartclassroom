@@ -408,6 +408,23 @@ public sealed class PipelineTests
     }
 
     [Fact]
+    public async Task HomeworkDraft_NotHomework_RowIsClosed()
+    {
+        var replies = new Queue<string>([
+            """{"category":"homework"}""",
+            """{"is_homework":false,"subject":"","date":"","items":[],"due":"","confidence":0.1}"""
+        ]);
+        var p = BuildQueue(replies, inClass: false);
+
+        var row = _lastFeed!.Begin("qq", "收到群消息", "张老师：今天的课表");
+        await p.OnGroupMessageAsync(Msg("今天的课表"), rowId: row);
+
+        var entry = Assert.Single(_lastFeed.Entries);
+        Assert.False(entry.InProgress);              // 不能一直转圈
+        Assert.Contains("已忽略", entry.Title);
+    }
+
+    [Fact]
     public async Task ExchangeIllegal_QueuesManual()
     {
         var gate = new ScheduleGate(new FakeStatus(true));
@@ -497,3 +514,22 @@ public sealed class PipelineTests
         finally { if (Directory.Exists(archiveRoot)) Directory.Delete(archiveRoot, true); }
     }
 }
+
+/// <summary>启动时把上次残留的"进行中"记录收尾（否则永远转圈）。</summary>
+public sealed class CloseDanglingTests
+{
+    [Fact]
+    public void CloseDangling_ClosesLeftoverRows()
+    {
+        var feed = new ActivityFeed();
+        var id = feed.Begin("qq", "正在处理消息", "上次没跑完");
+        feed.Begin("qq", "已完成的", "正常");
+        feed.Complete(feed.Entries[0].Id, "完成", "ok");
+
+        var closed = feed.CloseDangling();
+
+        Assert.Equal(1, closed);
+        Assert.DoesNotContain(feed.Entries, e => e.InProgress);
+        Assert.Contains(feed.Entries, e => e.Title.Contains("已中断"));
+        _ = id;
+    }}

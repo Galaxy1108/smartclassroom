@@ -75,9 +75,11 @@ public sealed class PluginLink
         catch { return null; }
     }
 
-    public async Task NotifyAsync(string channel, string title, string body, CancellationToken cancel = default)
+    /// <param name="wait">true = 等提醒显示完成再返回（排队通知逐条放）。</param>
+    public async Task NotifyAsync(string channel, string title, string body,
+        CancellationToken cancel = default, bool wait = false)
     {
-        var req = new NotifyRequest { Channel = channel, Title = title, Body = body };
+        var req = new NotifyRequest { Channel = channel, Title = title, Body = body, Wait = wait };
         using var msg = new HttpRequestMessage(HttpMethod.Post, "notify")
         {
             Content = new StringContent(JsonSerializer.Serialize(req, Json), Encoding.UTF8, "application/json")

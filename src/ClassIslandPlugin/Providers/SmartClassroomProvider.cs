@@ -84,6 +84,43 @@ public class SmartClassroomProvider : NotificationProviderBase
         Channel(channelId).ShowNotification(request);
     }
 
+    /// <summary>
+    /// 发送并**等待提醒显示完成**（ClassIsland 的 ShowNotificationAsync 就是这么定义的：
+    /// "显示一个提醒，并等待提醒显示完成"）。
+    /// 排队通知要靠它一条一条放：不等的话会一次性全糊上去（用户明确要求）。
+    /// </summary>
+    public async Task NotifyAsync(Guid channelId, string mask, string? overlay = null,
+        string? speech = null, TimeSpan? duration = null)
+    {
+        var d = duration ?? TimeSpan.FromSeconds(8);
+        var request = new NotificationRequest
+        {
+            ChannelId = channelId,
+            MaskContent = new NotificationContent(new TwoIconsMaskTemplateData
+            {
+                Text = mask,
+                LeftIconSource = new FluentIconSource(GlyphFor(channelId)),
+                RightIconSource = new FluentIconSource(BellGlyph),
+                HasRightIcon = true
+            })
+            {
+                ContentTemplateResourceKey = MaskTemplateKey,
+                Duration = d,
+                SpeechContent = speech ?? mask
+            },
+            OverlayContent = overlay is null ? null : new NotificationContent(new SimpleTextTemplateData
+            {
+                Text = overlay
+            })
+            {
+                ContentTemplateResourceKey = OverlayTemplateKey,
+                Duration = d,
+                SpeechContent = speech ?? overlay
+            }
+        };
+        await Channel(channelId).ShowNotificationAsync(request).ConfigureAwait(false);
+    }
+
     private static string GlyphFor(Guid channelId)
         => channelId == SummonChannelId ? SummonGlyph
            : channelId == ManualChannelId ? ManualGlyph

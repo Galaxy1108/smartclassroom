@@ -17,6 +17,12 @@ public sealed record NotifyRequest
     public required string Channel { get; init; }
     public required string Title { get; init; }
     public required string Body { get; init; }
+
+    /// <summary>
+    /// true = 等到提醒**显示完成**再返回（ClassIsland 的 ShowNotificationAsync 语义）。
+    /// 排队通知一条一条放就靠它，否则会一次性全糊上去。
+    /// </summary>
+    public bool Wait { get; init; }
 }
 
 /// <summary>POST /exchange 请求体即 <see cref="ExchangeRequest"/>，返回 <see cref="ExchangeVerdict"/>。</summary>

@@ -141,6 +141,30 @@ public sealed class ActivityFeed(int capacity = 200)
         };
     }
 
+    /// <summary>
+    /// 把残留的"进行中"记录收尾。启动时调用：
+    /// 上次运行如果被强杀/异常退出，那些行会永远停在"处理中 xx.xs"
+    ///（实测用户机器上就有 66.8s、23.7s 这种卡片）。
+    /// </summary>
+    public int CloseDangling(string reason = "上次运行中断")
+    {
+        var count = 0;
+        for (var node = _entries.First; node is not null; node = node.Next)
+        {
+            if (!node.Value.InProgress)
+                continue;
+            node.Value = node.Value with
+            {
+                Title = "已中断（" + reason + "）",
+                InProgress = false,
+                Severity = ActivitySeverity.Warning,
+                ElapsedMs = (long)(DateTimeOffset.Now - node.Value.At).TotalMilliseconds
+            };
+            count++;
+        }
+        return count;
+    }
+
     /// <summary>清空时间线（界面上的「清空」按钮；持久化由 App 层的下一次落盘完成）。</summary>
     public void Clear() => _entries.Clear();
 

@@ -124,6 +124,13 @@ public sealed class AiAnalyzer(IAiClient ai)
               例："我的儿子们给我滚过来" → summon（target 留空，这是喊人过来）
               例："都到操场集合" → summon
             homework：老师**布置新任务**（不一定出现"作业"二字）
+              **只有明确要求完成某个学习任务才算**：
+              例："今天数学作业：练习册P10" → homework
+              例："把第二章写完，后天交" → homework
+              **以下都不算作业**：
+              例：课表/排班截图（只有课程名和时间）→ none
+              例：表情包、玩笑图、与学习任务无关的图片 → none
+              例："喜大普奔，你们拿了第二" → notice
               例："今天数学作业：练习册P10" → homework
               例："把第二章写完，后天交" → homework
               **催交/点名/检查不算布置**：
