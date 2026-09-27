@@ -136,7 +136,8 @@ public sealed class ActivityFeed(int capacity = 200)
             Title = title,
             Detail = detail,
             Severity = severity,
-            InProgress = false
+            InProgress = false,
+            ElapsedMs = (long)(DateTimeOffset.Now - e.At).TotalMilliseconds
         };
     }
 
@@ -192,4 +193,14 @@ public sealed record ActivityEntry(
 
     /// <summary>true = 正在处理（界面显示转圈 + 已用时间）。</summary>
     public bool InProgress { get; init; }
+
+    /// <summary>
+    /// 处理耗时（毫秒，完成时填）。用户问过"这个已忽略经过了 AI 吗，怎么这么快" ——
+    /// 有耗时就能自证：走 AI 至少一两秒，几百毫秒说明走的是本地判定。
+    /// </summary>
+    public long? ElapsedMs { get; init; }
+
+    public string ElapsedLabel => ElapsedMs is { } ms
+        ? ms < 1000 ? $"耗时 {ms}ms" : $"耗时 {ms / 1000.0:0.#}s"
+        : "";
 }

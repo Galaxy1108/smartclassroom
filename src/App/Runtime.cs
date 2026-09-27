@@ -57,6 +57,26 @@ public static class Runtime
     private static void ApplyAuthPolicy(AppSettings s)
         => Auth.SessionMinutes = s.RememberUnlock ? 10 : 2;
 
+    /// <summary>AI 边车日志：追加到 &lt;数据目录&gt;/ai-sidecar.log（超过 1MB 就截断重来）。</summary>
+    private static void AppendAiLog(string line)
+    {
+        try
+        {
+            var path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "SmartClassroom", "ai-sidecar.log");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            if (File.Exists(path) && new FileInfo(path).Length > 1024 * 1024)
+                File.Delete(path);
+            File.AppendAllText(path, line + Environment.NewLine);
+        }
+        catch (Exception)
+        {
+            // 日志写不进去不影响运行
+        }
+    }
+
+    private static PiAiSidecarClient? _liveSidecar;
     private static FileArchive? _liveArchive;
     private static TeacherMap? _liveTeachers;
     private static PipelineService? _livePipeline;
@@ -159,6 +179,12 @@ public static class Runtime
             MirrorDir = Settings.CopyToDownloads ? FileArchive.SystemDownloadsDir() : ""
         });
         _liveArchive = archive;
+        // 边车日志落文件：AI 有没有被调用、调用了几次、失败原因，都能事后查
+        if (ai is PiAiSidecarClient sidecar)
+        {
+            sidecar.OnLog += AppendAiLog;
+            _liveSidecar = sidecar;
+        }
         var pipeline = new PipelineService(teachers, new AiAnalyzer(ai), gate, plugin,
             oneBot, archive, Courseware, Homework, Feed, Pending, Settings.ToFeatureFlags());
         Pipeline = pipeline;

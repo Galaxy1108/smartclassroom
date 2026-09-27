@@ -74,6 +74,10 @@ public sealed class PiAiSidecarClient : IAiClient, IAsyncDisposable
             {
                 if (attempt > 1)
                     onProgress?.Invoke($"正在重试（第 {attempt}/{AiRetry.MaxAttempts} 次）…");
+                // 每次请求都留一行日志：用户问过"这个已忽略经过了 AI 吗"，有日志就能查证
+                OnLog?.Invoke($"[{DateTime.Now:HH:mm:ss.fff}] complete provider={_options.Provider} "
+                              + $"model={_options.Model} chars={user.Length} images={images?.Count ?? 0}"
+                              + (attempt > 1 ? $" attempt={attempt}" : ""));
                 var data = await SendAsync("complete", new
                 {
                     provider = _options.Provider,

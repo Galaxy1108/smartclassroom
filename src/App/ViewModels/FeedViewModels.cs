@@ -501,6 +501,9 @@ public sealed class ActivityRow(ActivityEntry entry)
     /// <summary>"已忽略"这类没有发生任何事的结果：灰色，不抢眼也不报警。</summary>
     public bool IsMuted => entry.Severity == ActivitySeverity.Muted;
 
+    /// <summary>处理耗时（"耗时 4.7s"）。走没走 AI，看这个最直接。</summary>
+    public string ElapsedLabel => entry.ElapsedLabel;
+
     public bool IsInfo => entry.Severity == ActivitySeverity.Info;
     public bool IsSuccess => entry.Severity == ActivitySeverity.Success;
     public bool IsWarning => entry.Severity == ActivitySeverity.Warning;

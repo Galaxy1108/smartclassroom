@@ -25,6 +25,12 @@ public sealed class PipelineService(
     private readonly HashSet<string> _disabledNotified = [];
 
     /// <summary>
+    /// 上一条消息的分类是谁给的（"AI 判定为 X" / "本地判定（原因）"）。
+    /// 用户问过"这个已忽略经过了 AI 吗，怎么这么快" —— 直接写在事件行里，一眼可见。
+    /// </summary>
+    private string _lastVerdictSource = "";
+
+    /// <summary>
     /// 热更新功能开关：用户在设置页打开/关闭功能后**立刻生效**，
     /// 不用重启应用（以前 flags 是启动时的快照，改了要重启，很反直觉）。
     /// </summary>
@@ -51,7 +57,8 @@ public sealed class PipelineService(
             var kind = await ClassifyAsync(ev, sender, cancel, id).ConfigureAwait(false);
             if (kind == RuleEngine.Kind.None)
             {
-                feed.Complete(id, "已忽略（与三个功能都无关）", Trim(ev.Text), ActivitySeverity.Muted);
+                feed.Complete(id, "已忽略（与三个功能都无关）",
+                    $"{Trim(ev.Text)} · {_lastVerdictSource}", ActivitySeverity.Muted);
                 return;
             }
             feed.Update(id, $"正在处理：{FeatureName(kind)}", $"{who}：{Trim(ev.Text)}");
@@ -232,10 +239,11 @@ public sealed class PipelineService(
         var kind = await ClassifyAsync(ev, sender, cancel, id).ConfigureAwait(false);
         if (kind == RuleEngine.Kind.None)
         {
-            feed.Complete(id, "已忽略（与三个功能都无关）", Trim(ev.Text), ActivitySeverity.Muted);
+            feed.Complete(id, "已忽略（与三个功能都无关）",
+                $"{Trim(ev.Text)} · {_lastVerdictSource}", ActivitySeverity.Muted);
             return;
         }
-        feed.Update(id, $"正在处理：{FeatureName(kind)}", $"{who}：{Trim(ev.Text)}");
+        feed.Update(id, $"正在处理：{FeatureName(kind)}", $"{who}：{Trim(ev.Text)} · {_lastVerdictSource}");
 
         if (kind.HasFlag(RuleEngine.Kind.Summon) && flags.Summon)
             await HandleSummonAsync(ev, sender, cancel, rowId: id).ConfigureAwait(false);
@@ -272,8 +280,16 @@ public sealed class PipelineService(
     {
         // 本地关键词只当兜底：它会把"你上来把作业发一下"错判成作业（其实是召唤），
         // 所以能用 AI 就让 AI 分类。
-        if (!flags.AiDecidesTeacherMessages || ev.Text.Trim().Length < 4)
+        if (!flags.AiDecidesTeacherMessages)
+        {
+            _lastVerdictSource = "本地判定（已关闭「由 AI 判定老师消息」）";
             return RuleEngine.ClassifyLocal(ev.Text);
+        }
+        if (ev.Text.Trim().Length < 4)
+        {
+            _lastVerdictSource = "本地判定（消息太短，没花 AI 调用）";
+            return RuleEngine.ClassifyLocal(ev.Text);
+        }
 
         if (progressId is { } pid)
             feed.Update(pid, "正在处理消息", "交给 AI 分类…");
@@ -289,6 +305,9 @@ public sealed class PipelineService(
         var kind = await ai.AnalyzeKindAsync(classifyText, sender.Subject, cancel,
             msg => { if (progressId is { } p2) feed.Update(p2, "正在处理消息", msg); }, images)
             .ConfigureAwait(false);
+        _lastVerdictSource = kind is null
+            ? "本地判定（AI 没给出结论）"
+            : $"AI 判定为 {kind}";
         var mapped = kind switch
         {
             "homework" => RuleEngine.Kind.Homework,
