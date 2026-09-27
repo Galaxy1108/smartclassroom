@@ -273,12 +273,15 @@ public sealed class AiAnalyzer(IAiClient ai)
     /// 不给课表 AI 只能瞎猜（或干脆给不出节次，整条转人工）。
     /// </param>
     public async Task<IReadOnlyList<ExchangeDraft>> AnalyzeExchangeAsync(string text, string? timetables = null,
-        CancellationToken cancel = default, Action<string>? onProgress = null)
+        CancellationToken cancel = default, Action<string>? onProgress = null, string? senderContext = null)
     {
         var system = $$"""
             你解析老师的换课消息。换课类型 kind：Swap=两节对调(同天)/Replace=某节改为另一科目/CrossDay=涉及不同日期。
             只输出 JSON：{"is_exchange":true/false,"kind":"Swap/Replace/CrossDay","from":{"date":"yyyy-MM-dd","period":某日第几节,"subject":"原科目，可空"},"to":{"date":"yyyy-MM-dd","period":n}或null,"new_subject":"Replace目标科目，否则空字符串","confidence":0-1}
             今天是 {{DateTime.Now:yyyy-MM-dd}}。"明天第三节和今天第五节换"这类要换算成具体日期。
+
+            【发送者】{{senderContext ?? "（未知）"}}
+            消息里的"我来上/我代课"指的就是这位发送者；写"体育老师"这类科目时优先对上他的科目。
 
             【课表】没写第几节时**必须**靠它推断，不要留空：
             {{timetables ?? "（取不到课表）"}}
@@ -293,7 +296,10 @@ public sealed class AiAnalyzer(IAiClient ai)
             推断规则：
             - "周测/测验/考试改成X"：先找课表里该科目原本的那一节；找不到就用当天最后一节正课。
             - "某科老师要讲课/某科改成X"：取课表里那一科的节次。
-            - 实在无法确定时才留空 period（上层会转人工）。
+            - **消息说的那一天找不到那一科时，把给出的所有日期都查一遍**：
+              例如"体育老师今天生病了，体育课我来上"，今天课表里没有体育、
+              但明天第 5 节是体育 → 就用**明天第 5 节**（from.date 也填那一天）。
+            - 只有**所有日期都找不到**、或找到多节无法确定时才留空 period（上层会转人工）。
             """;
         var raw = await ai.AskAsync(system, text, cancel, onProgress).ConfigureAwait(false);
         var json = AiGateway.ExtractJson(raw);

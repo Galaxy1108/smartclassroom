@@ -58,7 +58,10 @@ public sealed class TeacherMap
     public bool IsKnown(long qq) => _byQq.ContainsKey(qq);
 
     /// <summary>名单人数（为 0 时不做陌生人过滤，避免用户没配名单就什么都不处理）。</summary>
-    public int Count => _byQq.Count;
+        /// <summary>当前名单（去重后）。给提示词用：让模型知道班里有哪些老师。</summary>
+    public IReadOnlyCollection<Teacher> Teachers => _byQq.Values.Distinct().ToList();
+
+public int Count => _byQq.Count;
 
     public SenderInfo ToSender(long qq, string? card, string? nickname)
     {

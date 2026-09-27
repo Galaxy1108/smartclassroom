@@ -826,8 +826,15 @@ public sealed class PipelineService(
             var timetableText = string.Join("\n", plans.Select(p =>
                 $"{p.Date:yyyy-MM-dd}（{Weekday(p.Date)}）：{PluginLink.DescribeClassPlan(p.Plan)}"));
             UpdateRow(rowId, "正在解析换课", "已取到课表，交给 AI 解析…");
+            // 把"发消息的是谁"也告诉模型：消息里的"我来上/我代课"指的就是他，
+            // 写"体育老师"时也能对上他的科目（召唤那边一直有，换课漏了）。
+            var senderContext = $"{sender.TeacherName ?? sender.Nickname ?? "未知老师"}"
+                                + (sender.Subject is { Length: > 0 } sub ? $"（{sub}）" : "")
+                                + (teachers.Count > 0
+                                    ? $"，班里已知老师：{string.Join("、", teachers.Teachers.Select(x => x.Name))}"
+                                    : "");
             drafts = await ai.AnalyzeExchangeAsync(ev.Text, timetableText, cancel,
-                msg => UpdateRow(rowId, "正在解析换课", msg)).ConfigureAwait(false);
+                msg => UpdateRow(rowId, "正在解析换课", msg), senderContext).ConfigureAwait(false);
         }
         catch (AiException ex)
         {
