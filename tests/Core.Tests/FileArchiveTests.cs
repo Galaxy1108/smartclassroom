@@ -245,3 +245,77 @@ public sealed class ArchiveMirrorTests : IDisposable
         Assert.True(Path.IsPathRooted(dir));
     }
 }
+
+/// <summary>
+/// 重启后课件不能消失。踩到的坑：元数据在 0.36.2 起搬到了
+/// &lt;Root&gt;/.smartclassroom-meta/**/*.json，而 RebuildFromArchive 只扫旧的 *.meta.json
+/// → 新位置归档的文件重启就恢复不出来（用户："每次启动以后，我的信息技术课件怎么消失了"）。
+/// </summary>
+public sealed class CoursewareRebuildTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "sc-cw-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_root)) Directory.Delete(_root, true);
+    }
+
+    private string WriteFile(string subject, string name, string fileId)
+    {
+        var dir = Path.Combine(_root, subject);
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, name);
+        File.WriteAllText(path, "x");
+        var metaDir = Path.Combine(_root, ".smartclassroom-meta", subject);
+        Directory.CreateDirectory(metaDir);
+        File.WriteAllText(Path.Combine(metaDir, name + ".json"),
+            System.Text.Json.JsonSerializer.Serialize(new ArchiveMeta
+            {
+                FileId = fileId, FileName = name, Size = 1, GroupId = 0,
+                SenderQq = 10001, SenderName = "张老师", Subject = subject,
+                Time = DateTimeOffset.Now, LocalPath = path
+            }));
+        return path;
+    }
+
+    [Fact]
+    public void NewMetaLocation_IsPickedUp()
+    {
+        WriteFile("信息技术", "blue_search.py", "f1");
+        WriteFile("信息技术", "brute.py", "f2");
+
+        var svc = new CoursewareService();
+        svc.RebuildFromArchive(_root);
+
+        var subjects = svc.QueryAll().Select(f => f.Subject).Distinct().ToList();
+        Assert.Contains("信息技术", subjects);
+        Assert.Equal(2, svc.QueryAll().Count);
+    }
+
+    [Fact]
+    public void FilesWithoutMeta_StillShowUpByFolderName()
+    {
+        // 元数据丢了（写入失败/手工放进来）也不能凭空消失
+        var dir = Path.Combine(_root, "数学");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "handout.pdf"), "x");
+
+        var svc = new CoursewareService();
+        svc.RebuildFromArchive(_root);
+
+        var item = Assert.Single(svc.QueryAll());
+        Assert.Equal("handout.pdf", item.FileName);
+        Assert.Equal("数学", item.Subject);
+    }
+
+    [Fact]
+    public void HiddenMetaDir_IsNotTreatedAsSubject()
+    {
+        WriteFile("数学", "a.pdf", "f1");
+
+        var svc = new CoursewareService();
+        svc.RebuildFromArchive(_root);
+
+        Assert.DoesNotContain(svc.QueryAll(), f => f.Subject == ".smartclassroom-meta");
+    }
+}

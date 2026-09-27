@@ -23,8 +23,22 @@ public sealed class CoursewareService
     {
         if (!Directory.Exists(archiveRoot))
             return;
-        foreach (var metaFile in Directory.EnumerateFiles(archiveRoot, "*.meta.json", SearchOption.AllDirectories))
+
+        // ⚠️ 元数据有两个位置：0.36.2 起写在 <Root>/.smartclassroom-meta/**/*.json，
+        // 更早的版本写在各科目目录里的 *.meta.json。**两个都要扫** ——
+        // 只扫旧位置的话，元数据搬家之后归档的文件重启就恢复不出来
+        //（实测反馈："每次启动以后，我的信息技术课件怎么消失了"）。
+        var metaDir = FileArchive.MetaDir(archiveRoot);
+        var metaFiles = Directory.Exists(metaDir)
+            ? Directory.EnumerateFiles(metaDir, "*.json", SearchOption.AllDirectories)
+            : [];
+        var legacyFiles = Directory.EnumerateFiles(archiveRoot, "*.meta.json", SearchOption.AllDirectories);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var metaFile in metaFiles.Concat(legacyFiles))
         {
+            if (!seen.Add(metaFile))
+                continue;
             try
             {
                 var meta = System.Text.Json.JsonSerializer.Deserialize<ArchiveMeta>(File.ReadAllText(metaFile));
@@ -44,6 +58,35 @@ public sealed class CoursewareService
                 });
             }
             catch { /* 坏 meta 跳过 */ }
+        }
+
+        // 兜底：没有任何 meta 的文件（例如元数据写入失败/手工放进来的），
+        // 按"科目目录名"登记，至少不会在课件页里凭空消失。
+        foreach (var dir in Directory.EnumerateDirectories(archiveRoot))
+        {
+            var subject = Path.GetFileName(dir);
+            if (subject.StartsWith(".", StringComparison.Ordinal))
+                continue;   // .smartclassroom-meta 之类的隐藏目录不算科目
+            foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+            {
+                if (file.EndsWith(".meta.json", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (_files.Any(f => string.Equals(f.LocalPath, file, StringComparison.Ordinal)))
+                    continue;
+                var info = new FileInfo(file);
+                Register(new CoursewareFile
+                {
+                    FileId = file,
+                    FileName = info.Name,
+                    Size = info.Length,
+                    Sender = new SenderInfo { UserId = 0 },
+                    Source = new MessageRef { GroupId = 0, MessageId = 0 },
+                    LocalPath = file,
+                    Subject = subject,
+                    ClassDate = DateOnly.FromDateTime(info.LastWriteTime),
+                    ArchivedAt = new DateTimeOffset(info.LastWriteTime)
+                });
+            }
         }
     }
 
