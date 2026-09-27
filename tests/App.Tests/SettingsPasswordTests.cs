@@ -94,3 +94,44 @@ public sealed class SettingsPasswordTests : IDisposable
         Assert.False(new SettingsViewModel(_path).MinimizeToTray);
     }
 }
+
+/// <summary>
+/// 解锁窗口不能是 0。踩过两次：
+/// ① AuthGate 默认 0 → 解锁立刻过期；
+/// ② 默认修好了，但 Runtime.ApplyAuthPolicy 又把它覆盖回 0 →
+///    "密码输对了、对话框关了，界面还是锁的，点什么都没反应"。
+/// </summary>
+public sealed class UnlockWindowTests
+{
+    [AvaloniaFact]
+    public void DefaultPolicy_KeepsAUsableWindow()
+    {
+        Runtime.Settings.RememberUnlock = false;
+        Runtime.ApplyAuthPolicyForTests(Runtime.Settings);
+        Assert.True(Runtime.Auth.SessionMinutes >= 1,
+            "解锁窗口必须 >= 1 分钟，否则解锁等于没解");
+
+        Runtime.Settings.RememberUnlock = true;
+        Runtime.ApplyAuthPolicyForTests(Runtime.Settings);
+        Assert.Equal(10, Runtime.Auth.SessionMinutes);
+
+        Runtime.Settings.RememberUnlock = false;
+        Runtime.ApplyAuthPolicyForTests(Runtime.Settings);
+    }
+
+    [AvaloniaFact]
+    public void UnlockWithCorrectPassword_LeavesGateOpen()
+    {
+        var hash = SmartClassroom.Core.PasswordHasher.Hash("test-pw-1234");
+        Runtime.Settings.AdminPasswordHash = hash;
+        Runtime.ApplyAuthPolicyForTests(Runtime.Settings);
+        Runtime.Auth.Lock();
+
+        Assert.False(Runtime.Auth.IsUnlocked);
+        Assert.True(Runtime.Auth.TryUnlock("test-pw-1234"));
+        Assert.True(Runtime.Auth.IsUnlocked);       // 解锁后必须真的打开
+
+        Runtime.Settings.AdminPasswordHash = "";
+        Runtime.Auth.Lock();
+    }
+}

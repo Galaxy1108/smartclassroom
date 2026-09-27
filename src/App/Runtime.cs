@@ -43,9 +43,19 @@ public static class Runtime
     /// <summary>已提示过"该群没监听"的群（每个群只提示一次）。</summary>
     private static readonly HashSet<long> _ignoredGroups = [];
 
-    /// <summary>把"解锁后是否记住 10 分钟"应用到 AuthGate。</summary>
+    /// <summary>
+    /// 把"解锁后是否记住 10 分钟"应用到 AuthGate。
+    ///
+    /// ⚠️ 这里**不能**给 0：窗口为 0 时 TryUnlock 立刻过期，
+    /// 表现就是"密码输对了、对话框也关了，界面还是锁的、点什么都没反应"
+    /// （实测反馈："输密码退出可以，改设置/作业之类的都没有反应"）。
+    /// 默认 2 分钟；打开"记住 10 分钟"就是 10 分钟。
+    /// </summary>
+    /// <summary>测试用：直接应用认证策略。</summary>
+    internal static void ApplyAuthPolicyForTests(AppSettings s) => ApplyAuthPolicy(s);
+
     private static void ApplyAuthPolicy(AppSettings s)
-        => Auth.SessionMinutes = s.RememberUnlock ? 10 : 0;
+        => Auth.SessionMinutes = s.RememberUnlock ? 10 : 2;
 
     private static TeacherMap? _liveTeachers;
     private static PipelineService? _livePipeline;
