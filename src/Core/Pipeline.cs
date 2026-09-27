@@ -146,6 +146,34 @@ public sealed class PipelineService(
         return result.Count > 0 ? result : null;
     }
 
+    /// <summary>
+    /// 解析文件直链。私聊文件**优先**问 QQ 服务器要（get_private_file_url）：
+    /// 段里的 CDN 直链是我们自己拉用的，未必能让对方看到"已接收"。
+    /// </summary>
+    private async Task<string?> ResolveFileUrlAsync(GroupUploadEvent ev, CancellationToken cancel)
+    {
+        if (ev.GroupId == 0)
+        {
+            var fromServer = await oneBot.GetPrivateFileUrlAsync(ev.UserId, ev.File.Id, "", cancel)
+                .ConfigureAwait(false);
+            if (!string.IsNullOrEmpty(fromServer))
+                return fromServer;
+            return ev.File.HasUrl ? ev.File.Url : null;
+        }
+        try
+        {
+            var url = (await oneBot.GetGroupFileUrlAsync(ev.GroupId, ev.File.Id, ev.File.Busid, cancel)
+                .ConfigureAwait(false))?.Url;
+            if (!string.IsNullOrEmpty(url))
+                return url;
+        }
+        catch (Exception)
+        {
+            // 群文件接口拿不到就用段里的
+        }
+        return ev.File.HasUrl ? ev.File.Url : null;
+    }
+
     private static string Weekday(DateOnly date) => date.DayOfWeek switch
     {
         DayOfWeek.Monday => "周一",
@@ -331,40 +359,24 @@ public sealed class PipelineService(
             Finish(rowId, "已忽略（发送者不在老师名单里）", fileName, ActivitySeverity.Muted);
             return;
         }
+        // 先解析直链：私聊优先用 QQ 服务器给的 get_private_file_url（段里的 CDN 直链未必能更新
+        // 对方看到的"已接收"状态），群文件用 get_group_file_url，都没有才退回段里的 url。
+        var resolved = await ResolveFileUrlAsync(ev, cancel).ConfigureAwait(false);
+        // 让 QQ 端真正"接收"：我们直接拉 URL 只是旁观者下载，老师那边会一直显示"未接收"。
+        // 放在归档之前 —— 已归档过的重复文件同样要触发（以前去重提前 return，重复发送就再也不触发）。
+        var trigger = resolved is null
+            ? "无直链"
+            : await oneBot.TriggerDownloadAsync(resolved, ev.File.Name, cancel).ConfigureAwait(false)
+                ? "已请 QQ 端接收"
+                : "QQ 端接收失败";
+        if (trigger != "已请 QQ 端接收")
+            UpdateRow(rowId, "正在归档文件", $"QQ 端接收未成功（{trigger}），继续归档…");
+
         ArchiveOutcome outcome;
         try
         {
-            outcome = await archive.HandleAsync(ev, sender, async (e, ct) =>
-            {
-                // 文件段自带直链（私聊文件就是这种情况）就直接用；
-                // 私聊文件没有直链时用 get_private_file_url，群文件用 get_group_file_url。
-                var url = e.File.HasUrl ? e.File.Url : null;
-                if (string.IsNullOrEmpty(url))
-                {
-                    if (e.GroupId == 0)
-                    {
-                        url = await oneBot.GetPrivateFileUrlAsync(e.UserId, e.File.Id, "", ct)
-                            .ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        try
-                        {
-                            url = (await oneBot.GetGroupFileUrlAsync(e.GroupId, e.File.Id, e.File.Busid, ct)
-                                .ConfigureAwait(false))?.Url;
-                        }
-                        catch (Exception)
-                        {
-                            url = null;
-                        }
-                    }
-                }
-                // 让 QQ 端也"接收"这个文件：我们直接拉 URL 只是旁观者下载，
-                // 老师那边会一直显示"未接收"（用户反馈），所以要请 SnowLuma 自己下。
-                if (!string.IsNullOrEmpty(url))
-                    await oneBot.TriggerDownloadAsync(url!, e.File.Name, ct).ConfigureAwait(false);
-                return url;
-            }, cancel).ConfigureAwait(false);
+            outcome = await archive.HandleAsync(ev, sender,
+                (_, _) => Task.FromResult(resolved), cancel).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -386,7 +398,8 @@ public sealed class PipelineService(
                     ClassDate = DateOnly.FromDateTime(DateTime.Now),
                     ArchivedAt = DateTimeOffset.Now
                 });
-                Finish(rowId, "已执行：已归档", $"{fileName} · 来自{sender.TeacherName ?? "未知发送者"}");
+                Finish(rowId, "已执行：已归档",
+                    $"{fileName} · 来自{sender.TeacherName ?? "未知发送者"} · {trigger}");
                 break;
             case ArchiveResult.PendingConfirm:
                 Finish(rowId, "已忽略：大文件待确认",

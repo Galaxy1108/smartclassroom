@@ -152,7 +152,7 @@ public class BridgeServer(ExchangeService exchange) : IHostedService
             var lessons = IAppHost.GetService<ILessonsService>();
             await WriteJsonAsync(stream, 200, new PluginStatus
             {
-                PluginVersion = "0.41.0",
+                PluginVersion = "0.41.1",
                 ClassPlanLoaded = lessons.IsClassPlanLoaded
             }).ConfigureAwait(false);
             return;
