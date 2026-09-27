@@ -50,7 +50,13 @@ public sealed class FileArchive(ArchiveOptions options, HttpClient? http = null)
         if (Directory.Exists(dir))
         {
             // 新位置：<Root>/.smartclassroom-meta/**/*.json；旧位置：科目目录里的 *.meta.json（兼容）
-            foreach (var metaFile in Directory.EnumerateFiles(MetaDir(options.Root), "*.json", SearchOption.AllDirectories)
+            // ⚠️ 元数据目录可能还不存在（第一次归档前），EnumerateFiles 会抛
+            // DirectoryNotFoundException —— 实测表现为"文件归档失败：Could not find a part of the path
+            // '<root>/.smartclassroom-meta'"，明明文件能下却报失败。
+            var metaFiles = Directory.Exists(MetaDir(options.Root))
+                ? Directory.EnumerateFiles(MetaDir(options.Root), "*.json", SearchOption.AllDirectories)
+                : [];
+            foreach (var metaFile in metaFiles
                          .Concat(Directory.EnumerateFiles(dir, "*.meta.json", SearchOption.AllDirectories)))
             {
                 try

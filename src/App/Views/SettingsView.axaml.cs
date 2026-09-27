@@ -70,8 +70,9 @@ public partial class SettingsView : UserControl
     private async void Unlock_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         var ok = await Runtime.Auth.RequireAsync(
-            reason => PasswordDialog.PromptAsync("解锁设置", reason),
-            "解锁设置需要管理员密码");
+            reason => PasswordDialog.PromptAsync("解锁设置", reason), "解锁设置需要管理员密码",
+            onWrongPassword: attempt => Toasts.Error("密码不正确",
+                attempt >= 3 ? "已连续输错 3 次，请稍后再试。" : "请重新输入管理员密码。"));
         Vm.RefreshLockState();
         if (!ok)
             Vm.RefreshLockState();

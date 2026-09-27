@@ -53,11 +53,14 @@ public static class PasswordHasher
 public sealed class AuthGate(Func<string?> passwordHashProvider)
 {
     /// <summary>
-    /// 解锁后的免输入窗口（分钟）。**默认 0 = 每一次操作都要重新输密码**
-    /// （用户明确要求："我需要每一次操作都需要管理员密码"）。
-    /// 想省事可以在设置里打开"解锁后 10 分钟内免重复输入"。
+    /// 解锁后的免输入窗口（分钟）。
+    ///
+    /// 默认 2 分钟：**每次要做需要密码的操作都会先验证**，但刚验证过的一小段时间内不重复问。
+    /// 踩过的坑：一度把它设成 0（"每次操作都要密码"），结果 TryUnlock 立刻过期 ——
+    /// 用户点「解锁」后界面还是锁的，等于**根本解不开**（实测反馈"设置了以后我没法解锁"）。
+    /// 想更严格就在设置里把它调小；想省事可以打开"解锁后 10 分钟内免重复输入"。
     /// </summary>
-    public int SessionMinutes { get; set; }
+    public int SessionMinutes { get; set; } = 2;
     private DateTimeOffset? _unlockedUntil;
 
     /// <summary>是否已设置密码。</summary>
@@ -85,19 +88,25 @@ public sealed class AuthGate(Func<string?> passwordHashProvider)
     /// 受保护操作的统一入口。<paramref name="prompt"/> 负责弹窗要密码；
     /// <paramref name="forcePrompt"/> 为 true 时即使会话已认证也重新询问（用于退出）。
     /// </summary>
-    public async Task<bool> RequireAsync(Func<string, Task<string?>> prompt, string reason, bool forcePrompt = false)
+    /// <param name="onWrongPassword">
+    /// 密码错误时的回调（界面用它提示"密码不正确"）。不传就静默重试。
+    /// 实测反馈："没有密码不正确的提示" —— 输错了只是弹窗又出现，用户不知道错在哪。
+    /// </param>
+    public async Task<bool> RequireAsync(Func<string, Task<string?>> prompt, string reason,
+        bool forcePrompt = false, Action<int>? onWrongPassword = null)
     {
         if (!IsEnabled)
             return true;
         if (!forcePrompt && IsUnlocked)
             return true;
-        for (var attempt = 0; attempt < 3; attempt++)
+        for (var attempt = 1; attempt <= 3; attempt++)
         {
             var input = await prompt(reason);
             if (input is null)
                 return false; // 用户取消
             if (TryUnlock(input))
                 return true;
+            onWrongPassword?.Invoke(attempt);
         }
         return false;
     }

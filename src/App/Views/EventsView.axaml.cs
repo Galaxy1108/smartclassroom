@@ -99,7 +99,9 @@ public partial class EventsView : UserControl
     private async void Unlock_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         await Runtime.Auth.RequireAsync(
-            reason => PasswordDialog.PromptAsync("解锁", reason), "处置待处理事项需要管理员密码");
+            reason => PasswordDialog.PromptAsync("解锁", reason), "处置待处理事项需要管理员密码",
+            onWrongPassword: attempt => Toasts.Error("密码不正确",
+                attempt >= 3 ? "已连续输错 3 次，请稍后再试。" : "请重新输入管理员密码。"));
         Vm.RefreshLockState();
     }
 }

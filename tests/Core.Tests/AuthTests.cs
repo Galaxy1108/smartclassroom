@@ -149,19 +149,32 @@ public sealed class AuthGateTests
 }
 
 /// <summary>
-/// 默认策略：**每一次操作都要管理员密码**（SessionMinutes = 0）。
-/// 用户明确要求"我需要每一次操作都需要管理员密码"。
+/// 解锁窗口的策略。默认 2 分钟：每次要做需要密码的操作都会先验证，
+/// 但刚验证过的一小段时间不重复问。
+///
+/// 踩过的坑：一度把默认设成 0（"每次操作都要密码"），TryUnlock 立刻过期 →
+/// 用户点「解锁」后界面还是锁的，等于**根本解不开**（实测反馈"设置了以后我没法解锁"）。
 /// </summary>
 public sealed class AuthGateEveryOperationTests
 {
     [Fact]
-    public void DefaultPolicy_AsksEveryTime()
+    public void DefaultPolicy_UnlocksForAShortWindow()
     {
-        var gate = new AuthGate(() => PasswordHasher.Hash("pw"));   // 默认 SessionMinutes = 0
+        var gate = new AuthGate(() => PasswordHasher.Hash("pw"));
 
-        Assert.False(gate.IsUnlocked);          // 一开始就是锁的
+        Assert.False(gate.IsUnlocked);          // 一开始是锁的
         Assert.True(gate.TryUnlock("pw"));      // 验证通过
-        Assert.False(gate.IsUnlocked);          // 但下一次操作还要再输
+        Assert.True(gate.IsUnlocked);           // 给一个短窗口，否则界面没法用
+    }
+
+    [Fact]
+    public void ZeroWindow_ExpiresImmediately()
+    {
+        // 想更严格（每次操作都要重新输）就把窗口设成 0
+        var gate = new AuthGate(() => PasswordHasher.Hash("pw")) { SessionMinutes = 0 };
+
+        Assert.True(gate.TryUnlock("pw"));
+        Assert.False(gate.IsUnlocked);
     }
 
     [Fact]

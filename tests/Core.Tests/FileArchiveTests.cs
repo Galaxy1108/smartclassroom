@@ -1,3 +1,4 @@
+using System.Net;
 using SmartClassroom.Contracts;
 using SmartClassroom.Core.QQ;
 using Xunit;
@@ -133,5 +134,54 @@ public sealed class FileArchiveTests : IDisposable
             new HttpClient(new StubHandler([1])));
         var o = await a.HandleAsync(Ev(size: 100), Teacher(), (_, _) => Task.FromResult<string?>("http://x/f"));
         Assert.Equal(ArchiveResult.PendingConfirm, o.Result);
+    }
+}
+
+/// <summary>
+/// 元数据目录还不存在时，去重扫描不能抛异常。
+/// 实测 bug：`Directory.EnumerateFiles(<root>/.smartclassroom-meta)` 在目录不存在时抛
+/// DirectoryNotFoundException，被当成"文件归档失败：Could not find a part of the path …"，
+/// 明明文件能下却报失败（用户："文件保存失败"）。
+/// </summary>
+public sealed class ArchiveMetaDirMissingTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "sc-meta-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_root)) Directory.Delete(_root, true);
+    }
+
+    private sealed class StubHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken t)
+            => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new ByteArrayContent([1, 2, 3]) });
+    }
+
+    private static GroupUploadEvent Upload(string id, string name) => new()
+    {
+        PostType = "notice", NoticeType = "group_upload", GroupId = 100200300, UserId = 10001,
+        File = new UploadedFile { Id = id, Name = name, Size = 3 }
+    };
+
+    [Fact]
+    public async Task SecondArchive_WhenMetaDirMissing_StillSucceeds()
+    {
+        var archive = new FileArchive(new ArchiveOptions { Root = _root, DownloadAll = true },
+            new HttpClient(new StubHandler()));
+        var sender = new SenderInfo { UserId = 10001, TeacherName = "张老师", Subject = "数学" };
+
+        // 第一次：科目目录被创建；元数据目录此时也建好了
+        var first = await archive.HandleAsync(Upload("f1", "a.pdf"), sender, (_, _) => Task.FromResult<string?>("http://x/a"));
+        Assert.Equal(ArchiveResult.Downloaded, first.Result);
+
+        // 人为删掉元数据目录，模拟"科目目录在、元数据目录不在"（老版本升级上来的真实状态）
+        Directory.Delete(Path.Combine(_root, ".smartclassroom-meta"), true);
+
+        var second = await archive.HandleAsync(Upload("f2", "b.pdf"), sender, (_, _) => Task.FromResult<string?>("http://x/b"));
+
+        Assert.Equal(ArchiveResult.Downloaded, second.Result);   // 不能再报"归档失败"
+        Assert.True(File.Exists(second.LocalPath));
     }
 }
