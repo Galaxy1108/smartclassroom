@@ -43,6 +43,27 @@ public static class Runtime
     /// <summary>已提示过"该群没监听"的群（每个群只提示一次）。</summary>
     private static readonly HashSet<long> _ignoredGroups = [];
 
+    private static TeacherMap? _liveTeachers;
+    private static PipelineService? _livePipeline;
+
+    /// <summary>
+    /// 设置保存后**热应用**：老师名单与功能开关立刻生效，不用重启。
+    /// 以前都是启动时的快照 —— 用户加完老师还被当陌生人、开了功能没反应，
+    /// 现象就是"我都加了怎么还被忽略"（实测踩到）。
+    /// </summary>
+    private static void OnSettingsSaved(AppSettings s)
+    {
+        try
+        {
+            _liveTeachers?.Reload(s.Teachers);
+            _livePipeline?.UpdateFlags(s.ToFeatureFlags());
+        }
+        catch (Exception ex)
+        {
+            Feed.Append("qq", "热应用设置失败（重启后生效）", ex.Message, ActivitySeverity.Warning);
+        }
+    }
+
     /// <summary>消息摘要（时间线里一行放得下）。</summary>
     private static string Trim(string text)
         => text.Length <= 40 ? text : text[..40] + "…";
@@ -115,6 +136,7 @@ public static class Runtime
         var pipeline = new PipelineService(teachers, new AiAnalyzer(ai), gate, plugin,
             oneBot, archive, Courseware, Homework, Feed, Pending, Settings.ToFeatureFlags());
         Pipeline = pipeline;
+        _livePipeline = pipeline;   // 设置保存时热更新功能开关用
         pipeline.CoursewareSuggested += files => Dispatcher.UIThread.Post(() =>
         {
             try

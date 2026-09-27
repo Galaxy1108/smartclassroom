@@ -11,8 +11,17 @@ public sealed class TeacherMap
     private readonly Dictionary<long, Teacher> _byQq = new();
     private readonly Dictionary<string, Teacher> _byName = new(StringComparer.Ordinal);
 
-    public TeacherMap(IEnumerable<Teacher> teachers)
+    public TeacherMap(IEnumerable<Teacher> teachers) => Reload(teachers);
+
+    /// <summary>
+    /// 就地重载老师名单。**设置页改了名单要立刻生效** ——
+    /// 运行时只在启动时读一次的话，用户加完老师还得重启，看到的现象就是
+    /// "我都加了怎么还被当成陌生人"（实测踩到）。
+    /// </summary>
+    public void Reload(IEnumerable<Teacher> teachers)
     {
+        _byQq.Clear();
+        _byName.Clear();
         foreach (var t in teachers)
         {
             _byQq[t.Qq] = t;

@@ -201,6 +201,9 @@ public static class SettingsStore
         return new AppSettings();
     }
 
+    /// <summary>设置保存后触发（App 层据此把老师名单/功能开关**热应用**，不必重启）。</summary>
+    public static event Action<AppSettings>? Saved;
+
     public static void Save(AppSettings settings, string? path = null)
     {
         path ??= DefaultPath;
@@ -209,6 +212,7 @@ public static class SettingsStore
         var tmp = path + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(settings, Json));
         File.Move(tmp, path, overwrite: true);
+        try { Saved?.Invoke(settings); } catch { /* 订阅方出错不影响保存 */ }
     }
 
     /// <summary>删除设置文件（"清空所有设置"）。不存在也不报错。</summary>

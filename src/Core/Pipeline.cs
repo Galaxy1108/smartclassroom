@@ -24,6 +24,12 @@ public sealed class PipelineService(
 {
     private readonly HashSet<string> _disabledNotified = [];
 
+    /// <summary>
+    /// 热更新功能开关：用户在设置页打开/关闭功能后**立刻生效**，
+    /// 不用重启应用（以前 flags 是启动时的快照，改了要重启，很反直觉）。
+    /// </summary>
+    public void UpdateFlags(FeatureFlags next) => flags = next;
+
     private ScheduleGate.SendFunc Send => plugin.NotifyAsync;
 
     public PendingStore Pending => pending;

@@ -56,3 +56,38 @@ public sealed class TeacherMapTests
         Assert.Null(s.Subject);
     }
 }
+
+/// <summary>
+/// 老师名单热重载：设置页加完老师要**立刻**生效。
+/// 以前运行时只在启动时读一次名单，用户加完还被当陌生人 ——
+/// 现象是"我都加了怎么还被忽略"。
+/// </summary>
+public sealed class TeacherMapReloadTests
+{
+    [Fact]
+    public void Reload_TakesEffectImmediately()
+    {
+        var map = new TeacherMap([new Teacher { Qq = 10001, Name = "张老师", Subject = "数学" }]);
+        Assert.False(map.IsKnown(3667627856));
+
+        map.Reload([
+            new Teacher { Qq = 10001, Name = "张老师", Subject = "数学" },
+            new Teacher { Qq = 3667627856, Name = "Strong猪", Subject = "道法" }
+        ]);
+
+        Assert.True(map.IsKnown(3667627856));
+        Assert.Equal("Strong猪", map.ToSender(3667627856, null, null).TeacherName);
+        Assert.Equal("道法", map.ToSender(3667627856, null, null).Subject);
+    }
+
+    [Fact]
+    public void Reload_RemovesDeletedTeachers()
+    {
+        var map = new TeacherMap([new Teacher { Qq = 10001, Name = "张老师", Subject = "数学" }]);
+
+        map.Reload([]);
+
+        Assert.False(map.IsKnown(10001));
+        Assert.Equal(0, map.Count);
+    }
+}
