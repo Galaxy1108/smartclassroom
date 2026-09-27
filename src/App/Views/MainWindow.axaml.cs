@@ -103,20 +103,68 @@ public partial class MainWindow : Window
             Toasts.Remove(item);
     }
 
-    /// <summary>整窗缩放（含导航与页面）。</summary>
-    private void ApplyZoom(double scale)
-        => ZoomHost.LayoutTransform = new Avalonia.Media.ScaleTransform(scale, scale);
+    private double _appliedScale = 1.0;
 
-    /// <summary>主题按钮的图标与文字跟着当前主题走。</summary>
+    /// <summary>
+    /// 整窗缩放（含导航与页面）。
+    ///
+    /// 同时按比例调整窗口尺寸：缩放后逻辑可视区域会变小，窗口不跟着变大
+    /// 就会把右侧内容裁掉（实测 130% 时右上角的主题按钮直接被切没了）。
+    /// 未最大化时按比例放大，并限制在工作区内。
+    /// </summary>
+    private void ApplyZoom(double scale)
+    {
+        ZoomHost.LayoutTransform = new Avalonia.Media.ScaleTransform(scale, scale);
+
+        if (Math.Abs(scale - _appliedScale) < 0.001)
+            return;
+        var ratio = scale / _appliedScale;
+        _appliedScale = scale;
+
+        if (WindowState != WindowState.Normal)
+            return;   // 最大化/全屏时不用动，屏幕就那么大
+        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
+        var area = screen?.WorkingArea ?? default;
+        var maxWidth = area.Width / (screen?.Scaling ?? 1) - 40;
+        var maxHeight = area.Height / (screen?.Scaling ?? 1) - 80;
+        Width = maxWidth > 400 ? Math.Min(Width * ratio, maxWidth) : Width * ratio;
+        Height = maxHeight > 300 ? Math.Min(Height * ratio, maxHeight) : Height * ratio;
+    }
+
+    /// <summary>
+    /// 主题按钮的图标与文字跟着当前主题走。
+    ///
+    /// ⚠️ 这里**绝不能抛异常**：`FindResource` 找不到键时返回 UnsetValue，
+    /// 直接强转会 InvalidCastException —— 而这是在**主窗口构造函数**里调用的，
+    /// 一抛就是"应用启动即崩溃"（实测：窗口变成一块黑框 + core dump）。
+    /// 所以用 TryFindResource，取不到就只是没图标。
+    /// </summary>
     private void ApplyTheme(string theme)
     {
         ThemeLabel.Text = AppTheme.Describe(theme);
         ThemeIcon.Data = theme switch
         {
-            AppTheme.Light => (Avalonia.Media.Geometry)Application.Current!.FindResource("IconSun"),
-            AppTheme.Dark => (Avalonia.Media.Geometry)Application.Current!.FindResource("IconMoon"),
-            _ => (Avalonia.Media.Geometry)Application.Current!.FindResource("IconTheme")
+            AppTheme.Light => LookupGeometry("IconSun"),
+            AppTheme.Dark => LookupGeometry("IconMoon"),
+            _ => LookupGeometry("IconThemeAuto")
         };
+    }
+
+    private static Geometry? LookupGeometry(string key)
+    {
+        try
+        {
+            // TryFindResource 需要 out 参数；找到就返回，找不到返回 null（不抛）
+            return Application.Current is { } app
+                   && app.TryFindResource(key, out var value)
+                   && value is Geometry geometry
+                ? geometry
+                : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     /// <summary>点击循环：跟随系统 → 浅色 → 深色 → 跟随系统。</summary>

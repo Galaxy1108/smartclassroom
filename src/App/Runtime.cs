@@ -119,6 +119,7 @@ public static class Runtime
         // 主题与缩放：启动就应用（以前缩放只在设置页改动时生效，重启又回到 100%）
         AppTheme.Apply(Settings.Theme);
         ContentZoom.Scale = Settings.UiScale;
+        ContentZoom.CardScale = Settings.CardScale;
         SettingsLoaded = true;
         LoadState();
         // 上次要是被强杀/异常退出，会留下永远"处理中"的卡片（实测有 66.8s 这种），启动时收尾
@@ -343,9 +344,21 @@ public static class Runtime
     /// Ctrl+滚轮会连续触发，逐个事件写文件既浪费又可能写坏；
     /// 这里停顿 600ms 后才真正保存。
     /// </summary>
+    /// <summary>卡片缩放（作业页 Ctrl+滚轮）落盘，防抖 600ms。</summary>
+    public static void PersistCardZoom(double scale)
+    {
+        Settings.CardScale = scale;
+        SaveZoomDebounced();
+    }
+
     public static void PersistZoom(double scale)
     {
         Settings.UiScale = scale;
+        SaveZoomDebounced();
+    }
+
+    private static void SaveZoomDebounced()
+    {
         _scaleSaveTimer?.Stop();
         _scaleSaveTimer?.Dispose();
         _scaleSaveTimer = new System.Timers.Timer(600) { AutoReset = false };

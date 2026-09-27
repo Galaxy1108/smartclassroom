@@ -28,7 +28,10 @@ AppBuilder.Configure<SmartClassroom.App.App>()
 Application.Current!.Resources["SymbolThemeFontFamily"] = new FontFamily("DejaVu Sans");
 
 Render("timeline-light.png", TimelineView(), ThemeVariant.Light, 920, 560);
-RenderShell();
+RenderShell();// 全局缩放：确认整窗缩放后没有渲染异常（黑块 / 布局塌陷）
+ContentZoom.Scale = 1.3;
+RenderShell("shell-zoom130.png");
+ContentZoom.Scale = 1.0;
 Render("settings-full.png", SettingsView(), ThemeVariant.Light, 920, 4200);   // 整页一图，方便逐段检查
 Render("courseware-subjects.png", CoursewareSubjects(), ThemeVariant.Dark, 920, 340);
 Render("courseware-timeline.png", CoursewareTimeline(), ThemeVariant.Dark, 920, 520);
@@ -36,7 +39,7 @@ Render("timeline-dark.png", TimelineView(), ThemeVariant.Dark, 920, 560);
 Render("settings-gating.png", SettingsView(), ThemeVariant.Light, 920, 620);
 Render("settings-narrow.png", SettingsView(), ThemeVariant.Light, 620, 620);
 
-void RenderShell()
+void RenderShell(string fileName = "shell-toasts.png")
 {
     Toasts.Items.Clear();
     Toasts.Success("SnowLuma 已停止", "注入已关闭，QQ 恢复原状。");
@@ -50,8 +53,8 @@ void RenderShell()
     shell.Width = 921;
     shell.Width = 920;
     Settle();
-    shell.CaptureRenderedFrame()!.Save(Path.Combine(outDir, "shell-toasts.png"));
-    Console.WriteLine("saved shell-toasts.png");
+    shell.CaptureRenderedFrame()!.Save(Path.Combine(outDir, fileName));
+    Console.WriteLine("saved " + fileName);
     shell.Close();
 }
 

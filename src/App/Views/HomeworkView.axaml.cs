@@ -38,8 +38,11 @@ public partial class HomeworkView : UserControl
         HomeworkList.AddHandler(PointerReleasedEvent, Card_PointerReleased, RoutingStrategies.Tunnel);
         HomeworkList.AddHandler(PointerCaptureLostEvent, Card_PointerCaptureLost, RoutingStrategies.Tunnel);
         DragHandlersAttached = true;
-        // 缩放已改为**整窗全局**（MainWindow 的 ZoomHost），本页不再自己缩放，
-        // 否则会叠乘两次。
+        // 卡片缩放是**独立**的（ContentZoom.CardScale），与整窗全局缩放互不叠乘：
+        // 只想让卡片大一点时，Ctrl+滚轮即可，不必放大整个界面。
+        ContentZoom.CardChanged += ApplyZoom;
+        ApplyZoom(ContentZoom.CardScale);
+        DetachedFromVisualTree += (_, _) => ContentZoom.CardChanged -= ApplyZoom;
     }
 
     private HomeworkViewModel Vm => (HomeworkViewModel)DataContext!;
@@ -51,9 +54,12 @@ public partial class HomeworkView : UserControl
     /// </summary>
     internal bool DragHandlersAttached { get; private set; }
 
-    // 缩放见 MainWindow（全局）；本页不再单独处理
+    // ================= 缩放（仅本页卡片区，独立于全局缩放） =================
 
-    private void OnWheelZoom(object? sender, PointerWheelEventArgs e) => ContentZoom.HandleWheel(e);
+    private void ApplyZoom(double scale)
+        => CardScaler.LayoutTransform = new ScaleTransform(scale, scale);
+
+    private void OnWheelZoom(object? sender, PointerWheelEventArgs e) => ContentZoom.HandleCardWheel(e);
 
     // ================= 手动添加 =================
 

@@ -34,6 +34,39 @@ public static class ContentZoom
         }
     }
 
+    private static double _cardScale = Default;
+
+    /// <summary>
+    /// 作业卡片的**独立**缩放（与整窗缩放分开，互不叠乘）。
+    /// 用户要求："作业的单独缩放还是需要的" —— 只想让卡片大一点时不用把整个界面放大。
+    /// </summary>
+    public static double CardScale
+    {
+        get => _cardScale;
+        set
+        {
+            var clamped = Clamp(value);
+            if (Math.Abs(clamped - _cardScale) < 0.001)
+                return;
+            _cardScale = clamped;
+            CardChanged?.Invoke(_cardScale);
+        }
+    }
+
+    /// <summary>卡片缩放变化时通知（作业页据此刷新）。</summary>
+    public static event Action<double>? CardChanged;
+
+    /// <summary>Ctrl+滚轮调的是**卡片**缩放（作业页）。</summary>
+    public static bool HandleCardWheel(Avalonia.Input.PointerWheelEventArgs e)
+    {
+        if ((e.KeyModifiers & Avalonia.Input.KeyModifiers.Control) == 0)
+            return false;
+        CardScale = Next(CardScale, e.Delta.Y);
+        Runtime.PersistCardZoom(CardScale);
+        e.Handled = true;
+        return true;
+    }
+
     public static double Clamp(double value)
         => Math.Round(Math.Clamp(double.IsFinite(value) ? value : Default, Min, Max), 2);
 

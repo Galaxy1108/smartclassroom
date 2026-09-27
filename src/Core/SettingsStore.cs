@@ -125,6 +125,9 @@ public sealed class AppSettings
     /// <summary>界面与字体缩放（0.8~1.6，默认 1.0）。</summary>
     public double UiScale { get; set; } = 1.0;
 
+    /// <summary>作业卡片独立缩放（与整窗缩放分开）。</summary>
+    public double CardScale { get; set; } = 1.0;
+
     /// <summary>管理员密码的 PBKDF2 哈希；为空表示未设置（不拦截任何操作）。</summary>
     public string AdminPasswordHash { get; set; } = "";
 
@@ -170,6 +173,7 @@ public sealed class AppSettings
         SubjectColors = new Dictionary<string, string>(d.SubjectColors);
         RememberUnlock = d.RememberUnlock;
         Theme = d.Theme;
+        CardScale = d.CardScale;
         CopyToDownloads = d.CopyToDownloads;
         MinimizeToTray = d.MinimizeToTray;
         UiScale = d.UiScale;

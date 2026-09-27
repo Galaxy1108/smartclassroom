@@ -142,6 +142,14 @@
                             <TextBlock Text="（也可点右上角按钮循环切换）" FontSize="12" Opacity="0.6"
                                        VerticalAlignment="Center" />
                         </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,6,0,0">
+                            <TextBlock Text="作业卡片" VerticalAlignment="Center" Width="72" />
+                            <Slider Value="{Binding CardScale}" Minimum="0.8" Maximum="1.8"
+                                    TickFrequency="0.1" IsSnapToTickEnabled="True" Width="220" />
+                            <TextBlock Text="{Binding CardScaleLabel}" VerticalAlignment="Center" Width="52" />
+                            <TextBlock Text="（作业页 Ctrl+滚轮）" FontSize="12" Opacity="0.6"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
                         <Slider Value="{Binding UiScale}" Minimum="0.8" Maximum="1.8"
                                 TickFrequency="0.1" IsSnapToTickEnabled="True"
                                 TickPlacement="BottomRight" Width="220" />

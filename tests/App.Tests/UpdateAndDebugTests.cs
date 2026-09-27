@@ -282,3 +282,19 @@ public sealed class ThemeAndZoomTests
         Assert.Equal("130%", ContentZoom.Describe(1.3));
     }
 }
+
+/// <summary>
+/// 主窗口必须能构造。踩过的坑：主题按钮在**构造函数**里用 FindResource 取图标，
+/// 取不到时返回 UnsetValue，强转直接抛 InvalidCastException ——
+/// 现象是"启动即崩溃 + 屏幕上一块黑框"（实测 core dump，栈顶就是 ApplyTheme）。
+/// </summary>
+public sealed class MainWindowConstructionTests
+{
+    [AvaloniaFact]
+    public void MainWindow_ConstructsWithoutThrowing()
+    {
+        var window = new SmartClassroom.App.Views.MainWindow();
+        Assert.NotNull(window);
+        window.Close();
+    }
+}

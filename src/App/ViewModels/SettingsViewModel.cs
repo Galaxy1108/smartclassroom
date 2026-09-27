@@ -200,6 +200,24 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public string UiScaleLabel => ContentZoom.Describe(_uiScale);
 
+    /// <summary>作业卡片独立缩放（作业页 Ctrl+滚轮也能调）。</summary>
+    public double CardScale
+    {
+        get => _cardScale;
+        set
+        {
+            var clamped = ContentZoom.Clamp(value);
+            if (!Set(ref _cardScale, clamped))
+                return;
+            ContentZoom.CardScale = clamped;
+            OnPropertyChanged(nameof(CardScaleLabel));
+        }
+    }
+
+    private double _cardScale = ContentZoom.Default;
+
+    public string CardScaleLabel => ContentZoom.Describe(_cardScale);
+
     /// <summary>主题选项（界面显示用）。</summary>
     public static IReadOnlyList<string> ThemeChoices { get; } = ["跟随系统", "浅色", "深色"];
 
@@ -2462,6 +2480,9 @@ public sealed class SettingsViewModel : ViewModelBase
             _rememberUnlock = s.RememberUnlock;
             _minimizeToTray = s.MinimizeToTray;
             _uiScale = ContentZoom.Clamp(s.UiScale);
+            _cardScale = ContentZoom.Clamp(s.CardScale);
+            OnPropertyChanged(nameof(CardScale));
+            OnPropertyChanged(nameof(CardScaleLabel));
             _theme = AppTheme.Normalize(s.Theme);
             OnPropertyChanged(nameof(ThemeChoice));
             _featureSummon = s.FeatureSummon;
@@ -2530,6 +2551,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.RememberUnlock = RememberUnlock;
         s.MinimizeToTray = MinimizeToTray;
         s.UiScale = UiScale;
+        s.CardScale = CardScale;
         s.Theme = _theme;
 
         SettingsStore.Save(s, SettingsPath);
