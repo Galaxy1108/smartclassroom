@@ -145,18 +145,20 @@ public sealed class PipelineService(
     public async Task OnPrivateMessageAsync(PrivateMessageEvent ev, CancellationToken cancel = default,
         Guid? rowId = null)
     {
-        if (teachers.Count > 0 && !teachers.IsKnown(ev.UserId))
-        {
-            // 把 QQ 号写出来，用户可以直接抄进老师映射 —— 否则只会觉得"我发了怎么没反应"
-            feed.Append("private", $"忽略陌生人私聊 {ev.UserId}",
-                $"它不在老师映射里。要处理它就在 设置 → 老师映射 里加上 QQ {ev.UserId}，"
-                + "或关掉「只处理老师名单里的消息」",
-                ActivitySeverity.Warning);
-            return;
-        }
         var sender = teachers.ToSender(ev.UserId, null, ev.Nickname);
         var who = sender.Card ?? sender.Nickname ?? $"QQ{ev.UserId}";
         var id = rowId ?? feed.Begin("qq", "正在处理私聊", $"{who}：{Trim(ev.Text)}");
+
+        if (teachers.Count > 0 && !teachers.IsKnown(ev.UserId))
+        {
+            // 陌生人私聊：**必须结束这条进行中的记录**，否则界面上的转圈和秒表一直跑
+            //（实测出现"收到私聊 处理中 164.8s"）。同时把 QQ 号写出来，用户可以直接抄进老师映射。
+            Finish(id, "已忽略（发送者不在老师名单里）",
+                $"{Trim(ev.Text)} · 要处理它就在 设置 → 老师映射 里加上 QQ {ev.UserId}，"
+                + "或关掉「只处理老师名单里的消息」",
+                ActivitySeverity.Muted);
+            return;
+        }
         var kind = await ClassifyAsync(ev, sender, cancel, id).ConfigureAwait(false);
         if (kind == RuleEngine.Kind.None)
         {

@@ -76,7 +76,9 @@ public sealed class AiAnalyzer(IAiClient ai)
         var ctx = context ?? SummonContext.Empty;
         var system = $$"""
             你分析班级QQ群里的消息，判断是否为"叫某人过去/上来"类召唤。
-            只输出 JSON：{"is_summon":true/false,"target":"被叫的人名，无则空字符串","teacher":"叫人的老师姓名，能确定才填，否则空字符串","urgent":true/false,"title":"通知标题","body":"通知正文","confidence":0-1}
+            **没点名具体的人也算**（"你们过来一下""都到操场集合""我的儿子们给我滚过来"都是召唤）。
+            只输出 JSON：{"is_summon":true/false,"target":"被叫的人名，没点名就空字符串","teacher":"叫人的老师姓名，能确定才填，否则空字符串","urgent":true/false,"title":"通知标题","body":"通知正文","confidence":0-1}
+            target 为空时，title/body 用"你们/大家"这类泛指（例：title="老师叫你们过去"）。
 
             title 是通知里的大字，要求：不超过 12 个字、说清"叫谁做什么"、不要重复人名。
             body 是通知里的小字，格式：老师（科目）：原话摘要。
@@ -110,10 +112,14 @@ public sealed class AiAnalyzer(IAiClient ai)
         var system = $$"""
             你是班级群消息分类器。只输出 JSON：{"category":"homework|exchange|summon|none"}
 
-            summon：叫某个人过去/上来/去某处（**即使句子里出现"作业"，只要重点是人过去，就是 summon**）
+            summon：要求（某）人过去/上来/去某处 —— **即使句子里出现"作业"，只要重点是人过去，就是 summon**
               例："小明现在来一下" → summon
               例："王子诚你上来把作业发一下" → summon（重点是人上来）
               例："张三来办公室" → summon
+              **没点名具体的人也算**（叫一群人、口语化喊人）：
+              例："你们几个过来一下" → summon（target 留空）
+              例："我的儿子们给我滚过来" → summon（target 留空，这是喊人过来）
+              例："都到操场集合" → summon
             homework：老师**布置新任务**（不一定出现"作业"二字）
               例："今天数学作业：练习册P10" → homework
               例："把第二章写完，后天交" → homework

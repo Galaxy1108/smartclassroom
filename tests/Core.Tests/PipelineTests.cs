@@ -41,7 +41,8 @@ public sealed class PipelineTests
         => BuildQueue(replies, inClass, store);
 
     /// <summary>AI 按队列依次回复的管线（第一条给分类，第二条给结构化结果）。</summary>
-    private PipelineService BuildQueue(Queue<string> replies, bool inClass, HomeworkStore? store = null)
+    private PipelineService BuildQueue(Queue<string> replies, bool inClass, HomeworkStore? store = null,
+        ActivityFeed? feed = null)
     {
         var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
             new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
@@ -59,7 +60,7 @@ public sealed class PipelineTests
             _sent.Add((Prop("channel", "Channel"), Prop("title", "Title")));
             return Json(new { });
         })));
-        _lastFeed = new ActivityFeed();
+        _lastFeed = feed ?? new ActivityFeed();
         return new PipelineService(_teachers, new AiAnalyzer(ai),
             new ScheduleGate(new FakeStatus(inClass)), plugin,
             new OneBotClient("http://q", "ws://q"),
@@ -127,6 +128,29 @@ public sealed class PipelineTests
 
         Assert.Single(_sent);
         Assert.Equal("summon", _sent[0].Channel);
+    }
+
+    /// <summary>
+    /// 陌生人私聊必须**结束**那条进行中的记录 —— 实测漏了这一步，
+    /// 事件页留下"收到私聊 处理中 164.8s"这种永远转圈的卡片。
+    /// </summary>
+    [Fact]
+    public async Task PrivateMessage_FromStranger_CompletesTheRow()
+    {
+        var feed = new ActivityFeed();
+        var p = BuildQueue([], inClass: false, feed: feed);
+
+        var row = feed.Begin("qq", "收到私聊", "QQ99999：肖鸡到我办公室来");
+        await p.OnPrivateMessageAsync(new PrivateMessageEvent
+        {
+            UserId = 99999, MessageId = 5, RawMessage = "肖鸡到我办公室来", Text = "肖鸡到我办公室来",
+            Nickname = "Strong猪"
+        }, rowId: row);
+
+        var entry = Assert.Single(feed.Entries);
+        Assert.False(entry.InProgress);                        // 不能再转圈
+        Assert.Contains("已忽略", entry.Title);
+        Assert.Contains("99999", entry.Detail);                // 给出要加进映射的 QQ 号
     }
 
     [Fact]

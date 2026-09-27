@@ -3,6 +3,6 @@ name: 智慧课堂桥接
 description: 智慧课堂 App 的配套插件：接收召唤/换课请求并以 ClassIsland 通知呈现，校验换课合法性并执行临时调课。
 entranceAssembly: "SmartClassroom.ClassIslandPlugin.dll"
 url: https://github.com/Galaxy1108/smartclassroom
-version: 0.38.0.0
+version: 0.38.1.0
 apiVersion: 2.1.0.0
 author: 智慧课堂
