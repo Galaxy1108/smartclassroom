@@ -96,6 +96,12 @@ public sealed class AppSettings
     public bool FeatureNotice { get; set; } = false;
 
     /// <summary>
+    /// 归档后额外复制一份到系统"下载"目录（默认开）。
+    /// 老师常在 QQ 里直接点开文件，而 QQ 只认自己下载目录里已有的文件。
+    /// </summary>
+    public bool CopyToDownloads { get; set; } = true;
+
+    /// <summary>
     /// 解锁后 10 分钟内免重复输入管理员密码。**默认 false = 每次操作都要密码**。
     /// </summary>
     public bool RememberUnlock { get; set; } = false;
@@ -158,6 +164,7 @@ public sealed class AppSettings
         FeatureNotice = d.FeatureNotice;
         SubjectColors = new Dictionary<string, string>(d.SubjectColors);
         RememberUnlock = d.RememberUnlock;
+        CopyToDownloads = d.CopyToDownloads;
         MinimizeToTray = d.MinimizeToTray;
         UiScale = d.UiScale;
         AdminPasswordHash = d.AdminPasswordHash;

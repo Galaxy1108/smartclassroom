@@ -4,15 +4,23 @@ using SmartClassroom.Core.QQ;
 namespace SmartClassroom.Core;
 
 /// <summary>文件归档配置。</summary>
-public sealed record ArchiveOptions
+public sealed class ArchiveOptions
 {
-    public required string Root { get; init; }
+    public required string Root { get; set; }
 
     /// <summary>false = 仅下载教师映射命中的发送者（默认）；true = 下载所有群文件。</summary>
-    public bool DownloadAll { get; init; } = false;
+    public bool DownloadAll { get; set; } = false;
 
     /// <summary>超过此大小先登记不下载，等用户确认（默认 100MB）。</summary>
-    public long LargeFileConfirmBytes { get; init; } = 100 * 1024 * 1024;
+    public long LargeFileConfirmBytes { get; set; } = 100 * 1024 * 1024;
+
+    /// <summary>
+    /// 归档后**额外复制**一份到这里（一般填系统"下载"目录，空 = 不复制）。
+    ///
+    /// 为什么要多此一举：老师常直接在 QQ 里点开文件，而 QQ 只在它自己的下载目录里找 ——
+    /// 文件已经躺在那里时 QQ 会立刻判定"已下载/已接收"（用户："你写了以后 QQ 检测到有了就是秒下"）。
+    /// </summary>
+    public string MirrorDir { get; set; } = "";
 }
 
 /// <summary>
@@ -23,6 +31,9 @@ public sealed record ArchiveOptions
 public sealed class FileArchive(ArchiveOptions options, HttpClient? http = null)
 {
     private readonly HttpClient _http = http ?? new HttpClient();
+
+    /// <summary>归档配置（设置页改完可以直接改这里，不必重启）。</summary>
+    public ArchiveOptions Options => options;
 
     /// <summary>
     /// 归档子目录名：优先用教师映射里的**科目**；
@@ -108,6 +119,8 @@ public sealed class FileArchive(ArchiveOptions options, HttpClient? http = null)
             LocalPath = localPath
         };
         await WriteMetaAsync(options.Root, record, cancel).ConfigureAwait(false);
+        // 再往系统下载目录放一份：QQ 在那里看到文件就会秒判"已接收"
+        MirrorTo(options.MirrorDir, localPath);
         return new ArchiveOutcome(ArchiveResult.Downloaded, localPath);
     }
 
@@ -131,6 +144,66 @@ public sealed class FileArchive(ArchiveOptions options, HttpClient? http = null)
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // 元数据写不进去不影响文件已经归档这件事
+        }
+    }
+
+    /// <summary>
+    /// 系统"下载"目录（跨平台）：
+    /// Windows = %USERPROFILE%\Downloads（没有就用 KnownFolder 的默认位置）；
+    /// Linux = ~/.config/user-dirs.dirs 里的 XDG_DOWNLOAD_DIR（本地化目录名），否则 ~/Downloads。
+    /// </summary>
+    public static string SystemDownloadsDir()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (profile.Length == 0)
+                profile = Environment.GetEnvironmentVariable("USERPROFILE") ?? "";
+            return profile.Length == 0 ? "" : Path.Combine(profile, "Downloads");
+        }
+
+        // Linux/其它：先读 XDG 配置（中文系统里目录可能叫"下载"）
+        try
+        {
+            var config = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".config", "user-dirs.dirs");
+            if (File.Exists(config))
+            {
+                foreach (var line in File.ReadAllLines(config))
+                {
+                    var trimmed = line.Trim();
+                    if (!trimmed.StartsWith("XDG_DOWNLOAD_DIR", StringComparison.Ordinal))
+                        continue;
+                    var value = trimmed[(trimmed.IndexOf('=') + 1)..].Trim().Trim('"');
+                    value = value.Replace("$HOME", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+                    if (value.Length > 0 && Directory.Exists(value))
+                        return value;
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // 读不到就走默认
+        }
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return home.Length == 0 ? "" : Path.Combine(home, "Downloads");
+    }
+
+    /// <summary>把归档好的文件再复制一份到 MirrorDir（best-effort，失败不影响归档）。</summary>
+    private static void MirrorTo(string mirrorDir, string localPath)
+    {
+        if (mirrorDir.Length == 0 || !Directory.Exists(mirrorDir))
+            return;
+        try
+        {
+            var target = UniquePath(mirrorDir, Path.GetFileName(localPath));
+            File.Copy(localPath, target, overwrite: false);
+        }
+        catch (Exception)
+        {
+            // 下载目录不可写（权限/只读）就算了
         }
     }
 

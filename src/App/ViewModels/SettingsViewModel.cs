@@ -885,6 +885,24 @@ public sealed class SettingsViewModel : ViewModelBase
     public string EffectiveArchiveRoot => ArchiveRoot.Length > 0 ? ArchiveRoot : Runtime.DefaultArchiveRoot;
 
     /// <summary>下载群里所有人的文件（默认只下载教师）。</summary>
+    /// <summary>归档后额外复制一份到系统"下载"目录（QQ 在那里看到就秒判已接收）。</summary>
+    public bool CopyToDownloads
+    {
+        get => _copyToDownloads;
+        set
+        {
+            if (!Set(ref _copyToDownloads, value))
+                return;
+            SaveSettings();
+        }
+    }
+
+    private bool _copyToDownloads = true;
+
+    public string DownloadsDirHint => FileArchive.SystemDownloadsDir() is { Length: > 0 } dir
+        ? $"当前会复制到：{dir}"
+        : "找不到系统下载目录，已跳过复制。";
+
     public bool ArchiveDownloadAll
     {
         get => _archiveDownloadAll;
@@ -2385,6 +2403,7 @@ public sealed class SettingsViewModel : ViewModelBase
             _aiReasoning = s.AiReasoning.Length > 0 ? s.AiReasoning : "minimal";
             _archiveRoot = s.ArchiveRoot;
             _archiveDownloadAll = s.ArchiveDownloadAll;
+            _copyToDownloads = s.CopyToDownloads;
             OneBotHttp = s.OneBotHttp;
             OneBotWs = s.OneBotWs;
             GroupIdsText = string.Join(",", s.GroupIds);
@@ -2438,6 +2457,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.AiReasoning = AiReasoning;
         s.ArchiveRoot = ArchiveRoot;
         s.ArchiveDownloadAll = ArchiveDownloadAll;
+        s.CopyToDownloads = CopyToDownloads;
         s.AiBaseUrl = AiBaseUrl;
         s.AiApiKey = AiApiKey;
         s.AiModel = AiModel;

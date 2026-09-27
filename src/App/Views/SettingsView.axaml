@@ -67,6 +67,14 @@
                     <ToggleSwitch IsChecked="{Binding FeatureFileArchive}" IsEnabled="{Binding CanEnableFileArchive}" />
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
+            <fa:SettingsExpander Header="同时复制到系统下载目录"
+                                 Description="老师常在 QQ 里直接点开文件，QQ 只认自己下载目录里已有的文件；复制过去后 QQ 会立刻判定已接收">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding CopyToDownloads}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+            <TextBlock Text="{Binding DownloadsDirHint}" FontSize="12" Opacity="0.6"
+                       TextWrapping="Wrap" Margin="2,0,0,2" />
             <TextBlock Text="{Binding ArchiveGateHint}" IsVisible="{Binding !CanEnableFileArchive}"
                        FontSize="12" Foreground="{DynamicResource SeverityWarningAccentBrush}"
                        TextWrapping="Wrap" Margin="2,0,0,2" />

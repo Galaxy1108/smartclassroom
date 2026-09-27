@@ -185,3 +185,63 @@ public sealed class ArchiveMetaDirMissingTests : IDisposable
         Assert.True(File.Exists(second.LocalPath));
     }
 }
+
+/// <summary>
+/// 归档后往系统"下载"目录再放一份（用户："你得往 ~/Downloads 里面写，
+/// 要不然有的老师喜欢在 QQ 里打开，你写了以后 QQ 检测到有了就是秒下"）。
+/// 目录解析必须分平台：Windows = %USERPROFILE%\Downloads，Linux = XDG_DOWNLOAD_DIR。
+/// </summary>
+public sealed class ArchiveMirrorTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "sc-mirror-" + Guid.NewGuid().ToString("N"));
+    private readonly string _mirror = Path.Combine(Path.GetTempPath(), "sc-dl-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        foreach (var d in new[] { _root, _mirror })
+            if (Directory.Exists(d)) Directory.Delete(d, true);
+    }
+
+    private sealed class StubHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken t)
+            => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new ByteArrayContent([9, 8, 7, 6]) });
+    }
+
+    [Fact]
+    public async Task DownloadedFile_IsMirroredToDownloadsDir()
+    {
+        Directory.CreateDirectory(_mirror);
+        var archive = new FileArchive(new ArchiveOptions
+        {
+            Root = _root, DownloadAll = true, MirrorDir = _mirror
+        }, new HttpClient(new StubHandler()));
+        var sender = new SenderInfo { UserId = 10001, TeacherName = "张老师", Subject = "信息技术" };
+
+        var outcome = await archive.HandleAsync(
+            new GroupUploadEvent
+            {
+                PostType = "notice", NoticeType = "group_upload", GroupId = 100200300, UserId = 10001,
+                File = new UploadedFile { Id = "f1", Name = "blue_search.py", Size = 4 }
+            },
+            sender, (_, _) => Task.FromResult<string?>("http://x/f"));
+
+        Assert.Equal(ArchiveResult.Downloaded, outcome.Result);
+        var mirrored = Path.Combine(_mirror, "blue_search.py");
+        Assert.True(File.Exists(mirrored), "下载目录里应该有这个文件（QQ 靠它判断已接收）");
+        Assert.Equal(new byte[] { 9, 8, 7, 6 }, await File.ReadAllBytesAsync(mirrored));
+    }
+
+    [Fact]
+    public void SystemDownloadsDir_MatchesPlatformConvention()
+    {
+        var dir = FileArchive.SystemDownloadsDir();
+
+        if (OperatingSystem.IsWindows())
+            Assert.EndsWith("Downloads", dir);          // %USERPROFILE%\Downloads
+        else
+            Assert.Contains("Down", dir, StringComparison.OrdinalIgnoreCase);   // ~/Downloads 或本地化的"下载"
+        Assert.True(Path.IsPathRooted(dir));
+    }
+}

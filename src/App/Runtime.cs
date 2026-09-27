@@ -57,6 +57,7 @@ public static class Runtime
     private static void ApplyAuthPolicy(AppSettings s)
         => Auth.SessionMinutes = s.RememberUnlock ? 10 : 2;
 
+    private static FileArchive? _liveArchive;
     private static TeacherMap? _liveTeachers;
     private static PipelineService? _livePipeline;
 
@@ -70,6 +71,12 @@ public static class Runtime
         try
         {
             ApplyAuthPolicy(s);
+            if (_liveArchive is not null)
+            {
+                _liveArchive.Options.Root = s.ArchiveRoot.Length > 0 ? s.ArchiveRoot : DefaultArchiveRoot;
+                _liveArchive.Options.DownloadAll = s.ArchiveDownloadAll;
+                _liveArchive.Options.MirrorDir = s.CopyToDownloads ? FileArchive.SystemDownloadsDir() : "";
+            }
             _liveTeachers?.Reload(s.Teachers);
             _livePipeline?.UpdateFlags(s.ToFeatureFlags());
         }
@@ -147,8 +154,11 @@ public static class Runtime
         var archive = new FileArchive(new ArchiveOptions
         {
             Root = Settings.ArchiveRoot.Length > 0 ? Settings.ArchiveRoot : DefaultArchiveRoot,
-            DownloadAll = Settings.ArchiveDownloadAll
+            DownloadAll = Settings.ArchiveDownloadAll,
+            // 往系统"下载"目录也放一份：QQ 在那里看到文件就秒判已接收
+            MirrorDir = Settings.CopyToDownloads ? FileArchive.SystemDownloadsDir() : ""
         });
+        _liveArchive = archive;
         var pipeline = new PipelineService(teachers, new AiAnalyzer(ai), gate, plugin,
             oneBot, archive, Courseware, Homework, Feed, Pending, Settings.ToFeatureFlags());
         Pipeline = pipeline;
