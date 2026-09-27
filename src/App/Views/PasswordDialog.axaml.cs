@@ -12,6 +12,7 @@ public partial class PasswordDialog : Window
     public PasswordDialog()
     {
         InitializeComponent();
+        Opened += (_, _) => PasswordBox.Focus();   // 打开就能直接输密码
     }
 
     private void Ok_Click(object? sender, RoutedEventArgs e)
@@ -39,15 +40,25 @@ public partial class PasswordDialog : Window
         var owner = (Avalonia.Application.Current?.ApplicationLifetime
             as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.MainWindow;
 
-        var dialog = new PasswordDialog { Title = title };
+        var dialog = new PasswordDialog { Title = title, Topmost = true };
         dialog.ReasonText.Text = reason;
 
         if (owner is not null && owner.IsVisible)
+        {
             await dialog.ShowDialog(owner);
+        }
         else
-            dialog.Show();   // 主窗口已收起到托盘时也能弹出
+        {
+            // ⚠️ 主窗口收起到托盘时只能 Show()，而 Show() **立即返回** ——
+            // 直接读 _result 会永远是 null，被当成"用户取消"，现象就是"怎么都解不开锁"
+            //（实测反馈："还是解锁不了"）。这里必须等它真正关闭。
+            var closed = new TaskCompletionSource();
+            dialog.Closed += (_, _) => closed.TrySetResult();
+            dialog.Show();
+            await closed.Task;
+        }
 
-        // ShowDialog 返回后取输入；用 Dispatcher 保证在 UI 线程读取。
+        // 关窗后取输入；用 Dispatcher 保证在 UI 线程读取。
         return await Dispatcher.UIThread.InvokeAsync(() => dialog._result);
     }
 }
