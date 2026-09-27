@@ -857,7 +857,7 @@ public sealed class PipelineService(
                             + $"AI 说是{d.From?.Subject}）");
                 continue;
             }
-            var (ok, message) = await ApplyOneExchangeAsync(d, ev, sender, cancel, keepOnFailure, rowId)
+            var (ok, message) = await ApplyOneExchangeAsync(d, ev, sender, cancel, keepOnFailure, rowId, plans)
                 .ConfigureAwait(false);
             if (ok)
                 done.Add(message);
@@ -890,7 +890,8 @@ public sealed class PipelineService(
     /// <summary>执行一节课的换课请求。返回 (是否成功, 说明)；说明为空表示已单独记过待处理。</summary>
     private async Task<(bool Ok, string Message)> ApplyOneExchangeAsync(
         ExchangeDraft d, IIncomingMessage ev, SenderInfo sender, CancellationToken cancel,
-        bool keepOnFailure, Guid? rowId)
+        bool keepOnFailure, Guid? rowId,
+        IReadOnlyList<(DateOnly Date, ClassPlanDay? Plan)> plans)
     {
         if (!Enum.TryParse<ExchangeKind>(d.Kind, ignoreCase: true, out var kind))
         {
@@ -899,9 +900,19 @@ public sealed class PipelineService(
                     sender, new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
             return (false, "");
         }
-        // 节次缺失（模型没给 / 给了非数字）就转人工，别拿 0 去查课表
+        // 节次缺失（模型没给 / 给了非数字）：先拿课表按**科目**兜一次 ——
+        // "你们体育老师今天生病了，所以体育课我来上"这种消息根本没说第几节，
+        // 但课表里"体育"只有一节，能确定就直接用。
         var fromPeriod = d.From?.Period ?? 0;
-        if (d.From is null || fromPeriod <= 0)
+        var fromDate = d.From?.Date;
+        if (fromPeriod <= 0 && ResolvePeriodBySubject(d, plans) is { } resolved)
+        {
+            fromPeriod = resolved.Period;
+            fromDate = resolved.Date.ToString("yyyy-MM-dd");
+            UpdateRow(rowId, "正在解析换课",
+                $"AI 没给节次，按课表补上：{resolved.Date:MM-dd} 第{resolved.Period}节（{resolved.Subject}）");
+        }
+        if (fromPeriod <= 0)
         {
             if (!keepOnFailure)
                 AddPending("exchange", "换课缺少节次，需人工补录", ev.Text, "AI 没给出具体第几节", sender,
@@ -912,7 +923,7 @@ public sealed class PipelineService(
         {
             RequestId = Guid.NewGuid().ToString(),
             Kind = kind,
-            From = new ClassSlot { Date = ParseDate(d.From.Date), PeriodIndex = fromPeriod },
+            From = new ClassSlot { Date = ParseDate(fromDate ?? d.From!.Date), PeriodIndex = fromPeriod },
             To = d.To?.Period is { } toPeriod and > 0
                 ? new ClassSlot { Date = ParseDate(d.To.Date), PeriodIndex = toPeriod }
                 : null,
@@ -937,6 +948,26 @@ public sealed class PipelineService(
         if (!verdict.Legal)
             return (false, verdict.Message);   // 上层汇总后统一进"需要人工介入"
         return (true, verdict.Message);
+    }
+
+    /// <summary>
+    /// 消息没写第几节时，按**科目**在已取到的课表里找：唯一命中才采用。
+    /// 多天都命中（例如两天都有体育）就不猜，交给人工 —— 猜错会改错课表。
+    /// </summary>
+    private static (DateOnly Date, int Period, string Subject)? ResolvePeriodBySubject(
+        ExchangeDraft d, IReadOnlyList<(DateOnly Date, ClassPlanDay? Plan)> plans)
+    {
+        var want = (d.From?.Subject ?? "").Trim();
+        if (want.Length == 0)
+            return null;
+        var hits = plans
+            .Where(p => p.Plan is { HasPlan: true })
+            .SelectMany(p => p.Plan!.Periods
+                .Where(x => x.Subject.Contains(want, StringComparison.OrdinalIgnoreCase)
+                            || want.Contains(x.Subject, StringComparison.OrdinalIgnoreCase))
+                .Select(x => (p.Date, x.Index, x.Subject)))
+            .ToList();
+        return hits.Count == 1 ? hits[0] : null;
     }
 
     /// <summary>某节课在真实课表里的科目名（查不到返回 null）。</summary>
