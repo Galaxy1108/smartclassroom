@@ -59,21 +59,26 @@ gh release create vX.Y.Z pkg/*.pkg.tar.zst pkg/*-win-x64.zip pkg/*.cipx --notes-
 
 ## 文档站
 
-`README.md` 与 `docs/*.md` 会被渲染成一个静态站点（侧栏导航、跟随系统深浅色、零外网依赖）：
+`README.md` 与 `docs/*.md` 会被渲染成一个文档站（**Fumadocs** 主题，与 SnowLuma 文档同款：
+侧栏导航、⌘K 本地搜索、深浅色、代码高亮）。
 
 ```bash
-node tools/docs-site/build.mjs --base /smartclassroom/   # 只构建 → docs-site-dist/
-bash tools/docs-site/deploy.sh                           # 构建 + 上传 + 自检
+node tools/docs-site/build.mjs --base /smartclassroom   # 只构建 → docs-site-dist/
+bash tools/docs-site/deploy.sh                          # 构建 + 同步服务器脚本 + 上传 + 自检
 ```
+
+构建脚本做四件事：把 Markdown 转成 Fumadocs 的 `content/docs/*.mdx`（补 front-matter、
+改写站内链接、转义 MDX 敏感字符）、生成侧栏 `meta.json`、写入 `basePath`、跑 `next build` 静态导出。
 
 部署目标（Cloudflare 隧道后面的 Windows 服务器）：
 
 | 项 | 值 |
 |---|---|
 | 站点目录 | `C:\data\web\smartclassroom-docs` |
-| 静态服务 | `C:\data\web\docs-server.mjs`（端口 6187，无依赖的极简 Node 服务器） |
-| 开机自启 | 计划任务 `SmartClassroomDocs`（SYSTEM 身份，失败自动重启 3 次） |
+| 静态服务 | `C:\data\web\docs-server.mjs`（无依赖的 Node 服务器，端口 6187） |
+| 启动方式 | `C:\data\web\start-docs.bat` + 计划任务 `SmartClassroomDocs`（SYSTEM、开机自启、失败重试 3 次） |
 | 隧道入口 | `docs.galaxy1108.top → http://127.0.0.1:6187`（`C:\data\web\config.yml`） |
 | 公开地址 | <https://docs.galaxy1108.top/smartclassroom/> |
 
-改文档只要重跑 `deploy.sh`：服务器直接读磁盘文件，**不用重启任何服务**。
+> 经验：给 Windows 服务器传脚本要用 **base64 写字节**（`[IO.File]::WriteAllBytes`）——
+> 直接 `Set-Content` 会把换行与中文写坏，症状是批处理里注释把命令吞掉、服务静默不启动。

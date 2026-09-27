@@ -52,3 +52,7 @@ tools/*.hits.log
 pkg/smartclassroom.png
 artifacts/
 docs-site-dist/
+tools/docs-site/fumadocs/node_modules/
+tools/docs-site/fumadocs/.next/
+tools/docs-site/fumadocs/out/
+tools/docs-site/fumadocs/content/docs/
