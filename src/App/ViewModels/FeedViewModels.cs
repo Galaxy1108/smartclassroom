@@ -561,7 +561,15 @@ public sealed class HomeworkCard
     public string AccentColor { get; }
     public string ItemCountLabel { get; }
     public string DateLabel => Date.ToString("MM-dd");
+
+    /// <summary>有没有写明截止（AI 会给"无需提交"，或留空表示没提）。</summary>
     public bool HasDue => !string.IsNullOrWhiteSpace(Due);
+
+    /// <summary>
+    /// 截止显示文本。**没提截止时不要瞎编**：显示"未说明截止"，
+    /// 明确不用交的显示"无需提交"（AI 会在 due 里写"无需提交"）。
+    /// </summary>
+    public string DueLabel => string.IsNullOrWhiteSpace(Due) ? "未说明截止" : Due!;
 
     private static int StableHash(string s)
     {

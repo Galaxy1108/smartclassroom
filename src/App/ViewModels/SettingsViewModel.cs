@@ -367,18 +367,21 @@ public sealed class SettingsViewModel : ViewModelBase
     private string _exchangeGateHint = "";
     private string _archiveGateHint = "";
     private string _coursewareGateHint = "";
+    private string _noticeGateHint = "";
 
     public string SummonGateHint { get => _summonGateHint; private set => Set(ref _summonGateHint, value); }
     public string HomeworkGateHint { get => _homeworkGateHint; private set => Set(ref _homeworkGateHint, value); }
     public string ExchangeGateHint { get => _exchangeGateHint; private set => Set(ref _exchangeGateHint, value); }
     public string ArchiveGateHint { get => _archiveGateHint; private set => Set(ref _archiveGateHint, value); }
     public string CoursewareGateHint { get => _coursewareGateHint; private set => Set(ref _coursewareGateHint, value); }
+    public string NoticeGateHint { get => _noticeGateHint; private set => Set(ref _noticeGateHint, value); }
 
     public bool CanEnableSummon => SummonGateHint.Length == 0;
     public bool CanEnableHomework => HomeworkGateHint.Length == 0;
     public bool CanEnableExchange => ExchangeGateHint.Length == 0;
     public bool CanEnableFileArchive => ArchiveGateHint.Length == 0;
     public bool CanEnableCoursewarePopup => CoursewareGateHint.Length == 0;
+    public bool CanEnableNotice => NoticeGateHint.Length == 0;
 
     private static string GateHint(List<string> missing)
         => missing.Count == 0 ? "" : "开启前需先完成：" + string.Join("、", missing);
@@ -391,12 +394,14 @@ public sealed class SettingsViewModel : ViewModelBase
         ExchangeGateHint = GateHint(MissingFor(needQq: true, needAi: true, needClassIsland: true));
         ArchiveGateHint = GateHint(MissingFor(needQq: true, needAi: false, needClassIsland: false));
         CoursewareGateHint = GateHint(MissingFor(needQq: false, needAi: false, needClassIsland: true, needsClassIslandForTrigger: true));
+        NoticeGateHint = GateHint(MissingFor(needQq: true, needAi: true, needClassIsland: false));
 
         OnPropertyChanged(nameof(CanEnableSummon));
         OnPropertyChanged(nameof(CanEnableHomework));
         OnPropertyChanged(nameof(CanEnableExchange));
         OnPropertyChanged(nameof(CanEnableFileArchive));
         OnPropertyChanged(nameof(CanEnableCoursewarePopup));
+        OnPropertyChanged(nameof(CanEnableNotice));
 
         TurnOffUnavailableFeatures();
     }
@@ -415,6 +420,7 @@ public sealed class SettingsViewModel : ViewModelBase
             if (_featureExchange && !CanEnableExchange) { _featureExchange = false; turnedOff.Add("换课自动处理"); }
             if (_featureFileArchive && !CanEnableFileArchive) { _featureFileArchive = false; turnedOff.Add("群文件自动归档"); }
             if (_featureCoursewarePopup && !CanEnableCoursewarePopup) { _featureCoursewarePopup = false; turnedOff.Add("上课课件弹窗"); }
+            if (_featureNotice && !CanEnableNotice) { _featureNotice = false; turnedOff.Add("老师通知转发"); }
             if (turnedOff.Count == 0)
                 return;
 
@@ -423,6 +429,7 @@ public sealed class SettingsViewModel : ViewModelBase
             OnPropertyChanged(nameof(FeatureExchange));
             OnPropertyChanged(nameof(FeatureFileArchive));
             OnPropertyChanged(nameof(FeatureCoursewarePopup));
+            OnPropertyChanged(nameof(FeatureNotice));
             OnPropertyChanged(nameof(FeatureSummary));
             AppendLog($"前置集成未完成，已自动关闭：{string.Join("、", turnedOff)}");
             SaveSettings();
@@ -431,6 +438,15 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     private bool _enforcingGates;
+
+    /// <summary>老师通知转发（活动/集合/催交 → ClassIsland 提醒）。默认关。</summary>
+    public bool FeatureNotice
+    {
+        get => _featureNotice;
+        set => SetFeature(ref _featureNotice, value, CanEnableNotice, "老师通知转发");
+    }
+
+    private bool _featureNotice;
 
     public bool FeatureSummon
     {
@@ -2271,6 +2287,7 @@ public sealed class SettingsViewModel : ViewModelBase
             _featureExchange = s.FeatureExchange;
             _featureFileArchive = s.FeatureFileArchive;
             _featureCoursewarePopup = s.FeatureCoursewarePopup;
+            _featureNotice = s.FeatureNotice;
             _engineOption = Engines.FirstOrDefault(e => e.Engine == AiEngineParser.Parse(s.AiEngine)) ?? Engines[0];
             Teachers.Clear();
             foreach (var t in s.Teachers)
@@ -2325,6 +2342,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.FeatureExchange = FeatureExchange;
         s.FeatureFileArchive = FeatureFileArchive;
         s.FeatureCoursewarePopup = FeatureCoursewarePopup;
+        s.FeatureNotice = FeatureNotice;
         s.AdminPasswordHash = _adminHash;
         s.MinimizeToTray = MinimizeToTray;
         s.UiScale = UiScale;

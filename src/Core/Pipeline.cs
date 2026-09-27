@@ -88,13 +88,32 @@ public sealed class PipelineService(
             else
                 NoteDisabled("exchange", "换课自动处理");
         }
+        if (kind.HasFlag(RuleEngine.Kind.Notice))
+        {
+            if (flags.Notice)
+                await HandleNoticeAsync(ev, sender, cancel, rowId: rowId).ConfigureAwait(false);
+            else
+                NoteDisabled("notice", "老师通知转发");
+        }
     }
 
     private static string FeatureName(RuleEngine.Kind kind)
         => kind.HasFlag(RuleEngine.Kind.Exchange) ? "换课"
            : kind.HasFlag(RuleEngine.Kind.Homework) ? "作业"
            : kind.HasFlag(RuleEngine.Kind.Summon) ? "召唤"
+           : kind.HasFlag(RuleEngine.Kind.Notice) ? "通知"
            : "未知";
+
+    private static string Weekday(DateOnly date) => date.DayOfWeek switch
+    {
+        DayOfWeek.Monday => "周一",
+        DayOfWeek.Tuesday => "周二",
+        DayOfWeek.Wednesday => "周三",
+        DayOfWeek.Thursday => "周四",
+        DayOfWeek.Friday => "周五",
+        DayOfWeek.Saturday => "周六",
+        _ => "周日"
+    };
 
     private static string Trim(string text)
         => text.Length <= 40 ? text : text[..40] + "…";
@@ -160,6 +179,11 @@ public sealed class PipelineService(
             await HandleExchangeAsync(ev, sender, cancel, rowId: id).ConfigureAwait(false);
         else if (kind.HasFlag(RuleEngine.Kind.Exchange))
             NoteDisabled("exchange", "换课自动处理");
+
+        if (kind.HasFlag(RuleEngine.Kind.Notice) && flags.Notice)
+            await HandleNoticeAsync(ev, sender, cancel, rowId: id).ConfigureAwait(false);
+        else if (kind.HasFlag(RuleEngine.Kind.Notice))
+            NoteDisabled("notice", "老师通知转发");
     }
 
     /// <summary>
@@ -190,6 +214,7 @@ public sealed class PipelineService(
             "homework" => RuleEngine.Kind.Homework,
             "exchange" => RuleEngine.Kind.Exchange,
             "summon" => RuleEngine.Kind.Summon,
+            "notice" => RuleEngine.Kind.Notice,
             "none" => RuleEngine.Kind.None,
             // AI 没给出结论（调用失败/格式不对）→ 回退到本地关键词，别把消息丢掉
             _ => RuleEngine.ClassifyLocal(ev.Text)
@@ -580,6 +605,37 @@ public sealed class PipelineService(
         Finish(rowId, $"已执行：召唤（{Desc(result)}）", $"{d.Target} · {ev.Text}");
     }
 
+    /// <summary>
+    /// 老师通知转发：活动/集合/催交这类消息整理成一条提醒，
+    /// 走调度门（上课排队、下课时发）经 ClassIsland 通知出来。
+    /// </summary>
+    private async Task HandleNoticeAsync(IIncomingMessage ev, SenderInfo sender,
+        CancellationToken cancel, Guid? rowId = null)
+    {
+        NoticeDraft d;
+        try
+        {
+            d = await ai.AnalyzeNoticeAsync(ev.Text, cancel,
+                msg => UpdateRow(rowId, "正在整理通知", msg)).ConfigureAwait(false);
+        }
+        catch (AiException ex)
+        {
+            AddPending("notice", "通知解析失败，需人工确认", ev.Text, ex.Message, sender,
+                new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
+            return;
+        }
+        if (!d.IsNotice || d.Title.Trim().Length == 0)
+        {
+            Finish(rowId, "已忽略（AI 判定不是通知）", ev.Text, ActivitySeverity.Muted);
+            return;
+        }
+        var who = sender.TeacherName ?? sender.Card ?? sender.Nickname ?? "老师";
+        var body = d.Body.Trim().Length > 0 ? d.Body.Trim() : ev.Text;
+        gate.EnqueueManual(d.Title.Trim(), $"{who}：{body}");
+        Finish(rowId, $"已执行：通知已转发（{Desc(GateDecision.Queued)}）",
+            $"{d.Title.Trim()} · {body}");
+    }
+
     private async Task HandleHomeworkAsync(
         IIncomingMessage ev, SenderInfo sender, CancellationToken cancel,
         bool keepOnFailure = false, string? resolvePendingId = null, Guid? rowId = null)
@@ -627,12 +683,19 @@ public sealed class PipelineService(
         ExchangeDraft d;
         try
         {
-            // 把今天/明天的课表一起给 AI —— 消息常常不说第几节
-            //（"明天的那个周测改成语文了"），没有课表它根本落不到节次上。
+            // 两步走：先问 AI 这条消息涉及哪几天（跨周也能算出来），再按那些日期取课表。
+            // 只喂"今天/明天"是不够的 —— 实测"下周三的数学和周五的语文换一下"就取不到。
             var today = DateOnly.FromDateTime(DateTime.Now);
-            var timetableText =
-                $"今天（{today:yyyy-MM-dd}）：{PluginLink.DescribeClassPlan(await plugin.GetClassPlanAsync(today, cancel).ConfigureAwait(false))}\n"
-                + $"明天（{today.AddDays(1):yyyy-MM-dd}）：{PluginLink.DescribeClassPlan(await plugin.GetClassPlanAsync(today.AddDays(1), cancel).ConfigureAwait(false))}";
+            var wanted = (await ai.ResolveExchangeDatesAsync(ev.Text, cancel,
+                    msg => UpdateRow(rowId, "正在解析换课", msg)).ConfigureAwait(false)).ToList();
+            if (wanted.Count == 0)
+                wanted = [today, today.AddDays(1)];   // 没解析出来就退回今天/明天
+
+            UpdateRow(rowId, "正在解析换课", $"取课表：{string.Join("、", wanted.Select(d => d.ToString("MM-dd")))}…");
+            var plans = await Task.WhenAll(wanted.Select(async d =>
+                (Date: d, Plan: await plugin.GetClassPlanAsync(d, cancel).ConfigureAwait(false))));
+            var timetableText = string.Join("\n", plans.Select(p =>
+                $"{p.Date:yyyy-MM-dd}（{Weekday(p.Date)}）：{PluginLink.DescribeClassPlan(p.Plan)}"));
             UpdateRow(rowId, "正在解析换课", "已取到课表，交给 AI 解析…");
             d = await ai.AnalyzeExchangeAsync(ev.Text, timetableText, cancel,
                 msg => UpdateRow(rowId, "正在解析换课", msg)).ConfigureAwait(false);

@@ -37,8 +37,11 @@ public sealed class PipelineTests
     private int _exchangeCalls;
     private readonly TeacherMap _teachers = new([new Teacher { Qq = 10001, Name = "张老师", Subject = "数学" }]);
 
+    private PipelineService BuildQueueWithStore(Queue<string> replies, HomeworkStore store, bool inClass)
+        => BuildQueue(replies, inClass, store);
+
     /// <summary>AI 按队列依次回复的管线（第一条给分类，第二条给结构化结果）。</summary>
-    private PipelineService BuildQueue(Queue<string> replies, bool inClass)
+    private PipelineService BuildQueue(Queue<string> replies, bool inClass, HomeworkStore? store = null)
     {
         var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
             new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
@@ -56,13 +59,17 @@ public sealed class PipelineTests
             _sent.Add((Prop("channel", "Channel"), Prop("title", "Title")));
             return Json(new { });
         })));
+        _lastFeed = new ActivityFeed();
         return new PipelineService(_teachers, new AiAnalyzer(ai),
             new ScheduleGate(new FakeStatus(inClass)), plugin,
             new OneBotClient("http://q", "ws://q"),
             new FileArchive(new ArchiveOptions { Root = Path.GetTempPath() }),
-            new CoursewareService(), new HomeworkStore(), new ActivityFeed(), new PendingStore(),
+            new CoursewareService(), store ?? new HomeworkStore(), _lastFeed, new PendingStore(),
             TestFlags.AllOn);
     }
+
+    /// <summary>最近一次 BuildQueue 用的时间线（调试用）。</summary>
+    private ActivityFeed? _lastFeed;
 
     private PipelineService Build(
         string aiReply,
@@ -133,6 +140,44 @@ public sealed class PipelineTests
         });
 
         Assert.Empty(_sent);   // 陌生人私聊不处理
+    }
+
+    // ================= 用户实测的两条消息 =================
+    //
+    // 实测问题：① 催交作业被当成"布置作业"，还生成了"12号作业/13号作业"这种条目；
+    // ② 活动通知被当成"不是召唤"直接忽略。现在 ① 归 notice、② 也归 notice，
+    // 由「老师通知转发」整理成 ClassIsland 提醒。
+
+    [Fact]
+    public async Task HomeworkReminder_IsNotice_NotNewHomework()
+    {
+        var replies = new Queue<string>([
+            """{"category":"notice"}""",
+            """{"is_notice":true,"title":"12,13,14 号快交作业","body":"昨天作业 12,13,14 号没交"}"""
+        ]);
+        var store = new HomeworkStore();
+        var p = BuildQueueWithStore(replies, store, inClass: true);
+
+        await p.OnGroupMessageAsync(Msg("昨天作业 12, 13, 14 号没有交，快点交上来"));
+
+        Assert.Empty(store.All);                       // 不能变成新作业
+        await p.OnClassEndedAsync();                   // 通知走调度门：上课排队、下课时发
+        Assert.Contains(_sent, s => s.Channel == "manual");
+    }
+
+    [Fact]
+    public async Task ActivityNotice_IsForwarded()
+    {
+        var replies = new Queue<string>([
+            """{"category":"notice"}""",
+            """{"is_notice":true,"title":"今天下午 2:00 到大礼堂","body":"下午有个活动，2:00 到大礼堂"}"""
+        ]);
+        var p = BuildQueue(replies, inClass: true);
+
+        await p.OnGroupMessageAsync(Msg("今天你们下午有个活动，2:00 到大礼堂"));
+
+        await p.OnClassEndedAsync();                   // 同上：下课时发
+        Assert.Contains(_sent, s => s.Channel == "manual");
     }
 
     // ================= 权限：只认老师名单里的人 =================

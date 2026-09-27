@@ -92,6 +92,9 @@ public sealed class AppSettings
     public bool FeatureFileArchive { get; set; } = false;
     public bool FeatureCoursewarePopup { get; set; } = false;
 
+    /// <summary>老师通知转发（活动/集合/催交等 → ClassIsland 提醒）。默认关。</summary>
+    public bool FeatureNotice { get; set; } = false;
+
     // ---- 关闭行为 / 管理员密码 ----
 
     /// <summary>关闭主窗口时收回到托盘（默认开启）。托盘不可用时自动退化为直接退出。</summary>
@@ -141,6 +144,7 @@ public sealed class AppSettings
         FeatureExchange = d.FeatureExchange;
         FeatureFileArchive = d.FeatureFileArchive;
         FeatureCoursewarePopup = d.FeatureCoursewarePopup;
+        FeatureNotice = d.FeatureNotice;
         MinimizeToTray = d.MinimizeToTray;
         UiScale = d.UiScale;
         AdminPasswordHash = d.AdminPasswordHash;
@@ -154,6 +158,7 @@ public sealed class AppSettings
         Exchange = FeatureExchange,
         FileArchive = FeatureFileArchive,
         CoursewarePopup = FeatureCoursewarePopup,
+        Notice = FeatureNotice,
         RequireKnownTeacher = RequireKnownTeacher,
         AiDecidesTeacherMessages = AiDecidesTeacherMessages
     };

@@ -11,6 +11,7 @@ internal static class TestFlags
         Homework = true,
         Exchange = true,
         FileArchive = true,
-        CoursewarePopup = true
+        CoursewarePopup = true,
+        Notice = true
     };
 }

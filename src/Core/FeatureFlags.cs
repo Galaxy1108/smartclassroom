@@ -21,6 +21,9 @@ public sealed record FeatureFlags
     /// <summary>上课时弹「您可能需要的课件」。</summary>
     public bool CoursewarePopup { get; init; }
 
+    /// <summary>老师通知转发（活动/集合/催交等 → ClassIsland 提醒）。</summary>
+    public bool Notice { get; init; }
+
     /// <summary>
     /// 老师名单里的人发的消息，即使没命中本地关键词也交给 AI 判断（默认开启）。
     /// 关键词表永远穷举不完（"把第二章写完，后天交"就不命中），
@@ -37,7 +40,7 @@ public sealed record FeatureFlags
 
     public static FeatureFlags AllDisabled { get; } = new();
 
-    public bool AnyEnabled => Summon || Homework || Exchange || FileArchive || CoursewarePopup;
+    public bool AnyEnabled => Summon || Homework || Exchange || FileArchive || CoursewarePopup || Notice;
 
     /// <summary>给界面显示的一句话摘要。</summary>
     public string Describe()
@@ -48,6 +51,7 @@ public sealed record FeatureFlags
         if (Exchange) on.Add("换课");
         if (FileArchive) on.Add("文件归档");
         if (CoursewarePopup) on.Add("课件弹窗");
+        if (Notice) on.Add("通知转发");
         return on.Count == 0 ? "全部关闭（不会对群消息做任何动作）" : "已开启：" + string.Join("、", on);
     }
 }

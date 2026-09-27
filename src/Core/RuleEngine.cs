@@ -16,8 +16,16 @@ public static class RuleEngine
     public static readonly string[] HomeworkHints =
         ["作业", "练习", "背诵", "默写", "预习", "抄写", "试卷", "习题"];
 
+    /// <summary>通知类线索（AI 不可用时的兜底）。</summary>
+    public static readonly string[] NoticeHints =
+        ["活动", "集合", "大礼堂", "操场", "记得带", "别忘了", "没交", "交上来", "准时"];
+
+    /// <summary>催交/点名类线索：命中就按"通知"处理，不能当成布置作业。</summary>
+    public static readonly string[] ReminderHints =
+        ["没交", "交上来", "赶紧交", "快点交", "还没交", "谁没交", "未交"];
+
     [Flags]
-    public enum Kind { None = 0, Summon = 1, Homework = 2, Exchange = 4 }
+    public enum Kind { None = 0, Summon = 1, Homework = 2, Exchange = 4, Notice = 8 }
 
     /// <summary>纯本地预分流（无网络，可全单测）。AI 负责精判与抽取。</summary>
     public static Kind ClassifyLocal(string text)
@@ -26,6 +34,10 @@ public static class RuleEngine
         if (ExchangeHints.Any(text.Contains)) kind |= Kind.Exchange;
         if (HomeworkHints.Any(text.Contains)) kind |= Kind.Homework;
         if (SummonGate.LooksLikeSummon(text)) kind |= Kind.Summon;
+        // 催交/点名这类带"作业"二字但不是布置的，本地也要能区分出来
+        if (ReminderHints.Any(text.Contains))
+            return Kind.Notice;
+        if (kind == Kind.None && NoticeHints.Any(text.Contains)) kind |= Kind.Notice;
         return kind;
     }
 
@@ -102,9 +114,15 @@ public sealed class AiAnalyzer(IAiClient ai)
               例："小明现在来一下" → summon
               例："王子诚你上来把作业发一下" → summon（重点是人上来）
               例："张三来办公室" → summon
-            homework：老师布置/要求学生完成的学习任务（不一定出现"作业"二字）
+            homework：老师**布置新任务**（不一定出现"作业"二字）
               例："今天数学作业：练习册P10" → homework
               例："把第二章写完，后天交" → homework
+              **催交/点名/检查不算布置**：
+              例："昨天作业 12,13,14 号没有交，快点交上来" → notice
+              例："还有谁没交作业的赶紧交" → notice
+            notice：通知类（活动、集合、时间地点、催交、提醒带东西等）
+              例："今天你们下午有个活动，2:00 到大礼堂" → notice
+              例："明天记得带课本" → notice
             exchange：调课/换课/代课/串课/改到别的节次
               例："第三节和第五节换一下" → exchange
             none：闲聊、提问、通知等
@@ -125,7 +143,7 @@ public sealed class AiAnalyzer(IAiClient ai)
             var value = (c.GetString() ?? "").Trim().ToLowerInvariant();
             return value switch
             {
-                "homework" or "exchange" or "summon" or "none" => value,
+                "homework" or "exchange" or "summon" or "notice" or "none" => value,
                 _ => null       // 模型答了别的词 → 交给本地关键词兜底
             };
         }
@@ -135,6 +153,22 @@ public sealed class AiAnalyzer(IAiClient ai)
         }
     }
 
+    /// <summary>把老师的通知整理成一条简短提醒（标题 + 正文）。</summary>
+    public async Task<NoticeDraft> AnalyzeNoticeAsync(string text, CancellationToken cancel = default,
+        Action<string>? onProgress = null)
+    {
+        var system = $$"""
+            把老师发的通知整理成一条给学生看的提醒。只输出 JSON：{"is_notice":true/false,"title":"标题","body":"正文"}
+            - title 不超过 14 字，说清"做什么/什么时候"，例："今天下午 2:00 到大礼堂"
+            - body 保留关键信息（时间、地点、对象），例："下午有个活动，2:00 到大礼堂"
+            - 今天是 {{DateTime.Now:yyyy-MM-dd}}；催交类通知（"12,13,14 号没交"）也算 notice
+            - 不是通知（闲聊、提问）就 is_notice=false
+            """;
+        var raw = await ai.AskAsync(system, text, cancel, onProgress).ConfigureAwait(false);
+        var d = JsonSerializer.Deserialize<NoticeDraft>(AiGateway.ExtractJson(raw), Json);
+        return d ?? throw new AiException("通知解析为空");
+    }
+
     public async Task<HomeworkDraft> AnalyzeHomeworkAsync(string text, string? senderSubject, CancellationToken cancel = default, Action<string>? onProgress = null)
     {
         var system = $$"""
@@ -142,7 +176,11 @@ public sealed class AiAnalyzer(IAiClient ai)
             只输出 JSON：{"is_homework":true/false,"subject":"科目","date":"yyyy-MM-dd，当日作业则为今天","items":["作业条目1","作业条目2"],"due":"截止说明，无则空字符串","confidence":0-1}
             今天是 {{DateTime.Now:yyyy-MM-dd}}（{{DateTime.Now:dddd}}）。
 
-            due 要**把相对时间换算成具体日期**，并保留原话，例如：
+            due 的三种情况：
+              - 消息明确说**不用交/不用提交/自行完成** → due = "无需提交"
+              - 提到截止（"后天交""明天上课前交"）→ 换算成具体日期并保留原话
+              - **没提**截止 → due = ""（上层会显示"未说明截止"，不要瞎编）
+            due 换算示例：
               消息里"后天交"、今天是 2026-09-26 → due = "2026-09-28（后天交）"
               消息里"明天上课前交"、今天是 2026-09-26 → due = "2026-09-27（明天上课前交）"
               没提截止 → due = ""
@@ -150,6 +188,55 @@ public sealed class AiAnalyzer(IAiClient ai)
         var raw = await ai.AskAsync(system, text, cancel, onProgress).ConfigureAwait(false);
         var d = JsonSerializer.Deserialize<HomeworkDraft>(AiGateway.ExtractJson(raw), Json);
         return d ?? throw new AiException("作业解析为空");
+    }
+
+    /// <summary>
+    /// 换课消息**涉及哪几天**（第一步）。跨周换课只喂"今天/明天"是不够的，
+    /// 所以先花一次调用把日期问出来，再按这些日期去取课表。
+    /// </summary>
+    public async Task<IReadOnlyList<DateOnly>> ResolveExchangeDatesAsync(string text,
+        CancellationToken cancel = default, Action<string>? onProgress = null)
+    {
+        var today = DateTime.Now.Date;
+        // 周一为一周之始：把"本周一/下周一"直接写进提示词，模型算跨周日期才不会错
+        //（实测不写的话"下周三"会被算成本周三、"这周五"会算成上周五）。
+        var monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
+        var nextMonday = monday.AddDays(7);
+        var system = $$"""
+            判断这条班级消息里提到的"换课/课程变动"涉及哪几天。
+            只输出 JSON：{"is_exchange":true/false,"dates":["yyyy-MM-dd", ...]}
+
+            【时间基准】今天是 {{today:yyyy-MM-dd}}（{{today:dddd}}）；
+            本周一 = {{monday:yyyy-MM-dd}}，下周一 = {{nextMonday:yyyy-MM-dd}}。
+
+            规则：
+            - 把"明天/后天/这周五/下周三/下周第一节"这类说法换算成**具体日期**；
+            - **"下X"一律按"下周一 + 偏移"算**（下周三 = 下周一 + 2 天）；
+            - "这X"指最近的那个 X，但**所有日期必须在今天或之后**：
+              如果最近的那个已经过去，就顺延一周（今天周日说"这周五"→ 指下周五）；
+            - 只要消息涉及**某节课的科目/内容变动**（"改成/换成/改上/不上了/周测改成…"）也算 is_exchange；
+            - 最多给 4 个日期；完全无关就给空数组。
+            """;
+        try
+        {
+            var raw = await ai.AskAsync(system, text, cancel, onProgress).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(AiGateway.ExtractJson(raw));
+            if (!doc.RootElement.TryGetProperty("dates", out var arr) || arr.ValueKind != JsonValueKind.Array)
+                return [];
+            var dates = new List<DateOnly>();
+            foreach (var item in arr.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String
+                    && DateOnly.TryParse(item.GetString(), out var d)
+                    && !dates.Contains(d))
+                    dates.Add(d);
+            }
+            return dates.Take(4).ToList();
+        }
+        catch (Exception)
+        {
+            return [];   // 失败就让上层退回"今天/明天"
+        }
     }
 
     /// <param name="timetables">
@@ -197,6 +284,10 @@ public sealed record SummonContext(
 {
     public static SummonContext Empty { get; } = new("未知", "未知", "未知（课表未加载）", "未知", "未知");
 }
+public sealed record NoticeDraft(
+    [property: JsonPropertyName("is_notice")] bool IsNotice,
+    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("body")] string Body);
 public sealed record HomeworkDraft(
     [property: JsonPropertyName("is_homework")] bool IsHomework,
     [property: JsonPropertyName("subject")] string Subject,
