@@ -82,7 +82,15 @@ public class ExchangeService
         }
         catch (Exception ex)
         {
-            return Fail(req, $"换课执行异常，已转人工：{ex.GetType().Name}");
+            // 只回报异常类型的话根本没法排查（实测用户看到的就是一句
+            // "换课执行异常，已转人工：InvalidOperationException"）。
+            // 详情写进插件诊断日志，消息里也带上第一行，便于直接看出原因。
+            Plugin.Diag("换课执行异常：" + ex);
+            var first = (ex.Message ?? "").Split('\n')[0].Trim();
+            if (first.Length > 120)
+                first = first[..120] + "…";
+            return Fail(req, $"换课执行异常，已转人工：{ex.GetType().Name}"
+                             + (first.Length > 0 ? $"（{first}）" : ""));
         }
     }
 
