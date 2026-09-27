@@ -69,10 +69,23 @@ public class ExchangeService
                 var target = GetClass(temp, req.From.PeriodIndex);
                 if (target is null)
                     return Fail(req, "课表节次定位失败，请手动确认。");
-                var subject = Profiles.Profile.Subjects.FirstOrDefault(kv => kv.Value.Name == req.NewSubject);
-                if (subject.Value is null)
-                    return Fail(req, $"课表中没有「{req.NewSubject}」科目，请手动确认。");
-                target.SubjectId = subject.Key;
+                // 科目名匹配：先精确，再放宽到"包含"（AI 常说"自习课"，课表里叫"自习"）
+                var wanted = req.NewSubject.Trim();
+                var subjects = Profiles.Profile.Subjects;
+                var match = subjects.FirstOrDefault(kv =>
+                    string.Equals(kv.Value.Name.Trim(), wanted, StringComparison.OrdinalIgnoreCase));
+                if (match.Value is null)
+                {
+                    match = subjects.FirstOrDefault(kv =>
+                        kv.Value.Name.Contains(wanted, StringComparison.OrdinalIgnoreCase)
+                        || wanted.Contains(kv.Value.Name.Trim(), StringComparison.OrdinalIgnoreCase));
+                }
+                if (match.Value is null)
+                {
+                    var known = string.Join("、", subjects.Values.Select(x => x.Name).Take(12));
+                    return Fail(req, $"课表中没有「{req.NewSubject}」科目（已有：{known}），请手动确认。");
+                }
+                target.SubjectId = match.Key;
             }
             else
             {

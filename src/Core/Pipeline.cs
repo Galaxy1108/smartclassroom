@@ -823,8 +823,13 @@ public sealed class PipelineService(
             UpdateRow(rowId, "正在解析换课", $"取课表：{string.Join("、", wanted.Select(d => d.ToString("MM-dd")))}…");
             plans = await Task.WhenAll(wanted.Select(async d =>
                 (Date: d, Plan: await plugin.GetClassPlanAsync(d, cancel).ConfigureAwait(false))));
+            // 把 ClassIsland 里**已定义的科目名**也给它：不然模型会说"自习课"，
+            // 而课表里其实叫"自习"，插件按名字查不到就只能转人工。
+            var known = plans.SelectMany(p => p.Plan?.AllSubjects ?? [])
+                .Distinct().OrderBy(x => x, StringComparer.CurrentCulture).ToList();
             var timetableText = string.Join("\n", plans.Select(p =>
-                $"{p.Date:yyyy-MM-dd}（{Weekday(p.Date)}）：{PluginLink.DescribeClassPlan(p.Plan)}"));
+                $"{p.Date:yyyy-MM-dd}（{Weekday(p.Date)}）：{PluginLink.DescribeClassPlan(p.Plan)}"))
+                + (known.Count > 0 ? $"\n【可选科目名（必须照抄）】{string.Join("、", known)}" : "");
             UpdateRow(rowId, "正在解析换课", "已取到课表，交给 AI 解析…");
             // 把"发消息的是谁"也告诉模型：消息里的"我来上/我代课"指的就是他，
             // 写"体育老师"时也能对上他的科目（召唤那边一直有，换课漏了）。

@@ -152,7 +152,7 @@ public class BridgeServer(ExchangeService exchange) : IHostedService
             var lessons = IAppHost.GetService<ILessonsService>();
             await WriteJsonAsync(stream, 200, new PluginStatus
             {
-                PluginVersion = "0.47.0",
+                PluginVersion = "0.48.0",
                 ClassPlanLoaded = lessons.IsClassPlanLoaded
             }).ConfigureAwait(false);
             return;
@@ -247,6 +247,7 @@ public class BridgeServer(ExchangeService exchange) : IHostedService
                 return new ClassPlanDay { Date = date.ToString("yyyy-MM-dd"), HasPlan = false, Periods = [] };
 
             var subjects = profiles.Profile.Subjects;
+            var allSubjects = subjects.Values.Select(x => x.Name).Where(n => n.Length > 0).ToList();
             var periods = new List<ClassPlanPeriod>();
             var layouts = plan.TimeLayout?.Layouts.Where(l => l.TimeType == 0).ToList();
             for (var i = 0; i < plan.Classes.Count; i++)
@@ -270,7 +271,8 @@ public class BridgeServer(ExchangeService exchange) : IHostedService
                 Date = date.ToString("yyyy-MM-dd"),
                 HasPlan = true,
                 IsOverlay = plan.IsOverlay,
-                Periods = periods
+                Periods = periods,
+                AllSubjects = allSubjects
             };
         }
         catch (Exception ex)

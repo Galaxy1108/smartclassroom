@@ -46,6 +46,13 @@ public sealed record ClassPlanDay
 
     /// <summary>节次列表（Index 从 1 开始，与课表节次序号一致）。</summary>
     public required List<ClassPlanPeriod> Periods { get; init; }
+
+    /// <summary>
+    /// ClassIsland 里**已定义的全部科目名**。
+    /// 给 AI 用：它必须从中选名字，否则会说"自习课"而课表里其实叫"自习"，
+    /// 插件按名字查不到就只能转人工（用户明确提过这个问题）。
+    /// </summary>
+    public List<string> AllSubjects { get; init; } = [];
 }
 
 public sealed record ClassPlanPeriod
