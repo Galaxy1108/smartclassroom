@@ -111,7 +111,11 @@
                     <DataTemplate x:DataType="vm:SubjectColorRow">
                         <StackPanel Orientation="Horizontal" Spacing="10" Margin="2,2,0,2">
                             <TextBlock Text="{Binding Subject}" Width="120" VerticalAlignment="Center" />
-                            <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding Color}" MinWidth="120" />
+                            <!-- 选色盘：Avalonia 官方 ColorPicker（FluentAvalonia 主题已带样式），
+                                 点色块展开完整色盘；旁边的「默认」恢复自动配色 -->
+                            <ColorPicker Color="{Binding PickerColor}" MinWidth="72" />
+                            <Button Content="默认" FontSize="12" Padding="8,3" Click="ResetSubjectColor_Click"
+                                    Tag="{Binding}" />
                         </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>

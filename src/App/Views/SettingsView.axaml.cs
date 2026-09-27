@@ -376,4 +376,11 @@ public partial class SettingsView : UserControl
     }
 
     private void CancelEditTeacher_Click(object? sender, RoutedEventArgs e) => Vm.CancelEditTeacher();
+
+    /// <summary>把某个科目的颜色恢复成"默认"（按科目名自动取色）。</summary>
+    private void ResetSubjectColor_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is SubjectColorRow row)
+            row.Color = "默认";
+    }
 }

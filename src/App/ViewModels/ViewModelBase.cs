@@ -44,7 +44,27 @@ public sealed class SubjectColorRow : ViewModelBase
         {
             if (!Set(ref _color, value))
                 return;
+            OnPropertyChanged(nameof(PickerColor));
             Changed?.Invoke(Subject, value);
+        }
+    }
+
+    /// <summary>
+    /// 选色盘用的颜色。设置里存的是 #RRGGBB 字符串，"默认"表示跟随自动配色 ——
+    /// 这里映射成 Avalonia 的 Color，用户拖色盘时再写回字符串。
+    /// </summary>
+    public Avalonia.Media.Color PickerColor
+    {
+        get => Avalonia.Media.Color.TryParse(Color, out var c)
+            ? c
+            : Avalonia.Media.Color.Parse("#0F6CBD");
+        set
+        {
+            var hex = $"#{value.R:X2}{value.G:X2}{value.B:X2}";
+            if (Color == hex)
+                return;
+            Color = hex;
+            OnPropertyChanged();
         }
     }
 }
