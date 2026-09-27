@@ -47,8 +47,6 @@
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <!-- 不用 IsEnabled 绑定：这个 XAML 里解析不了 vm: 类型（实测会让启动崩溃），
                                  锁定状态交给点击处理里的管理员密码闸门 -->
-                            <Button Content="编辑" FontSize="11" Padding="8,2" Click="EditCard_Click" Tag="{Binding}" />
-                            <Button Content="删除" FontSize="11" Padding="8,2" Click="DeleteCard_Click" Tag="{Binding}" />
                             <TextBlock Text="{Binding Sender}" FontSize="11" Opacity="0.5" />
                             <TextBlock Text="{Binding ItemCountLabel}" FontSize="11" Opacity="0.5" />
                             <!-- 截止时间：AI 把"后天交"换算成具体日期；**没写截止就不显示这一行** -->
