@@ -224,9 +224,59 @@ public sealed class HomeworkContextMenuTests
         vm.Refresh();
         Assert.True(vm.HasSelection);
         Assert.True(vm.Items[0].IsSelected);
+
         var border2 = view.GetVisualDescendants().OfType<Border>()
             .FirstOrDefault(b => b.Classes.Contains("hwcard"));
         Assert.True(border2!.Classes.Contains("selected"));
+
+        // 点空白处要能取消选中（用户：选中状无法使用点击空白区域取消）
+        vm.Select(null);
+        Assert.False(vm.HasSelection);
+        Assert.All(vm.Items, i => Assert.False(i.IsSelected));
+        window.Close();
+    }
+}
+
+/// <summary>
+/// 点卡片之外的空白处要取消选中。
+/// 踩过的坑：处理器只挂在 ItemsControl（卡片列表）上，而空白区域**不在它范围内**
+/// → 点空白根本收不到事件，选中就永远取消不掉（用户报的正是这个）。
+/// 这里直接往页面空白处发一次左键 PointerPressed，断言选中被清掉。
+/// </summary>
+public sealed class HomeworkClearSelectionTests
+{
+    [AvaloniaFact]
+    public void ClickOnEmptyArea_ClearsSelection()
+    {
+        var store = new HomeworkStore();
+        store.AddOrMerge(new HomeworkItem
+        {
+            HomeworkId = "h1", Subject = "英语", Date = DateOnly.FromDateTime(DateTime.Now),
+            Items = ["背单词"],
+            Sender = new SmartClassroom.Contracts.SenderInfo { UserId = 0, TeacherName = "手动添加" },
+            Source = new SmartClassroom.Contracts.MessageRef { GroupId = 0, MessageId = 0 }
+        });
+        var vm = new HomeworkViewModel(store, () => new Dictionary<string, string>());
+        var view = new SmartClassroom.App.Views.HomeworkView { DataContext = vm };
+        var window = new Window { Width = 900, Height = 600, Content = view };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.Select(vm.Items[0]);
+        Assert.True(vm.HasSelection);
+
+        // 往页面本身（空白区域）发左键按下
+        var args = new Avalonia.Input.PointerPressedEventArgs(
+            view, new Avalonia.Input.Pointer(0, Avalonia.Input.PointerType.Mouse, true), view, default,
+            0, new Avalonia.Input.PointerPointProperties(
+                Avalonia.Input.RawInputModifiers.LeftMouseButton,
+                Avalonia.Input.PointerUpdateKind.LeftButtonPressed),
+            Avalonia.Input.KeyModifiers.None);
+        view.RaiseEvent(args);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(vm.HasSelection);
+        Assert.All(vm.Items, i => Assert.False(i.IsSelected));
         window.Close();
     }
 }
