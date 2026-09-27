@@ -213,6 +213,11 @@ public sealed class HomeworkContextMenuTests
         Assert.True(vm.Items[0].IsSelected);
         Assert.Contains("编辑", view.GetVisualDescendants().OfType<Button>()
             .Select(b => b.Content as string));
+        // 选中的卡片要真的带上 selected 类（否则用户看不出选中了哪张 —— 实测就是这个）
+        var border = view.GetVisualDescendants().OfType<Border>()
+            .FirstOrDefault(b => b.Classes.Contains("hwcard"));
+        Assert.NotNull(border);
+        Assert.True(border!.Classes.Contains("selected"));
         window.Close();
     }
 }

@@ -28,6 +28,7 @@ AppBuilder.Configure<SmartClassroom.App.App>()
 Application.Current!.Resources["SymbolThemeFontFamily"] = new FontFamily("DejaVu Sans");
 
 Render("timeline-light.png", TimelineView(), ThemeVariant.Light, 920, 560);
+Render("homework-selected.png", HomeworkSelected(), ThemeVariant.Dark, 920, 420);
 RenderShell();// 全局缩放：确认整窗缩放后没有渲染异常（黑块 / 布局塌陷）
 ContentZoom.Scale = 1.3;
 RenderShell("shell-zoom130.png");
@@ -162,4 +163,20 @@ Control SettingsView(double scrollTo = 0)
     var path = Path.Combine(Path.GetTempPath(), "ui-preview-settings.json");
     if (File.Exists(path)) File.Delete(path);
     return new SmartClassroom.App.Views.SettingsView { DataContext = new SettingsViewModel(path) };
+}
+
+Control HomeworkSelected()
+{
+    var store = new SmartClassroom.Core.HomeworkStore();
+    store.AddOrMerge(new SmartClassroom.Contracts.HomeworkItem
+    {
+        HomeworkId = "h1", Subject = "英语", Date = DateOnly.FromDateTime(DateTime.Now),
+        Items = ["整理笔记", "朗读练习"],
+        Sender = new SmartClassroom.Contracts.SenderInfo { UserId = 0, TeacherName = "手动添加" },
+        Source = new SmartClassroom.Contracts.MessageRef { GroupId = 0, MessageId = 0 }
+    });
+    var vm = new HomeworkViewModel(store, () => new Dictionary<string, string>());
+    var view = new HomeworkView { DataContext = vm };
+    vm.Select(vm.Items[0]);   // 选中第一张，检查描边是否生效
+    return view;
 }

@@ -4,6 +4,16 @@
              xmlns:local="using:SmartClassroom.App"
              x:Class="SmartClassroom.App.Views.HomeworkView"
              x:DataType="vm:HomeworkViewModel">
+    <!-- 选中的卡片：强调色描边 + 淡底色（工具栏的编辑/删除作用于它）。
+         之前只在模板上绑了 Classes.selected，但**没写这条样式** —— 所以选中了却看不出来。 -->
+    <UserControl.Styles>
+        <Style Selector="Border.hwcard.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+        </Style>
+    </UserControl.Styles>
+
 
     <UserControl.Resources>
 
@@ -65,7 +75,7 @@
             <Button Content="解锁" Click="Unlock_Click" IsVisible="{Binding IsLocked}" />
             <Button Content="编辑" Click="EditSelected_Click" IsEnabled="{Binding HasSelection}" />
             <Button Content="删除" Click="DeleteSelected_Click" IsEnabled="{Binding HasSelection}" />
-            <TextBlock Text="长按卡片 0.3 秒可拖动排序 · 右键卡片可编辑/删除 · Ctrl+滚轮缩放本区域" FontSize="12" Opacity="0.55"
+            <TextBlock Text="点卡片选中后可用工具栏编辑/删除 · 长按 0.3 秒拖动排序 · Ctrl+滚轮缩放本区域" FontSize="12" Opacity="0.55"
                        VerticalAlignment="Center" IsVisible="{Binding !IsEmpty}" />
             <TextBlock Text="{Binding AddResult}" VerticalAlignment="Center" FontSize="12"
                        Opacity="0.85" TextWrapping="Wrap" MaxWidth="440" />
