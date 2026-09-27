@@ -118,6 +118,7 @@ public static class OneBotParser
             SelfId = root.GetInt64OrZero("self_id"),
             GroupId = groupId,          // 私聊为 0
             UserId = userId,
+            MessageId = root.GetInt64OrZero("message_id"),
             File = file
         };
 

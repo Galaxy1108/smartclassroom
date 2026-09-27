@@ -369,6 +369,8 @@ public sealed class PipelineService(
             : await oneBot.TriggerDownloadAsync(resolved, ev.File.Name, cancel).ConfigureAwait(false)
                 ? "已请 QQ 端接收"
                 : "QQ 端接收失败";
+        // 顺带标记已读：SnowLuma 没有文件接收回执动作，文件卡片有时会跟着消息已读状态刷新
+        await oneBot.MarkAsReadAsync(ev.MessageId, cancel).ConfigureAwait(false);
         if (trigger != "已请 QQ 端接收")
             UpdateRow(rowId, "正在归档文件", $"QQ 端接收未成功（{trigger}），继续归档…");
 

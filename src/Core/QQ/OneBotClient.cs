@@ -137,6 +137,26 @@ public sealed class OneBotClient : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// 把某条消息标记为已读。SnowLuma 的 173 个动作里**没有**文件接收回执，
+    /// 这是唯一沾边的动作（文件卡片常和消息已读状态一起刷新），best-effort。
+    /// </summary>
+    public async Task<bool> MarkAsReadAsync(long messageId, CancellationToken cancel = default)
+    {
+        if (messageId <= 0)
+            return false;
+        try
+        {
+            await InvokeAsync<JsonElement>("mark_private_msg_as_read",
+                new { message_id = messageId }, cancel).ConfigureAwait(false);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     /// <summary>通用动作调用：POST /{action}，retcode != 0 抛 OneBotException。</summary>
     public async Task<T?> InvokeAsync<T>(string action, object? args, CancellationToken cancel = default)
     {
