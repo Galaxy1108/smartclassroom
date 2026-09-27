@@ -131,29 +131,35 @@
                 <PathIcon Width="16" Height="16" Data="{StaticResource IconInfo}" VerticalAlignment="Center" />
                 <TextBlock Text="外观" Theme="{StaticResource SubtitleTextBlockStyle}" />
             </StackPanel>
-            <fa:SettingsExpander Header="作业内容缩放"
-                                 Description="仅作用于「作业」页；支持 Ctrl+滚轮">
+            <fa:SettingsExpander Header="主题"
+                                 Description="跟随系统 / 浅色 / 深色；也可以点右上角按钮循环切换">
+                <fa:SettingsExpander.Footer>
+                    <ComboBox ItemsSource="{Binding ThemeChoices}"
+                              SelectedItem="{Binding ThemeChoice}" MinWidth="140" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
+            <fa:SettingsExpander Header="界面缩放"
+                                 Description="整窗缩放（导航、页面、底部状态一起缩放），80% – 180%">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="10">
-                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,4">
-                            <TextBlock Text="主题" VerticalAlignment="Center" Width="72" />
-                            <ComboBox ItemsSource="{Binding ThemeChoices}"
-                                      SelectedItem="{Binding ThemeChoice}" MinWidth="140" />
-                            <TextBlock Text="（也可点右上角按钮循环切换）" FontSize="12" Opacity="0.6"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,6,0,0">
-                            <TextBlock Text="作业卡片" VerticalAlignment="Center" Width="72" />
-                            <Slider Value="{Binding CardScale}" Minimum="0.8" Maximum="1.8"
-                                    TickFrequency="0.1" IsSnapToTickEnabled="True" Width="220" />
-                            <TextBlock Text="{Binding CardScaleLabel}" VerticalAlignment="Center" Width="52" />
-                            <TextBlock Text="（作业页 Ctrl+滚轮）" FontSize="12" Opacity="0.6"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
                         <Slider Value="{Binding UiScale}" Minimum="0.8" Maximum="1.8"
                                 TickFrequency="0.1" IsSnapToTickEnabled="True"
                                 TickPlacement="BottomRight" Width="220" />
                         <TextBlock Text="{Binding UiScaleLabel}" VerticalAlignment="Center"
+                                   FontWeight="SemiBold" MinWidth="48" />
+                    </StackPanel>
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
+            <fa:SettingsExpander Header="作业卡片缩放"
+                                 Description="仅作用于「作业」页的卡片，与界面缩放互相独立；也可以在作业页按 Ctrl+滚轮">
+                <fa:SettingsExpander.Footer>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Slider Value="{Binding CardScale}" Minimum="0.8" Maximum="1.8"
+                                TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                TickPlacement="BottomRight" Width="220" />
+                        <TextBlock Text="{Binding CardScaleLabel}" VerticalAlignment="Center"
                                    FontWeight="SemiBold" MinWidth="48" />
                     </StackPanel>
                 </fa:SettingsExpander.Footer>

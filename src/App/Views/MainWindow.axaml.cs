@@ -123,12 +123,22 @@ public partial class MainWindow : Window
 
         if (WindowState != WindowState.Normal)
             return;   // 最大化/全屏时不用动，屏幕就那么大
-        var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
-        var area = screen?.WorkingArea ?? default;
-        var maxWidth = area.Width / (screen?.Scaling ?? 1) - 40;
-        var maxHeight = area.Height / (screen?.Scaling ?? 1) - 80;
-        Width = maxWidth > 400 ? Math.Min(Width * ratio, maxWidth) : Width * ratio;
-        Height = maxHeight > 300 ? Math.Min(Height * ratio, maxHeight) : Height * ratio;
+
+        // ⚠️ 取屏幕信息必须包起来：窗口还没挂到屏幕上时 ScreenFromWindow 会抛异常，
+        // 而这是在启动路径上（设置里存了缩放值就会调用），一抛就是启动崩溃。
+        try
+        {
+            var screen = Screens?.ScreenFromWindow(this) ?? Screens?.Primary;
+            var area = screen?.WorkingArea ?? default;
+            var maxWidth = area.Width / (screen?.Scaling ?? 1) - 40;
+            var maxHeight = area.Height / (screen?.Scaling ?? 1) - 80;
+            Width = maxWidth > 400 ? Math.Min(Width * ratio, maxWidth) : Width * ratio;
+            Height = maxHeight > 300 ? Math.Min(Height * ratio, maxHeight) : Height * ratio;
+        }
+        catch (Exception)
+        {
+            // 拿不到屏幕信息就不调窗口尺寸，缩放本身已经生效
+        }
     }
 
     /// <summary>
