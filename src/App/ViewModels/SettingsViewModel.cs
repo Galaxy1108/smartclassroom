@@ -200,6 +200,32 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public string UiScaleLabel => ContentZoom.Describe(_uiScale);
 
+    /// <summary>主题选项（界面显示用）。</summary>
+    public static IReadOnlyList<string> ThemeChoices { get; } = ["跟随系统", "浅色", "深色"];
+
+    /// <summary>主题：跟随系统 / 浅色 / 深色，改完立刻应用。</summary>
+    public string ThemeChoice
+    {
+        get => AppTheme.Describe(_theme);
+        set
+        {
+            var next = value switch
+            {
+                "浅色" => AppTheme.Light,
+                "深色" => AppTheme.Dark,
+                _ => AppTheme.System
+            };
+            if (_theme == next)
+                return;
+            _theme = next;
+            AppTheme.Apply(next);
+            OnPropertyChanged();
+            SaveSettings();
+        }
+    }
+
+    private string _theme = AppTheme.System;
+
     private void OnExternalScaleChanged(double scale)
     {
         if (Math.Abs(scale - _uiScale) < 0.001)
@@ -2436,6 +2462,8 @@ public sealed class SettingsViewModel : ViewModelBase
             _rememberUnlock = s.RememberUnlock;
             _minimizeToTray = s.MinimizeToTray;
             _uiScale = ContentZoom.Clamp(s.UiScale);
+            _theme = AppTheme.Normalize(s.Theme);
+            OnPropertyChanged(nameof(ThemeChoice));
             _featureSummon = s.FeatureSummon;
             _featureHomework = s.FeatureHomework;
             _featureExchange = s.FeatureExchange;
@@ -2502,6 +2530,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.RememberUnlock = RememberUnlock;
         s.MinimizeToTray = MinimizeToTray;
         s.UiScale = UiScale;
+        s.Theme = _theme;
 
         SettingsStore.Save(s, SettingsPath);
         _pendingAutoSave = false;

@@ -16,6 +16,8 @@
         <vm:MainViewModel />
     </Design.DataContext>
 
+    <!-- 全局缩放：整窗内容（导航 + 页面 + 底部状态）一起缩放 -->
+    <LayoutTransformControl x:Name="ZoomHost">
     <Grid RowDefinitions="*,Auto">
         <fa:NavigationView Grid.Row="0" x:Name="NavView"
                            PaneDisplayMode="Auto"
@@ -41,7 +43,18 @@
             </fa:NavigationView.MenuItems>
             <ScrollViewer Padding="20,12,20,20">
                 <StackPanel Spacing="8">
-                    <TextBlock x:Name="PageTitle" Theme="{StaticResource TitleTextBlockStyle}" Text="作业" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock x:Name="PageTitle" Grid.Column="0"
+                                   Theme="{StaticResource TitleTextBlockStyle}" Text="作业" />
+                        <!-- 主题切换：跟随系统 → 浅色 → 深色 循环 -->
+                        <Button x:Name="ThemeButton" Grid.Column="1" Click="Theme_Click"
+                                ToolTip.Tip="切换主题（跟随系统 / 浅色 / 深色）">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <PathIcon x:Name="ThemeIcon" Width="16" Height="16" />
+                                <TextBlock x:Name="ThemeLabel" FontSize="12" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
                     <ContentControl x:Name="PageHost" />
                 </StackPanel>
             </ScrollViewer>
@@ -75,5 +88,6 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
     </Grid>
+    </LayoutTransformControl>
 
 </Window>

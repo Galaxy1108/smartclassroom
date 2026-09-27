@@ -66,3 +66,51 @@ public static class ContentZoom
         return true;
     }
 }
+
+/// <summary>
+/// 界面主题：跟随系统 / 浅色 / 深色。
+/// 与缩放一样集中在这里，设置页改完立刻应用到整个应用（含已打开的窗口）。
+/// </summary>
+public static class AppTheme
+{
+    public const string System = "default";
+    public const string Light = "light";
+    public const string Dark = "dark";
+
+    public static event Action<string>? Changed;
+
+    private static string _current = System;
+
+    /// <summary>当前选择（default / light / dark）。</summary>
+    public static string Current => _current;
+
+    /// <summary>应用到整个应用。</summary>
+    public static void Apply(string theme)
+    {
+        _current = Normalize(theme);
+        var variant = _current switch
+        {
+            Light => Avalonia.Styling.ThemeVariant.Light,
+            Dark => Avalonia.Styling.ThemeVariant.Dark,
+            _ => Avalonia.Styling.ThemeVariant.Default
+        };
+        if (Avalonia.Application.Current is { } app)
+            app.RequestedThemeVariant = variant;
+        Changed?.Invoke(_current);
+    }
+
+    public static string Normalize(string? theme) => theme?.Trim().ToLowerInvariant() switch
+    {
+        Light => Light,
+        Dark => Dark,
+        _ => System
+    };
+
+    /// <summary>界面显示用（跟随系统 / 浅色 / 深色）。</summary>
+    public static string Describe(string theme) => Normalize(theme) switch
+    {
+        Light => "浅色",
+        Dark => "深色",
+        _ => "跟随系统"
+    };
+}

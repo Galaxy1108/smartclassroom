@@ -244,3 +244,41 @@ public sealed class UpdateAndDebugTests : IDisposable
         Assert.Equal(before, Runtime.Feed.Entries.Count);
     }
 }
+
+/// <summary>
+/// 主题：跟随系统 / 浅色 / 深色；以及"启动时要真的应用"（以前缩放只在设置页改动时生效，
+/// 重启又回到 100%）。
+/// </summary>
+public sealed class ThemeAndZoomTests
+{
+    [AvaloniaFact]
+    public void Theme_AppliesAndPersists()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "sc-theme-" + Guid.NewGuid().ToString("N") + ".json");
+        var vm = new SettingsViewModel(path);
+        Runtime.Settings.UiScale = 1.0;
+
+        vm.ThemeChoice = "深色";
+        Assert.Equal("深色", vm.ThemeChoice);
+        Assert.Equal("dark", AppTheme.Current);   // 立刻应用
+        // 落盘的是这个 VM 的设置文件（生产环境与 Runtime.Settings 同一份）
+        Assert.Equal("dark", SmartClassroom.Core.SettingsStore.Load(path).Theme);
+
+        vm.ThemeChoice = "浅色";
+        Assert.Equal("light", AppTheme.Current);
+
+        vm.ThemeChoice = "跟随系统";
+        Assert.Equal("default", AppTheme.Current);
+
+        AppTheme.Apply("default");
+        File.Delete(path);
+    }
+
+    [AvaloniaFact]
+    public void Zoom_IsClampedAndDescribed()
+    {
+        Assert.Equal(0.8, ContentZoom.Clamp(0.1));
+        Assert.Equal(1.8, ContentZoom.Clamp(9));
+        Assert.Equal("130%", ContentZoom.Describe(1.3));
+    }
+}

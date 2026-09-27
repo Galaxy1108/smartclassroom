@@ -116,6 +116,9 @@ public static class Runtime
         var cancel = _cts.Token;
         Settings = SettingsStore.Load();
         ApplyAuthPolicy(Settings);
+        // 主题与缩放：启动就应用（以前缩放只在设置页改动时生效，重启又回到 100%）
+        AppTheme.Apply(Settings.Theme);
+        ContentZoom.Scale = Settings.UiScale;
         SettingsLoaded = true;
         LoadState();
         // 上次要是被强杀/异常退出，会留下永远"处理中"的卡片（实测有 66.8s 这种），启动时收尾

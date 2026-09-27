@@ -135,6 +135,13 @@
                                  Description="仅作用于「作业」页；支持 Ctrl+滚轮">
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,2,0,4">
+                            <TextBlock Text="主题" VerticalAlignment="Center" Width="72" />
+                            <ComboBox ItemsSource="{Binding ThemeChoices}"
+                                      SelectedItem="{Binding ThemeChoice}" MinWidth="140" />
+                            <TextBlock Text="（也可点右上角按钮循环切换）" FontSize="12" Opacity="0.6"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
                         <Slider Value="{Binding UiScale}" Minimum="0.8" Maximum="1.8"
                                 TickFrequency="0.1" IsSnapToTickEnabled="True"
                                 TickPlacement="BottomRight" Width="220" />

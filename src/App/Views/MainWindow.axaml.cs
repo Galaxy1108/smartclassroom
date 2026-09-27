@@ -1,3 +1,4 @@
+using Avalonia.Interactivity;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
@@ -18,6 +19,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // 全局缩放 + 主题：启动就应用一次，之后跟着设置变
+        ApplyZoom(ContentZoom.Scale);
+        ContentZoom.Changed += ApplyZoom;
+        ApplyTheme(AppTheme.Current);
+        AppTheme.Changed += ApplyTheme;
         _homeVm = new HomeworkViewModel(Runtime.Homework, () => Runtime.Settings.SubjectColors);
         _eventsVm = new EventsViewModel(Runtime.Feed, Runtime.Pending, Runtime.Pipeline);
         ToastList.ItemsSource = Toasts.Items;   // 右下角的应用内通知
@@ -95,5 +101,35 @@ public partial class MainWindow : Window
     {
         if ((sender as Button)?.Tag is ToastItem item)
             Toasts.Remove(item);
+    }
+
+    /// <summary>整窗缩放（含导航与页面）。</summary>
+    private void ApplyZoom(double scale)
+        => ZoomHost.LayoutTransform = new Avalonia.Media.ScaleTransform(scale, scale);
+
+    /// <summary>主题按钮的图标与文字跟着当前主题走。</summary>
+    private void ApplyTheme(string theme)
+    {
+        ThemeLabel.Text = AppTheme.Describe(theme);
+        ThemeIcon.Data = theme switch
+        {
+            AppTheme.Light => (Avalonia.Media.Geometry)Application.Current!.FindResource("IconSun"),
+            AppTheme.Dark => (Avalonia.Media.Geometry)Application.Current!.FindResource("IconMoon"),
+            _ => (Avalonia.Media.Geometry)Application.Current!.FindResource("IconTheme")
+        };
+    }
+
+    /// <summary>点击循环：跟随系统 → 浅色 → 深色 → 跟随系统。</summary>
+    private void Theme_Click(object? sender, RoutedEventArgs e)
+    {
+        var next = AppTheme.Current switch
+        {
+            AppTheme.System => AppTheme.Light,
+            AppTheme.Light => AppTheme.Dark,
+            _ => AppTheme.System
+        };
+        AppTheme.Apply(next);
+        Runtime.Settings.Theme = next;
+        SmartClassroom.Core.SettingsStore.Save(Runtime.Settings);
     }
 }

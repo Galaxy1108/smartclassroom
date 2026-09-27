@@ -102,6 +102,11 @@ public sealed class AppSettings
     public bool CopyToDownloads { get; set; } = true;
 
     /// <summary>
+    /// 界面主题：<c>default</c>（跟随系统）/ <c>light</c> / <c>dark</c>。
+    /// </summary>
+    public string Theme { get; set; } = "default";
+
+    /// <summary>
     /// 解锁后 10 分钟内免重复输入管理员密码。**默认 false = 每次操作都要密码**。
     /// </summary>
     public bool RememberUnlock { get; set; } = false;
@@ -164,6 +169,7 @@ public sealed class AppSettings
         FeatureNotice = d.FeatureNotice;
         SubjectColors = new Dictionary<string, string>(d.SubjectColors);
         RememberUnlock = d.RememberUnlock;
+        Theme = d.Theme;
         CopyToDownloads = d.CopyToDownloads;
         MinimizeToTray = d.MinimizeToTray;
         UiScale = d.UiScale;
