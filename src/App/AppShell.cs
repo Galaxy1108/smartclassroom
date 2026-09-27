@@ -20,9 +20,20 @@ public static class AppShell
     /// <summary>托盘是否可用（决定了关闭窗口是收起到托盘还是直接退出）。</summary>
     public static bool TrayAvailable { get; private set; }
 
+    /// <summary>
+    /// 是否"由开机自启动拉起"。命令行带 --tray 时为 true：
+    /// 只启动、不弹窗口，直接待在托盘里（用户明确要求）。
+    /// </summary>
+    public static bool StartHidden { get; set; }
+
     public static void Setup(IClassicDesktopStyleApplicationLifetime desktop)
     {
         CreateTray(desktop);
+
+        // 自启动拉起时隐藏主窗口 —— 但**托盘不可用就不隐藏**，
+        // 否则应用会变成"看不见也点不到"的幽灵进程。
+        if (StartHidden && TrayAvailable && desktop.MainWindow is { } main)
+            main.Hide();
 
         // 托盘可用时才拦截关闭；否则保持正常退出语义。
         desktop.ShutdownMode = TrayAvailable

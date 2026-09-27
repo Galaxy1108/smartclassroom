@@ -49,7 +49,7 @@ public static class AutoStart
                 if (key is null)
                     return false;
                 if (enabled && ExePath.Length > 0)
-                    key.SetValue(RunValue, $"\"{ExePath}\"");
+                    key.SetValue(RunValue, $"\"{ExePath}\" --tray");
                 else
                     key.DeleteValue(RunValue, throwOnMissingValue: false);
                 return true;
@@ -69,7 +69,7 @@ public static class AutoStart
                 Type=Application
                 Name=智慧课堂
                 Comment=QQ 消息 → ClassIsland 提醒 / 作业 / 换课 / 课件
-                Exec={ExePath}
+                Exec={ExePath} --tray
                 Icon=smartclassroom
                 Terminal=false
                 X-GNOME-Autostart-enabled=true

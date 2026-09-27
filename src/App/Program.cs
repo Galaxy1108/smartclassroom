@@ -10,8 +10,14 @@ sealed class Program
     // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
     // yet and stuff might break.
     [STAThread]
-    public static void Main(string[] args) => BuildAvaloniaApp()
-        .StartWithClassicDesktopLifetime(args);
+    public static void Main(string[] args)
+    {
+        // 开机自启动会带上 --tray：只启动、不弹窗口，待在托盘里。
+        AppShell.StartHidden = args.Any(a =>
+            a.Equals("--tray", StringComparison.OrdinalIgnoreCase)
+            || a.Equals("--autostart", StringComparison.OrdinalIgnoreCase));
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
 
     // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()
