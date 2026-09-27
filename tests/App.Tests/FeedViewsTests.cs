@@ -218,6 +218,15 @@ public sealed class HomeworkContextMenuTests
             .FirstOrDefault(b => b.Classes.Contains("hwcard"));
         Assert.NotNull(border);
         Assert.True(border!.Classes.Contains("selected"));
+
+        // 关键：重建卡片（拖拽结束/定时刷新都会走这里）之后，选中必须还在 ——
+        // 只记实例的话新卡片立刻变未选中，用户看到的就是"一松手框就没了"。
+        vm.Refresh();
+        Assert.True(vm.HasSelection);
+        Assert.True(vm.Items[0].IsSelected);
+        var border2 = view.GetVisualDescendants().OfType<Border>()
+            .FirstOrDefault(b => b.Classes.Contains("hwcard"));
+        Assert.True(border2!.Classes.Contains("selected"));
         window.Close();
     }
 }

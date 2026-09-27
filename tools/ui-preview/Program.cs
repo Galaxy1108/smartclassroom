@@ -177,6 +177,7 @@ Control HomeworkSelected()
     });
     var vm = new HomeworkViewModel(store, () => new Dictionary<string, string>());
     var view = new HomeworkView { DataContext = vm };
-    vm.Select(vm.Items[0]);   // 选中第一张，检查描边是否生效
+    vm.Select(vm.Items[0]);   // 选中第一张
+    vm.Refresh();             // 模拟拖拽结束/定时刷新后的重建
     return view;
 }

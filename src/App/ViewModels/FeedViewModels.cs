@@ -211,6 +211,7 @@ public sealed class HomeworkViewModel : ViewModelBase
             Items.Add(new HomeworkCard(all[i], now, SubjectColors));
             _visibleStoreIndex.Add(i);
         }
+        ApplySelection();   // 重建后把选中态盖回来（否则一刷新/一松手选中就没了）
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(TotalCount));
         OnPropertyChanged(nameof(EmptyHint));
@@ -235,11 +236,26 @@ public sealed class HomeworkViewModel : ViewModelBase
     public HomeworkCard? Selected { get; private set; }
     public bool HasSelection => Selected is not null;
 
+    /// <summary>
+    /// 选中一张卡片。**记住的是 id，不是实例** —— 拖拽结束与定时刷新都会重建卡片，
+    /// 只记实例的话新卡片立刻变成未选中，用户看到的就是"一松手框就没了"（实测）。
+    /// </summary>
     public void Select(HomeworkCard? card)
     {
-        Selected = card;
+        _selectedId = card?.HomeworkId;
+        ApplySelection();
+    }
+
+    private string? _selectedId;
+
+    /// <summary>把选中态重新盖到当前这批卡片上（每次重建后都要调用）。</summary>
+    private void ApplySelection()
+    {
+        Selected = _selectedId is null
+            ? null
+            : Items.FirstOrDefault(i => i.HomeworkId == _selectedId);
         foreach (var item in Items)
-            item.IsSelected = ReferenceEquals(item, card);
+            item.IsSelected = _selectedId is not null && item.HomeworkId == _selectedId;
         OnPropertyChanged(nameof(Selected));
         OnPropertyChanged(nameof(HasSelection));
     }
@@ -249,6 +265,8 @@ public sealed class HomeworkViewModel : ViewModelBase
     {
         if (!_store.Remove(homeworkId))
             return false;
+        if (_selectedId == homeworkId)
+            _selectedId = null;
         Refresh();
         return true;
     }
