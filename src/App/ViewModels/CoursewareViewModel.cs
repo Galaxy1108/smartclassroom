@@ -80,7 +80,12 @@ public sealed class CoursewareViewModel : ViewModelBase
     public bool IsTimeline => SelectedSubject is not null;
     public string SubjectTitle => SelectedSubject ?? "";
 
-    public bool IsEmpty => Subjects.Count == 0;
+    /// <summary>
+    /// 有没有内容。**必须同时看扁平列表（Items，上课弹窗用）和科目列表（Subjects，课件页用）** ——
+    /// 只看 Subjects 的话，上课弹窗里明明列出了文件，下面还挂着"还没有归档到课件"的空提示
+    ///（实测反馈："这不是有课件吗"）。
+    /// </summary>
+    public bool IsEmpty => Subjects.Count == 0 && Items.Count == 0;
 
     public string EmptyHint => "还没有归档到课件。老师往群里发文件后，"
                              + "开启「群文件自动归档」即可在这里看到。";
@@ -179,6 +184,7 @@ public sealed class CoursewareViewModel : ViewModelBase
         var vm = new CoursewareViewModel();
         foreach (var (name, path, size) in files)
             vm.Items.Add(CreateItem(name, path, size));
+        vm.OnPropertyChanged(nameof(IsEmpty));   // 空提示要跟着扁平列表走
         return vm;
     }
 

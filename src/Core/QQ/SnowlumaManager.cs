@@ -93,6 +93,34 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     /// <summary>SnowLuma 是否在跑：本进程启动的 / pid 文件记录的 / Linux 上扫 /proc 认出来的。</summary>
     public bool IsRunning(string installDir) => FindRunningPid(installDir) is not null;
 
+    /// <summary>
+    /// **跨平台**判断 OneBot 端点是否已经在跑（Windows 上没有 /proc，认不出别人启动的进程）。
+    /// 能连上并返回 OneBot 的 JSON 就算在跑 —— 启动前先问一句，避免重复起第二个实例抢端口。
+    /// </summary>
+    public static async Task<bool> IsEndpointAliveAsync(string httpBase, string? token = null,
+        CancellationToken cancel = default)
+    {
+        if (string.IsNullOrWhiteSpace(httpBase))
+            return false;
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+            if (!string.IsNullOrEmpty(token))
+                http.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            using var res = await http.GetAsync(httpBase.TrimEnd('/') + "/get_login_info", cancel)
+                .ConfigureAwait(false);
+            if (!res.IsSuccessStatusCode)
+                return false;
+            var text = await res.Content.ReadAsStringAsync(cancel).ConfigureAwait(false);
+            return text.Contains("user_id") || text.Contains("retcode");
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     /// <summary>找出正在跑的 SnowLuma 进程：本进程启动的 / pid 文件里的 / Linux 扫 /proc 的。</summary>
     public int? FindRunningPid(string installDir)
     {

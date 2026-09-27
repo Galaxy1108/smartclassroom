@@ -1938,6 +1938,15 @@ public sealed class SettingsViewModel : ViewModelBase
 
             RefreshLoggedInAccounts();
             await TryAdoptOneBotEndpointAsync();
+            // 启动前先问一句端点是否已经在跑 —— Windows 上没有 /proc，认不出别人启动的进程，
+            // 不检查就会再起一个实例抢端口（Linux 上靠 /proc 认出来了，Windows 上不会）。
+            if (await SnowlumaManager.IsEndpointAliveAsync(OneBotHttp, OneBotToken))
+            {
+                QqStatusText = "QQ 已经在跑（未重复启动）";
+                QqStatusSeverity = NoticeSeverity.Success;
+                AppendLog("检测到 OneBot 端点已有应答，跳过启动。");
+                return;
+            }
             var webUiPassword = EnsureWebUiPassword();
             if (webUiPassword is not null)
                 EnsureWebUiCredentials();   // 先让凭据能被播种，否则环境变量会被忽略

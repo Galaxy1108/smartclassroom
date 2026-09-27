@@ -590,6 +590,31 @@ ClassIsland 报"上课了" → 应用按 **当天日期 + 本节课科目** 从�
 - 没有当天该科的课件就**不弹**；
 - 弹窗标题就是「您可能需要的课件」，设置页有手动测试按钮。
 
+### 自己发的消息不会被当成收到的
+
+SnowLuma 对自发消息（self-echo）用 `post_type: "message_sent"` 标记，
+应用现在会**直接忽略**这类事件（群消息里 `user_id == self_id` 也一样）——
+以前会把**自己发给对方的文件**当成老师发的课件归档。
+
+### 上课弹窗
+
+- 窗口**置顶 + 居中 + 主动激活**（以前会落在主窗口后面，看起来像"没弹"）；
+- 有课件时顶部提示「今天老师发过这些文件，**双击文件即可打开**」；
+- 空状态判定同时看扁平列表和科目列表（以前弹窗里明明有文件，下面还挂着"还没有归档到课件"）。
+
+### Windows 兼容
+
+最终要在 Windows 上跑，所以这些地方都做了平台判断：
+
+| 位置 | Windows | Linux |
+|---|---|---|
+| 归档根 / 锁文件 | `%LOCALAPPDATA%\SmartClassroom\…` | `~/.local/share/SmartClassroom/…` |
+| 系统下载目录 | `%USERPROFILE%\Downloads` | `XDG_DOWNLOAD_DIR`（否则 `~/Downloads`） |
+| 找 SnowLuma 进程 | **端口探测**（没有 `/proc`） | 扫 `/proc` + 端口探测 |
+| ClassIsland 定位 | Program Files / `%LOCALAPPDATA%\Programs` / `C:\ClassIsland` | `/opt`、`~/.local/share`、`/usr/share` |
+| 启动 SnowLuma | `node.exe` | `node` |
+| 打开文件/文件夹 | `UseShellExecute`（两边一致） | 同左 |
+
 ### 图片会被"看懂"（视觉解析）
 
 老师发的**作业/通知截图**以前只会变成一条 `[图片]` ✗ —— 现在图片会**下载后一起发给模型**

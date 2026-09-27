@@ -170,7 +170,11 @@ public static class Runtime
                 var vm = CoursewareViewModel.FromFiles(files
                     .Where(f => f.LocalPath is not null)
                     .Select(f => (f.FileName, f.LocalPath!, f.Size)));
-                new CoursewareWindow { DataContext = vm }.Show();
+                var window = new CoursewareWindow { DataContext = vm };
+                // 无 owner 的 Show() 可能落在主窗口后面（实测反馈"弹窗没有被置于顶层"），
+                // 所以窗口本身 Topmost，这里再主动激活一次。
+                window.Show();
+                window.Activate();
             }
             catch (Exception ex) { Feed.Append("courseware", "课件弹窗失败", ex.Message, ActivitySeverity.Error); }
         });

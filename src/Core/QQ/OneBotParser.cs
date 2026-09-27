@@ -12,6 +12,19 @@ public static class OneBotParser
         if (!root.TryGetProperty("post_type", out var pt))
             return null;
 
+        // 自己发出去的消息/文件不算"收到"。
+        // SnowLuma 对自发消息（self-echo）用 post_type: "message_sent" 标记
+        //（见其 event-converter：isSelf ? "message_sent" : "message"）；
+        // 群消息里 user_id == self_id 同样说明是自己发的。
+        // 不排除的话，**自己发出去的文件会被当成老师发的课件归档**
+        //（实测反馈："为什么会把我给对方发过去的文件识别为课件"）。
+        if (pt.GetString() == "message_sent")
+            return null;
+        var userId = root.GetInt64OrZero("user_id");
+        var selfId = root.GetInt64OrZero("self_id");
+        if (userId > 0 && userId == selfId)
+            return null;
+
         return pt.GetString() switch
         {
             "message" => ParseMessage(root),

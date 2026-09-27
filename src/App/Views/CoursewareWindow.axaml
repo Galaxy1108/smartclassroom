@@ -8,6 +8,9 @@
         x:DataType="vm:CoursewareViewModel"
         Icon="/Assets/avalonia-logo.ico"
         Title="您可能需要的课件"
+        Topmost="True"
+        WindowStartupLocation="CenterScreen"
+        ShowActivated="True"
         Width="660" Height="440" MinWidth="480" MinHeight="320">
 
     <Design.DataContext>
@@ -15,7 +18,7 @@
     </Design.DataContext>
 
     <DockPanel Margin="12">
-        <TextBlock DockPanel.Dock="Top" Text="今天老师发过这些文件，双击打开："
+        <TextBlock DockPanel.Dock="Top" Text="今天老师发过这些文件，双击文件即可打开："
                    Margin="0,0,0,8" Opacity="0.8" IsVisible="{Binding !IsEmpty}" />
         <TextBlock DockPanel.Dock="Top" Text="{Binding EmptyHint}"
                    Margin="0,8,0,8" Opacity="0.7" TextWrapping="Wrap"

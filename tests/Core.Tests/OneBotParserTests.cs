@@ -268,3 +268,48 @@ public sealed class OneBotImageSegmentTests
         Assert.Equal("[2 张图片]", ev.Text);
     }
 }
+
+/// <summary>
+/// 自己发出去的消息/文件不能被当成"收到的"。
+/// 实测反馈："为什么会把我给对方发过去的文件识别为课件" ——
+/// SnowLuma 对自发消息用 post_type:"message_sent" 标记，我们以前照单全收。
+/// </summary>
+public sealed class SelfSentMessageTests
+{
+    [Fact]
+    public void SelfSentPrivateFile_IsIgnored()
+    {
+        var json = """
+            {"post_type":"message_sent","message_type":"private","time":1,"self_id":3768914943,
+             "user_id":2131023099,"message_id":7,
+             "message":[{"type":"file","data":{"name":"屏幕录像.mp4","file_id":"v1","size":420000}}],
+             "sender":{"nickname":"王子诚"}}
+            """;
+
+        Assert.Null(OneBotParser.Parse(json));
+    }
+
+    [Fact]
+    public void SelfSentGroupMessage_IsIgnored()
+    {
+        var json = """
+            {"post_type":"message","message_type":"group","time":1,"self_id":3768914943,
+             "group_id":100200300,"user_id":3768914943,"message_id":8,
+             "message":[{"type":"text","data":{"text":"我发的"}}],"sender":{}}
+            """;
+
+        Assert.Null(OneBotParser.Parse(json));
+    }
+
+    [Fact]
+    public void IncomingMessage_StillParsed()
+    {
+        var json = """
+            {"post_type":"message","message_type":"private","time":1,"self_id":3768914943,
+             "user_id":2131023099,"message_id":9,
+             "message":[{"type":"text","data":{"text":"作业"}}],"sender":{"nickname":"王子诚"}}
+            """;
+
+        Assert.NotNull(OneBotParser.Parse(json));
+    }
+}

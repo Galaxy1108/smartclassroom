@@ -314,7 +314,7 @@ public sealed class ToastAndStatusTests : IDisposable
     // ================= WebUI 初始密码 =================
 
     [AvaloniaFact]
-    public void WebUiPassword_IsGeneratedOnlyWhileStillBootstrap()
+    public async Task WebUiPassword_IsGeneratedOnlyWhileStillBootstrap()
     {
         var dir = Path.Combine(Path.GetTempPath(), "sc-webui-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(dir, "config"));
@@ -330,7 +330,7 @@ public sealed class ToastAndStatusTests : IDisposable
             vm.ConsentPrompt = _ => Task.FromResult(true);
             Assert.False(vm.HasWebUiPassword);
 
-            vm.StartAsync();   // 会走到 EnsureWebUiPassword（SnowLuma 未安装，启动会失败，但密码已定）
+            await vm.StartAsync();   // 会走到 EnsureWebUiPassword（SnowLuma 未安装，启动会失败，但密码已定）
 
             Assert.True(vm.HasWebUiPassword);
             Assert.Contains("admin", vm.WebUiLoginHint);
