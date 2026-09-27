@@ -46,7 +46,9 @@ public class ExchangeService
                 return verdict;
 
             // 3) 落课：确保临时层后编辑。
-            if (req.Kind == ExchangeKind.Swap && req.To is not null)
+            // CrossDay 就是"跨天的对调"，和 Swap 同一套动作（两边各自临时层里互换科目）。
+            // 以前只认 Swap → 跨天对调落到最后那个 else，报"该换课类型暂不支持自动执行"。
+            if ((req.Kind is ExchangeKind.Swap or ExchangeKind.CrossDay) && req.To is not null)
             {
                 var fromTemp = EnsureTemp(plans[req.From.Date], req.From.Date);
                 var toTemp = EnsureTemp(plans[req.To.Date], req.To.Date);
