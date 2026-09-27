@@ -155,9 +155,41 @@ public sealed class AiGateway(AiOptions options, HttpClient? http = null) : IAiC
             if (start >= 0 && end > start)
                 return t.Substring(start + 1, end - start - 1).Trim();
         }
-        var b = t.IndexOf('{');
-        var e = t.LastIndexOf('}');
-        return b >= 0 && e > b ? t.Substring(b, e - b + 1) : t;
+        // 取第一段完整的 JSON。**数组也要认**：换课一次改多节课时模型返回的是数组，
+        // 以前只找 {} 会把数组截成一个对象（实测解析直接失败）。
+        var firstBrace = t.IndexOf('{');
+        var firstBracket = t.IndexOf('[');
+        var jsonStart = firstBrace < 0 ? firstBracket
+            : firstBracket < 0 ? firstBrace
+            : Math.Min(firstBrace, firstBracket);
+        if (jsonStart < 0)
+            return t;
+
+        var open = t[jsonStart];
+        var close = open == '[' ? ']' : '}';
+        var depth = 0;
+        var inString = false;
+        var escaped = false;
+        for (var i = jsonStart; i < t.Length; i++)
+        {
+            var c = t[i];
+            if (inString)
+            {
+                if (escaped) { escaped = false; }
+                else if (c == '\\') { escaped = true; }
+                else if (c == '"') { inString = false; }
+                continue;
+            }
+            if (c == '"') { inString = true; continue; }
+            if (c == open) depth++;
+            else if (c == close && --depth == 0)
+                return t.Substring(jsonStart, i - jsonStart + 1);
+        }
+        // 没闭合（模型输出被截断）：退回到"最后一个 } 或 ]"
+        var lastBrace = t.LastIndexOf('}');
+        var lastBracket = t.LastIndexOf(']');
+        var jsonEnd = Math.Max(lastBrace, lastBracket);
+        return jsonEnd > jsonStart ? t.Substring(jsonStart, jsonEnd - jsonStart + 1) : t;
     }
 }
 

@@ -152,7 +152,7 @@ public class BridgeServer(ExchangeService exchange) : IHostedService
             var lessons = IAppHost.GetService<ILessonsService>();
             await WriteJsonAsync(stream, 200, new PluginStatus
             {
-                PluginVersion = "0.44.3",
+                PluginVersion = "0.45.0",
                 ClassPlanLoaded = lessons.IsClassPlanLoaded
             }).ConfigureAwait(false);
             return;
@@ -219,7 +219,11 @@ public class BridgeServer(ExchangeService exchange) : IHostedService
                 await WriteJsonAsync(stream, 400, new { error = "empty body" }).ConfigureAwait(false);
                 return;
             }
-            var verdict = exchange.Handle(req);
+            // ⚠️ 换课必须在 **UI 线程**上执行：ClassIsland 的档案/课表服务会校验调用线程，
+            // 在桥接的 HTTP 线程上直接调会抛 InvalidOperationException "Call from invalid thread"
+            //（实测：用户复现出的就是这条；通知那条路早就切了 UI 线程，换课漏了）。
+            var verdict = await Avalonia.Threading.Dispatcher.UIThread
+                .InvokeAsync(() => exchange.Handle(req));
             await WriteJsonAsync(stream, 200, verdict).ConfigureAwait(false);
             return;
         }

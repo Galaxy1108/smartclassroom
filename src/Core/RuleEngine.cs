@@ -272,7 +272,7 @@ public sealed class AiAnalyzer(IAiClient ai)
     /// 实测"明天的那个周测改成语文了"这类消息根本没说第几节，
     /// 不给课表 AI 只能瞎猜（或干脆给不出节次，整条转人工）。
     /// </param>
-    public async Task<ExchangeDraft> AnalyzeExchangeAsync(string text, string? timetables = null,
+    public async Task<IReadOnlyList<ExchangeDraft>> AnalyzeExchangeAsync(string text, string? timetables = null,
         CancellationToken cancel = default, Action<string>? onProgress = null)
     {
         var system = $$"""
@@ -282,14 +282,33 @@ public sealed class AiAnalyzer(IAiClient ai)
 
             【课表】没写第几节时**必须**靠它推断，不要留空：
             {{timetables ?? "（取不到课表）"}}
+            一次要改**多节课**时（例如"明天的自习课全部改成语文"）：
+            **输出一个数组**，每个元素是一节课（各自带 from.period），只改一节就输出单个对象。
+
+            ⚠️ 多节课时**必须逐节核对课表**，只选科目名里真的含关键词的那些节：
+              - "自习课" → 课表里科目名**含"自习"**的节（如"语文早自习""数学晚自习"），
+                没有就是没有，**不要推测、不要把相邻节次也算进来**；
+              - 每节的 subject 要照抄课表里的科目名（"语文早自习"就写"语文早自习"）。
+
             推断规则：
             - "周测/测验/考试改成X"：先找课表里该科目原本的那一节；找不到就用当天最后一节正课。
             - "某科老师要讲课/某科改成X"：取课表里那一科的节次。
             - 实在无法确定时才留空 period（上层会转人工）。
             """;
         var raw = await ai.AskAsync(system, text, cancel, onProgress).ConfigureAwait(false);
-        var d = JsonSerializer.Deserialize<ExchangeDraft>(AiGateway.ExtractJson(raw), Json);
-        return d ?? throw new AiException("换课解析为空");
+        var json = AiGateway.ExtractJson(raw);
+        using var doc = JsonDocument.Parse(json);
+        // 一次改多节课时模型返回**数组**（每个元素一节课），只改一节就是单个对象。
+        // 这样插件与校验器完全不用改：每节课各走一次单节次流程，且共用同一个临时层。
+        var list = doc.RootElement.ValueKind == JsonValueKind.Array
+            ? doc.RootElement.EnumerateArray()
+                .Select(e => JsonSerializer.Deserialize<ExchangeDraft>(e.GetRawText(), Json))
+                .Where(d => d is not null).Select(d => d!).ToList()
+            : [JsonSerializer.Deserialize<ExchangeDraft>(json, Json)
+               ?? throw new AiException("换课解析为空")];
+        if (list.Count == 0)
+            throw new AiException("换课解析为空");
+        return list;
     }
 }
 

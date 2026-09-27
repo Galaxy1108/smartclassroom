@@ -1,3 +1,4 @@
+using SmartClassroom.Contracts;
 using SmartClassroom.Core.AI;
 using Xunit;
 
@@ -70,10 +71,34 @@ public sealed class AiGatewayTests
         var reply = """{"is_exchange":true,"kind":"CrossDay","from":{"date":"2026-09-26","period":3,"subject":"数学"},"to":{"date":"2026-09-25","period":5},"new_subject":"","confidence":0.85}""";
         var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
             new HttpClient(new StubHandler(ChatReply(reply))));
-        var d = await new AiAnalyzer(ai).AnalyzeExchangeAsync("明早第三节数学和今天第五节换");
+        var list = await new AiAnalyzer(ai).AnalyzeExchangeAsync("明早第三节数学和今天第五节换");
+        var d = Assert.Single(list);            // 只改一节时模型返回单个对象
         Assert.Equal("CrossDay", d.Kind);
         Assert.Equal(3, d.From.Period);
         Assert.NotNull(d.To);
+    }
+
+    /// <summary>
+    /// 一次改多节课（"明天的自习课全部改成语文"）：模型返回**数组**，每个元素一节课。
+    /// 这样插件与校验器完全不用改，各走一次单节次流程，而且都落在同一个临时层里。
+    /// </summary>
+    [Fact]
+    public async Task AnalyzeExchange_ParsesArrayOfPeriods()
+    {
+        var reply = """
+            [{"is_exchange":true,"kind":"Replace","from":{"date":"2026-09-28","period":2,"subject":"自习"},"new_subject":"语文","confidence":0.9},
+             {"is_exchange":true,"kind":"Replace","from":{"date":"2026-09-28","period":5,"subject":"自习"},"new_subject":"语文","confidence":0.9},
+             {"is_exchange":true,"kind":"Replace","from":{"date":"2026-09-28","period":7,"subject":"自习"},"new_subject":"语文","confidence":0.9}]
+            """;
+        var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
+            new HttpClient(new StubHandler(ChatReply(reply))));
+
+        var list = await new AiAnalyzer(ai).AnalyzeExchangeAsync("明天的自习课全部改为语文");
+
+        Assert.Equal(3, list.Count);
+        Assert.All(list, d => Assert.Equal("Replace", d.Kind));
+        Assert.All(list, d => Assert.Equal("语文", d.NewSubject));
+        Assert.Equal([2, 5, 7], list.Select(d => d.From!.Period).ToArray());
     }
 
     [Fact]

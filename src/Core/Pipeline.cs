@@ -610,8 +610,6 @@ public sealed class PipelineService(
             verdict.Legal ? $"人工换课已执行：{verdict.Message}" : $"人工换课被驳回：{verdict.Message}",
             item.RawText,
             verdict.Legal ? ActivitySeverity.Success : ActivitySeverity.Warning);
-        if (!verdict.Legal)
-            gate.EnqueueManual("需手动换课", verdict.Message);
         return verdict.Message;
     }
 
@@ -810,7 +808,8 @@ public sealed class PipelineService(
         IIncomingMessage ev, SenderInfo sender, CancellationToken cancel,
         bool keepOnFailure = false, string? resolvePendingId = null, Guid? rowId = null)
     {
-        ExchangeDraft d;
+        IReadOnlyList<ExchangeDraft> drafts;
+        IReadOnlyList<(DateOnly Date, ClassPlanDay? Plan)> plans = [];
         try
         {
             // 两步走：先问 AI 这条消息涉及哪几天（跨周也能算出来），再按那些日期取课表。
@@ -822,12 +821,12 @@ public sealed class PipelineService(
                 wanted = [today, today.AddDays(1)];   // 没解析出来就退回今天/明天
 
             UpdateRow(rowId, "正在解析换课", $"取课表：{string.Join("、", wanted.Select(d => d.ToString("MM-dd")))}…");
-            var plans = await Task.WhenAll(wanted.Select(async d =>
+            plans = await Task.WhenAll(wanted.Select(async d =>
                 (Date: d, Plan: await plugin.GetClassPlanAsync(d, cancel).ConfigureAwait(false))));
             var timetableText = string.Join("\n", plans.Select(p =>
                 $"{p.Date:yyyy-MM-dd}（{Weekday(p.Date)}）：{PluginLink.DescribeClassPlan(p.Plan)}"));
             UpdateRow(rowId, "正在解析换课", "已取到课表，交给 AI 解析…");
-            d = await ai.AnalyzeExchangeAsync(ev.Text, timetableText, cancel,
+            drafts = await ai.AnalyzeExchangeAsync(ev.Text, timetableText, cancel,
                 msg => UpdateRow(rowId, "正在解析换课", msg)).ConfigureAwait(false);
         }
         catch (AiException ex)
@@ -837,18 +836,68 @@ public sealed class PipelineService(
                     new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
             return;
         }
-        if (!d.IsExchange)
+        if (drafts.Count == 0 || drafts.All(d => !d.IsExchange))
         {
             if (resolvePendingId is not null)
                 pending.Remove(resolvePendingId);
             return;
         }
+        // 一次可能改多节课（"明天的自习课全部改成语文"）：AI 返回数组，每节课各走一次单节次流程，
+        // 插件与校验器不用改，而且都写在同一个临时层里。
+        var done = new List<string>();
+        var failed = new List<string>();
+        var skipped = new List<string>();
+        foreach (var d in drafts.Where(x => x.IsExchange))
+        {
+            // 用真实课表核对 AI 报的科目：多节课时模型容易"顺推"（把第 2~5 节也算成自习），
+            // 这里对不上就丢掉，别照着幻觉改课表。
+            if (!SubjectMatchesTimetable(d, plans))
+            {
+                skipped.Add($"第{d.From?.Period}节（课表里是{ActualSubject(d, plans) ?? "未知"}，"
+                            + $"AI 说是{d.From?.Subject}）");
+                continue;
+            }
+            var (ok, message) = await ApplyOneExchangeAsync(d, ev, sender, cancel, keepOnFailure, rowId)
+                .ConfigureAwait(false);
+            if (ok)
+                done.Add(message);
+            else if (message.Length > 0)
+                failed.Add(message);
+        }
+
+        if (skipped.Count > 0 && done.Count == 0 && failed.Count == 0)
+        {
+            AddPending("exchange", "换课节次与课表不符", ev.Text,
+                $"AI 给出的节次与课表对不上：{string.Join("；", skipped)}", sender,
+                new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
+            return;
+        }
+        if (done.Count == 0 && failed.Count == 0)
+            return;
+        if (failed.Count > 0)
+        {
+            AddPending("exchange", "换课需要人工处理", ev.Text,
+                string.Join("；", failed.Concat(done)), sender,
+                new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
+            return;
+        }
+        if (resolvePendingId is not null)
+            pending.Remove(resolvePendingId);
+        Finish(rowId, done.Count > 1 ? $"已执行：换课（{done.Count} 节）" : "已执行：换课",
+            $"{string.Join("；", done)} · {ev.Text}");
+    }
+
+    /// <summary>执行一节课的换课请求。返回 (是否成功, 说明)；说明为空表示已单独记过待处理。</summary>
+    private async Task<(bool Ok, string Message)> ApplyOneExchangeAsync(
+        ExchangeDraft d, IIncomingMessage ev, SenderInfo sender, CancellationToken cancel,
+        bool keepOnFailure, Guid? rowId)
+    {
         if (!Enum.TryParse<ExchangeKind>(d.Kind, ignoreCase: true, out var kind))
         {
             if (!keepOnFailure)
-                AddPending("exchange", $"换课类型未知（{d.Kind}），需人工补录", ev.Text, "AI 返回的类型无法识别", sender,
-                    new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
-            return;
+                AddPending("exchange", $"换课类型未知（{d.Kind}），需人工补录", ev.Text, "AI 返回的类型无法识别",
+                    sender, new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
+            return (false, "");
         }
         // 节次缺失（模型没给 / 给了非数字）就转人工，别拿 0 去查课表
         var fromPeriod = d.From?.Period ?? 0;
@@ -857,7 +906,7 @@ public sealed class PipelineService(
             if (!keepOnFailure)
                 AddPending("exchange", "换课缺少节次，需人工补录", ev.Text, "AI 没给出具体第几节", sender,
                     new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
-            return;
+            return (false, "");
         }
         var req = new ExchangeRequest
         {
@@ -874,22 +923,46 @@ public sealed class PipelineService(
             Confidence = d.Confidence
         };
         ExchangeVerdict verdict;
-        try { verdict = await plugin.ExchangeAsync(req, cancel).ConfigureAwait(false); }
+        try
+        {
+            verdict = await plugin.ExchangeAsync(req, cancel).ConfigureAwait(false);
+        }
         catch (Exception ex)
         {
             if (!keepOnFailure)
                 AddPending("exchange", "换课请求发送失败，需人工确认", ev.Text, ex.Message, sender,
                     new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }, rowId: rowId);
-            return;
+            return (false, "");
         }
-        if (resolvePendingId is not null)
-            pending.Remove(resolvePendingId);
-        Finish(rowId,
-            verdict.Legal ? "已执行：换课" : "已忽略：换课非法（已转人工）",
-            $"{verdict.Message} · {ev.Text}",
-            verdict.Legal ? ActivitySeverity.Success : ActivitySeverity.Muted);
         if (!verdict.Legal)
-            gate.EnqueueManual("需手动换课", verdict.Message);
+            return (false, verdict.Message);   // 上层汇总后统一进"需要人工介入"
+        return (true, verdict.Message);
+    }
+
+    /// <summary>某节课在真实课表里的科目名（查不到返回 null）。</summary>
+    private static string? ActualSubject(ExchangeDraft d,
+        IReadOnlyList<(DateOnly Date, ClassPlanDay? Plan)> plans)
+    {
+        if (d.From is null)
+            return null;
+        var date = ParseDate(d.From.Date);
+        var plan = plans.FirstOrDefault(p => p.Date == date).Plan;
+        return plan?.Periods.FirstOrDefault(p => p.Index == d.From.Period)?.Subject;
+    }
+
+    /// <summary>
+    /// AI 报的科目和课表是否对得上（宽松包含匹配，任一为空则放行）。
+    /// 目的：拦住"自习课全部改成语文"里被顺推出来的节次。
+    /// </summary>
+    internal static bool SubjectMatchesTimetable(ExchangeDraft d,
+        IReadOnlyList<(DateOnly Date, ClassPlanDay? Plan)> plans)
+    {
+        var claimed = d.From?.Subject?.Trim();
+        var actual = ActualSubject(d, plans)?.Trim();
+        if (string.IsNullOrEmpty(claimed) || string.IsNullOrEmpty(actual))
+            return true;   // 有一边没给就不拦，交给插件校验
+        return actual.Contains(claimed, StringComparison.OrdinalIgnoreCase)
+               || claimed.Contains(actual, StringComparison.OrdinalIgnoreCase);
     }
 
     private static DateOnly ParseDate(string s)
