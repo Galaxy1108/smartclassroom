@@ -88,7 +88,9 @@ public sealed class PipelineTests
                 _sent.Add((Prop("channel", "Channel"), Prop("title", "Title")));
                 return Json(new { });
             }
-            _exchangeCalls++;
+            // 只统计真正的换课提交：解析前还会 GET /classplan 取课表
+            if (path.EndsWith("/exchange"))
+                _exchangeCalls++;
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(exchangeVerdict) };
         })));
         var oneBot = new OneBotClient("http://q", "ws://q", null, new HttpClient(new StubHandler(_ =>

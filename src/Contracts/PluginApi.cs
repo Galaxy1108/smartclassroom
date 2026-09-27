@@ -25,3 +25,29 @@ public sealed record PluginStatus
     public required string PluginVersion { get; init; }
     public required bool ClassPlanLoaded { get; init; }
 }
+
+/// <summary>GET /classplan?date=yyyy-MM-dd 的返回：某天的课表（**临时层优先**）。</summary>
+public sealed record ClassPlanDay
+{
+    /// <summary>日期（yyyy-MM-dd）。</summary>
+    public required string Date { get; init; }
+
+    /// <summary>当天有没有课表（false 时 Periods 为空）。</summary>
+    public required bool HasPlan { get; init; }
+
+    /// <summary>这份课表是不是临时层（覆盖层）。</summary>
+    public bool IsOverlay { get; init; }
+
+    /// <summary>节次列表（Index 从 1 开始，与课表节次序号一致）。</summary>
+    public required List<ClassPlanPeriod> Periods { get; init; }
+}
+
+public sealed record ClassPlanPeriod
+{
+    public required int Index { get; init; }
+    public required string Subject { get; init; }
+
+    /// <summary>该节的起止时间（无时间表则为空），便于 AI 理解"第几节"。</summary>
+    public string? Start { get; init; }
+    public string? End { get; init; }
+}

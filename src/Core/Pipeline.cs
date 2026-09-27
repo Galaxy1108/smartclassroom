@@ -627,7 +627,14 @@ public sealed class PipelineService(
         ExchangeDraft d;
         try
         {
-            d = await ai.AnalyzeExchangeAsync(ev.Text, cancel,
+            // 把今天/明天的课表一起给 AI —— 消息常常不说第几节
+            //（"明天的那个周测改成语文了"），没有课表它根本落不到节次上。
+            var today = DateOnly.FromDateTime(DateTime.Now);
+            var timetableText =
+                $"今天（{today:yyyy-MM-dd}）：{PluginLink.DescribeClassPlan(await plugin.GetClassPlanAsync(today, cancel).ConfigureAwait(false))}\n"
+                + $"明天（{today.AddDays(1):yyyy-MM-dd}）：{PluginLink.DescribeClassPlan(await plugin.GetClassPlanAsync(today.AddDays(1), cancel).ConfigureAwait(false))}";
+            UpdateRow(rowId, "正在解析换课", "已取到课表，交给 AI 解析…");
+            d = await ai.AnalyzeExchangeAsync(ev.Text, timetableText, cancel,
                 msg => UpdateRow(rowId, "正在解析换课", msg)).ConfigureAwait(false);
         }
         catch (AiException ex)

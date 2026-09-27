@@ -19,6 +19,38 @@ public sealed class PluginLink
 
     private string Token { get; }
 
+    /// <summary>
+    /// 取某天的课表（**临时层优先**：插件侧走 ClassIsland 的 GetClassPlanByDate，
+    /// 它会先查按日期覆盖的临时层）。取不到返回 null，调用方降级。
+    /// </summary>
+    public async Task<ClassPlanDay?> GetClassPlanAsync(DateOnly date, CancellationToken cancel = default)
+    {
+        try
+        {
+            using var res = await _http.GetAsync($"classplan?date={date:yyyy-MM-dd}", cancel).ConfigureAwait(false);
+            if (!res.IsSuccessStatusCode)
+                return null;
+            var text = await res.Content.ReadAsStringAsync(cancel).ConfigureAwait(false);
+            return System.Text.Json.JsonSerializer.Deserialize<ClassPlanDay>(text, Json);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>把某天课表压成一行给 AI 看（"第1节语文、第2节数学…"）。</summary>
+    public static string DescribeClassPlan(ClassPlanDay? day)
+    {
+        if (day is null || !day.HasPlan)
+            return "（取不到课表）";
+        var parts = day.Periods
+            .Where(p => p.Subject.Length > 0)
+            .Select(p => $"第{p.Index}节{p.Subject}");
+        var text = string.Join("、", parts);
+        return day.IsOverlay ? text + "（含临时调整）" : text;
+    }
+
     public async Task<bool> IsAliveAsync(CancellationToken cancel = default)
     {
         try

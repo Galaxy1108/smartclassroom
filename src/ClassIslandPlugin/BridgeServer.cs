@@ -135,12 +135,24 @@ public class BridgeServer(ExchangeService exchange) : IHostedService
         var (method, path, headers, pending) = head.Value;
         var body = await ReadBodyAsync(stream, headers, pending).ConfigureAwait(false);
 
+        if (method == "GET" && path.StartsWith("/classplan", StringComparison.Ordinal))
+        {
+            var query = path.Contains('?') ? path[(path.IndexOf('?') + 1)..] : "";
+            var dateText = query.Split('&')
+                .Select(kv => kv.Split('=', 2))
+                .FirstOrDefault(kv => kv.Length == 2 && kv[0] == "date") is { Length: 2 } pair
+                ? Uri.UnescapeDataString(pair[1])
+                : "";
+            await WriteJsonAsync(stream, 200, BuildClassPlan(dateText)).ConfigureAwait(false);
+            return;
+        }
+
         if (method == "GET" && path == "/status")
         {
             var lessons = IAppHost.GetService<ILessonsService>();
             await WriteJsonAsync(stream, 200, new PluginStatus
             {
-                PluginVersion = "0.36.3",
+                PluginVersion = "0.37.0",
                 ClassPlanLoaded = lessons.IsClassPlanLoaded
             }).ConfigureAwait(false);
             return;
@@ -203,6 +215,55 @@ public class BridgeServer(ExchangeService exchange) : IHostedService
         }
 
         await WriteJsonAsync(stream, 404, new { error = "not found" }).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 取某天的课表。**临时层优先**：ClassIsland 的 GetClassPlanByDate 本身就会先查
+    /// OrderedSchedules 里的临时层，再回落到周循环课表 —— 所以换课后的结果也会被读到。
+    /// </summary>
+    private static ClassPlanDay BuildClassPlan(string dateText)
+    {
+        var date = DateOnly.TryParse(dateText, out var d) ? d : DateOnly.FromDateTime(DateTime.Now);
+        try
+        {
+            var lessons = IAppHost.GetService<ILessonsService>();
+            var profiles = IAppHost.GetService<IProfileService>();
+            var plan = lessons.GetClassPlanByDate(date.ToDateTime(TimeOnly.MinValue), out _);
+            if (plan is null)
+                return new ClassPlanDay { Date = date.ToString("yyyy-MM-dd"), HasPlan = false, Periods = [] };
+
+            var subjects = profiles.Profile.Subjects;
+            var periods = new List<ClassPlanPeriod>();
+            var layouts = plan.TimeLayout?.Layouts.Where(l => l.TimeType == 0).ToList();
+            for (var i = 0; i < plan.Classes.Count; i++)
+            {
+                var cls = plan.Classes[i];
+                var name = cls.SubjectId is { } id && subjects.TryGetValue(id, out var s) ? s.Name : "";
+                var slot = layouts is not null && i < layouts.Count ? layouts[i] : null;
+                periods.Add(new ClassPlanPeriod
+                {
+                    Index = i + 1,
+                    Subject = name,
+                    // 注意：ClassIsland 的 StartTime/EndTime 是 TimeSpan，
+                    // TimeSpan 的格式串必须写 hh\:mm（用 "HH:mm" 会抛 FormatException —— 实测踩到，
+                    // 结果整个接口都返回"当天没有课表"）。
+                    Start = slot is null ? null : slot.StartTime.ToString(@"hh\:mm"),
+                    End = slot is null ? null : slot.EndTime.ToString(@"hh\:mm")
+                });
+            }
+            return new ClassPlanDay
+            {
+                Date = date.ToString("yyyy-MM-dd"),
+                HasPlan = true,
+                IsOverlay = plan.IsOverlay,
+                Periods = periods
+            };
+        }
+        catch (Exception ex)
+        {
+            Plugin.Diag("取课表失败：" + ex);
+            return new ClassPlanDay { Date = date.ToString("yyyy-MM-dd"), HasPlan = false, Periods = [] };
+        }
     }
 
     /// <summary>从 DI 里取提醒提供方（取不到就返回 null，不要让请求炸掉）。</summary>
