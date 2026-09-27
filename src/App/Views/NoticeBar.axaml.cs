@@ -56,6 +56,34 @@ public partial class NoticeBar : UserControl
         InitializeComponent();
         ActualThemeVariantChanged += (_, _) => Apply();
         Apply();
+        // 出现动效：淡入 + 从右侧轻微滑入（用户："通知是不是要有动效"）。
+        // 用 Transitions 而不是动画关键帧 —— 列表项是动态增删的，样式动画不好挂。
+        Transitions = new Avalonia.Animation.Transitions
+        {
+            new Avalonia.Animation.DoubleTransition
+            {
+                Property = OpacityProperty,
+                Duration = TimeSpan.FromMilliseconds(180),
+                Easing = new Avalonia.Animation.Easings.CubicEaseOut()
+            },
+            new Avalonia.Animation.TransformOperationsTransition
+            {
+                Property = RenderTransformProperty,
+                Duration = TimeSpan.FromMilliseconds(220),
+                Easing = new Avalonia.Animation.Easings.CubicEaseOut()
+            }
+        };
+        Opacity = 0;
+        RenderTransform = new Avalonia.Media.TranslateTransform(18, 0);
+        AttachedToVisualTree += (_, _) =>
+        {
+            // 下一帧再设终值，否则和初始值同帧、看不到过渡
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                Opacity = 1;
+                RenderTransform = new Avalonia.Media.TranslateTransform(0, 0);
+            }, Avalonia.Threading.DispatcherPriority.Background);
+        };
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)

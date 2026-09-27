@@ -41,10 +41,8 @@ public static class Runtime
     public static PipelineService? Pipeline { get; private set; }
 
     /// <summary>已提示过"该群没监听"的群（每个群只提示一次）。</summary>
-    private static readonly HashSet<long> _ignoredGroups = [];
 
     /// <summary>已提示过"没开私聊监听"的发件人（每个只提示一次）。</summary>
-    private static readonly HashSet<long> _ignoredPrivate = [];
 
     /// <summary>
     /// 把"解锁后是否记住 10 分钟"应用到 AuthGate。
@@ -414,18 +412,18 @@ public static class Runtime
 
     private static async Task RunQqLoopAsync(OneBotClient oneBot, PipelineService pipeline, MainViewModel status, CancellationToken cancel)
     {
-        var groups = new HashSet<long>(Settings.GroupIds);
-        var listenAll = Settings.ListenAllGroups;
         while (!cancel.IsCancellationRequested)
         {
             try
             {
                 await oneBot.RunEventLoopAsync(async (ev, ct) =>
                 {
-                    // 只有开了「监听全部群」才不过滤。
-                    // 注意：不能写成 groups.Count == 0 就全放行 —— 那样"只监听私聊"的用户
+                    // 每条事件都按**当前**设置判断：以前这里读一次就固定下来，
+                    // 用户在设置里加完群不重启不生效（实测：加了群，新消息一条记录都没有）。
+                    // 注意：不能写成"群列表为空就全放行" —— 那样"只监听私聊"的用户
                     // 会意外处理所有群的消息。
-                    var wanted = listenAll;
+                    var wanted = Settings.ListenAllGroups;
+                    var groups = Settings.GroupIds;
                     switch (ev)
                     {
                         case GroupMessageEvent m when wanted || groups.Contains(m.GroupId):
@@ -437,17 +435,16 @@ public static class Runtime
                             break;
                         }
                         case GroupMessageEvent ignored:
+                        {
                             // 没监听的群也要给出**结果**（已忽略），否则用户只看到"什么都没发生"。
-                            // 每个群只提示一次，免得几十个群刷屏。
-                            if (_ignoredGroups.Add(ignored.GroupId))
-                            {
-                                var row = Feed.Begin("qq", "收到群消息",
-                                    $"{ignored.Card ?? ignored.Nickname ?? $"QQ{ignored.UserId}"}：{Trim(ignored.Text)}");
-                                Feed.Complete(row, "已忽略（该群没有监听）",
-                                    $"群 {ignored.GroupId} 不在监听列表里；在「监听群号」里点「选择群…」把它加上",
-                                    ActivitySeverity.Muted);   // 灰色：什么都没发生，别报警
-                            }
+                            // 不做去重：用户明确要"每条消息都能看到"，只提示一次会让人以为消息没收到。
+                            var gRow = Feed.Begin("qq", "收到群消息",
+                                $"{ignored.Card ?? ignored.Nickname ?? $"QQ{ignored.UserId}"}：{Trim(ignored.Text)}");
+                            Feed.Complete(gRow, "已忽略（该群没有监听）",
+                                $"群 {ignored.GroupId} 不在监听列表里；在「监听群号」里点「选择群…」把它加上",
+                                ActivitySeverity.Muted);   // 灰色：什么都没发生，别报警
                             break;
+                        }
                         case GroupUploadEvent u when wanted || groups.Contains(u.GroupId):
                         {
                             var row = Feed.Begin("qq", "收到群文件",
@@ -484,15 +481,12 @@ public static class Runtime
                             // 没开「监听老师私聊」也要留一条记录 —— 用户实测：老师发了图，
                             // 因为还没加进名单，连"被忽略"的记录都看不到，像是消息没收到。
                             // 每个发件人只提示一次，避免刷屏。
-                            if (_ignoredPrivate.Add(ignoredPrivate.UserId))
-                            {
-                                var row = Feed.Begin("qq", "收到私聊",
-                                    $"{ignoredPrivate.Nickname ?? $"QQ{ignoredPrivate.UserId}"}：{Trim(ignoredPrivate.Text)}");
-                                Feed.Complete(row, "已忽略（没有开启「监听老师私聊」）",
-                                    "要处理它就在 设置 → QQ 连接 里打开「监听老师私聊」，"
-                                    + "并把这个 QQ 加进老师映射",
-                                    ActivitySeverity.Muted);
-                            }
+                            var pRow = Feed.Begin("qq", "收到私聊",
+                                $"{ignoredPrivate.Nickname ?? $"QQ{ignoredPrivate.UserId}"}：{Trim(ignoredPrivate.Text)}");
+                            Feed.Complete(pRow, "已忽略（没有开启「监听老师私聊」）",
+                                "要处理它就在 设置 → QQ 连接 里打开「监听老师私聊」，"
+                                + "并把这个 QQ 加进老师映射",
+                                ActivitySeverity.Muted);
                             break;
                         }
                     }

@@ -77,8 +77,11 @@ public sealed class OneBotClient : IAsyncDisposable
             } while (!r.EndOfMessage);
 
             OneBotEvent? ev;
-            try { ev = OneBotParser.Parse(sb.ToString()); }
-            catch (JsonException) { continue; }
+            var raw = sb.ToString();
+            try { ev = OneBotParser.Parse(raw); }
+            catch (JsonException) { RawEventLog(raw, "JSON 解析失败"); continue; }
+            // 原始事件留痕：出问题时能分清"消息根本没进来"还是"进来后被忽略"。
+            RawEventLog(raw, ev is null ? "解析结果为空（自己发的/不认识的类型）" : null);
             if (ev is null)
                 continue;
             try
@@ -199,6 +202,31 @@ public sealed class OneBotClient : IAsyncDisposable
             _ws.Dispose();
         }
         _http.Dispose();
+    }
+
+    private static readonly object RawLogLock = new();
+
+    /// <summary>
+    /// 把收到的原始事件追加到 &lt;data&gt;/onebot-events.log（每条一行，截断到 600 字符）。
+    /// 只为排查用：消息"看不到"时先看它有没有进到这里 ——
+    /// 没进来是连接/上游的问题，进来了再谈忽略逻辑。
+    /// </summary>
+    private static void RawEventLog(string raw, string? note)
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(SettingsStore.DefaultPath)!;
+            Directory.CreateDirectory(dir);
+            var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}\t"
+                       + (note is null ? "" : $"[{note}] ")
+                       + (raw.Length > 600 ? raw[..600] + "…" : raw);
+            lock (RawLogLock)
+                File.AppendAllText(Path.Combine(dir, "onebot-events.log"), line + Environment.NewLine);
+        }
+        catch (Exception)
+        {
+            // 记日志失败不影响收消息
+        }
     }
 }
 

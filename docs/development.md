@@ -82,3 +82,32 @@ bash tools/docs-site/deploy.sh                          # 构建 + 同步服务�
 
 > 经验：给 Windows 服务器传脚本要用 **base64 写字节**（`[IO.File]::WriteAllBytes`）——
 > 直接 `Set-Content` 会把换行与中文写坏，症状是批处理里注释把命令吞掉、服务静默不启动。
+
+## 版本号与发版
+
+`主版本.次版本.修订号`，规则见仓库根目录的 [CHANGELOG.md](../CHANGELOG.md)：
+
+- **修订号**（第三位）是默认选择：修 bug、小改进、小功能都只动它；
+- **次版本**只在有意义的里程碑才动（新功能板块、架构调整、不兼容变更）；
+- 发版时四处版本号要一起改：`src/App/SmartClassroom.App.csproj` 的 `<Version>`、
+  `pkg/PKGBUILD` 的 `pkgver`、`src/ClassIslandPlugin/manifest.yml` 的 `version`、
+  `src/ClassIslandPlugin/BridgeServer.cs` 的 `PluginVersion`。
+
+Release 说明的写法（与 CHANGELOG 同一套结构）：
+
+```markdown
+## 修复
+- **一句话说清用户遇到的现象**：原因与现在的结果。
+
+## 改进
+- ...
+
+## 安装
+| 平台 | 文件 |
+|---|---|
+| Linux | `smartclassroom-<版本>-1-x86_64.pkg.tar.zst`（`sudo pacman -U`） |
+| Windows | `smartclassroom-<版本>-win-x64.zip`（解压覆盖旧目录） |
+| ClassIsland 插件 | `smartclassroom-classisland-plugin.cipx` |
+```
+
+要点：先说**用户看到的现象**，再说原因；不写内部实现细节；不出现真实姓名与 QQ 号。

@@ -2326,10 +2326,23 @@ public sealed class SettingsViewModel : ViewModelBase
     /// <summary>能点"下载并安装"：有新版本 + 平台允许 + Release 里确实传了安装包。</summary>
     public bool CanInstallUpdate => HasUpdate && CanSelfUpdate && _assetUrl is not null && !IsDownloadingUpdate;
 
-    /// <summary>Linux 下的说明（为什么按钮是灰的）。</summary>
-    public string UpdatePlatformHint => CanSelfUpdate
-        ? "支持应用内自动更新"
-        : "Linux 平台暂不支持应用内自动更新";
+    /// <summary>按钮状态说明（为什么能点 / 为什么是灰的）。</summary>
+    public string UpdatePlatformHint
+    {
+        get
+        {
+            if (!CanSelfUpdate)
+                return "Linux 平台暂不支持应用内自动更新；用包管理器更新（sudo pacman -U 新包）";
+            if (IsDownloadingUpdate)
+                return "正在下载…";
+            if (!HasUpdate)
+                return "已是最新版本，无需更新";
+            if (_assetUrl is null)
+                return "这个 Release 里没有 Windows 安装包（smartclassroom-*-win-x64.zip），"
+                       + "请到 Release 页手动下载";
+            return "支持应用内自动更新：下载后关掉应用，运行生成的 apply-update.cmd";
+        }
+    }
 
     public bool HasReleasePage => _releaseUrl is not null;
 
@@ -2403,6 +2416,7 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             IsCheckingUpdate = false;
             OnPropertyChanged(nameof(CanInstallUpdate));
+            OnPropertyChanged(nameof(UpdatePlatformHint));
         }
     }
 
@@ -2433,6 +2447,8 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             IsDownloadingUpdate = false;
             UpdateProgress = 0;
+            OnPropertyChanged(nameof(CanInstallUpdate));
+            OnPropertyChanged(nameof(UpdatePlatformHint));
         }
     }
 
