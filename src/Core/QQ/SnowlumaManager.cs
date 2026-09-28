@@ -73,6 +73,57 @@ public sealed class SnowlumaManager(HttpClient? http = null) : IDisposable
     /// </summary>
     public const string BootstrapPasswordEnv = "SNOWLUMA_WEBUI_BOOTSTRAP_PASSWORD";
 
+    /// <summary>读已安装的 SnowLuma 版本（package.json 的 version）。读不到返回 null。</summary>
+    public static string? ReadInstalledVersion(string installDir)
+    {
+        try
+        {
+            var file = Path.Combine(installDir, "package.json");
+            if (!File.Exists(file))
+                return null;
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(file));
+            return doc.RootElement.TryGetProperty("version", out var v) ? v.GetString() : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 覆盖式更新：解压到临时目录后**逐文件覆盖**，但跳过 config/ 与 data/
+    /// （登录状态、OneBot 配置、WebUI 密码都在里面，覆盖了就要重新登录）。
+    /// 返回覆盖的文件数。
+    /// </summary>
+    public static int ApplyUpdate(string archivePath, string installDir)
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "snowluma-update-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(temp);
+        try
+        {
+            Extract(archivePath, temp);
+            var copied = 0;
+            foreach (var file in Directory.GetFiles(temp, "*", SearchOption.AllDirectories))
+            {
+                var rel = Path.GetRelativePath(temp, file);
+                var top = rel.Split(Path.DirectorySeparatorChar, '/')[0];
+                if (top.Equals("config", StringComparison.OrdinalIgnoreCase)
+                    || top.Equals("data", StringComparison.OrdinalIgnoreCase)
+                    || top.Equals("logs", StringComparison.OrdinalIgnoreCase))
+                    continue;   // 保留用户数据
+                var dest = Path.Combine(installDir, rel);
+                Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                File.Copy(file, dest, overwrite: true);
+                copied++;
+            }
+            return copied;
+        }
+        finally
+        {
+            try { Directory.Delete(temp, recursive: true); } catch { /* 清不掉不影响 */ }
+        }
+    }
+
     /// <summary>按当前平台挑包：win-x64→zip，linux→tar.gz；full 优先（内置 Node）。</summary>
     public static SnowlumaAsset? PickAsset(SnowlumaRelease release, string rid, bool preferFull = true)
     {

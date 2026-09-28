@@ -1257,7 +1257,19 @@ public sealed class SettingsViewModel : ViewModelBase
     public ObservableCollection<SnowlumaRelease> Releases { get; } = new();
 
     private SnowlumaRelease? _selected;
-    public SnowlumaRelease? SelectedRelease { get => _selected; set => Set(ref _selected, value); }
+    public SnowlumaRelease? SelectedRelease
+    {
+        get => _selected;
+        set
+        {
+            if (!Set(ref _selected, value))
+                return;
+            // 选中的版本变了 → "是否有更新"和说明文案要跟着变
+            OnPropertyChanged(nameof(LatestSnowlumaVersion));
+            OnPropertyChanged(nameof(HasSnowlumaUpdate));
+            OnPropertyChanged(nameof(SnowlumaVersionText));
+        }
+    }
 
     public string Status { get => _status; private set => Set(ref _status, value); }
     public double Progress { get => _progress; private set => Set(ref _progress, value); }
@@ -2007,6 +2019,89 @@ public sealed class SettingsViewModel : ViewModelBase
         }
         catch (Exception ex) { AppendLog($"拉取版本失败：{ex.Message}"); }
         finally { Busy = false; }
+    }
+
+    // ================= SnowLuma 更新 =================
+
+    /// <summary>已安装的 SnowLuma 版本（读不到就是空）。</summary>
+    public string InstalledSnowlumaVersion =>
+        SnowlumaManager.ReadInstalledVersion(InstallDir) ?? "";
+
+    /// <summary>下拉里选中的（默认最新）版本。</summary>
+    public string LatestSnowlumaVersion => SelectedRelease?.Tag?.TrimStart('v', 'V') ?? "";
+
+    /// <summary>有新版本可更新：已装 + 有可选版本 + 两者不同。</summary>
+    public bool HasSnowlumaUpdate
+    {
+        get
+        {
+            var installed = InstalledSnowlumaVersion;
+            var latest = LatestSnowlumaVersion;
+            return IsInstalled && installed.Length > 0 && latest.Length > 0
+                   && !string.Equals(installed, latest, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    public string SnowlumaVersionText => IsInstalled
+        ? (InstalledSnowlumaVersion.Length > 0
+            ? $"当前 {InstalledSnowlumaVersion} → 最新 {LatestSnowlumaVersion}"
+            : $"已安装（读不到版本）→ 最新 {LatestSnowlumaVersion}")
+        : "尚未安装";
+
+    public string SnowlumaUpdateButtonText => Busy ? "更新中…" : "更新";
+
+    /// <summary>
+    /// 更新 SnowLuma：停止运行 → 下载最新包 → 覆盖式解压（保留 config/data）→ 原本在跑就重新启动。
+    /// </summary>
+    public async Task UpdateSnowlumaAsync()
+    {
+        if (SelectedRelease is null || Busy)
+            return;
+        var asset = SnowlumaManager.PickAsset(SelectedRelease, SnowlumaManager.CurrentRid());
+        if (asset is null)
+        {
+            AppendLog("当前平台无可用包。");
+            return;
+        }
+        var wasRunning = SnowlumaManager.IsEndpointAliveAsync(OneBotHttp, OneBotToken).GetAwaiter().GetResult();
+        Busy = true;
+        OnPropertyChanged(nameof(SnowlumaUpdateButtonText));
+        try
+        {
+            if (wasRunning)
+            {
+                AppendLog("先停止 SnowLuma 再更新…");
+                await StopAsync();
+            }
+            var archive = Path.Combine(InstallDir, "_dl", asset.Name);
+            Directory.CreateDirectory(Path.GetDirectoryName(archive)!);
+            var prog = new Progress<double>(p => Progress = p * 100);
+            AppendLog($"更新：下载 {asset.Name}…");
+            await _manager.DownloadAsync(asset.DownloadUrl, archive, prog, CancellationToken.None);
+            AppendLog("更新：覆盖文件（保留登录状态与配置）…");
+            var copied = await Task.Run(() => SnowlumaManager.ApplyUpdate(archive, InstallDir));
+            AppendLog($"更新完成，覆盖 {copied} 个文件。");
+            OnPropertyChanged(nameof(InstalledSnowlumaVersion));
+            OnPropertyChanged(nameof(HasSnowlumaUpdate));
+            OnPropertyChanged(nameof(SnowlumaVersionText));
+            Toasts.Success("SnowLuma 已更新", $"现在是最新版本 {LatestSnowlumaVersion}");
+            if (wasRunning)
+            {
+                AppendLog("更新前它在运行，重新启动…");
+                await StartAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"更新失败：{ex.Message}");
+            Toasts.Error("SnowLuma 更新失败", ex.Message);
+        }
+        finally
+        {
+            Busy = false;
+            Progress = 0;
+            OnPropertyChanged(nameof(SnowlumaUpdateButtonText));
+        }
     }
 
     public async Task DownloadSelectedAsync()

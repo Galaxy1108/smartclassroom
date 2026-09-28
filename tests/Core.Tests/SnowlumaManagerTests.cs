@@ -441,3 +441,36 @@ public sealed class SnowlumaManagerTests : IDisposable
         Assert.False(File.Exists(Path.Combine(dir, SnowlumaManager.PidFileName)));
     }
 }
+
+/// <summary>
+/// SnowLuma 更新用到的两个能力：读已装版本、覆盖时保留用户数据。
+/// 覆盖逻辑没法在单测里造真实压缩包，但"跳过哪些目录"这条规则必须锁住 ——
+/// 覆盖了 config/data 就等于把登录状态和 OneBot 配置冲掉。
+/// </summary>
+public sealed class SnowlumaUpdateTests
+{
+    [Fact]
+    public void ReadInstalledVersion_ReadsPackageJson()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "sl-ver-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "package.json"), """{"name":"snowluma","version":"1.14.19"}""");
+            Assert.Equal("1.14.19", SmartClassroom.Core.QQ.SnowlumaManager.ReadInstalledVersion(dir));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    [Fact]
+    public void ReadInstalledVersion_MissingFile_ReturnsNull()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "sl-ver-" + Guid.NewGuid().ToString("N")[..8]);
+        Directory.CreateDirectory(dir);
+        try
+        {
+            Assert.Null(SmartClassroom.Core.QQ.SnowlumaManager.ReadInstalledVersion(dir));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+}

@@ -394,4 +394,8 @@ public partial class SettingsView : UserControl
     private async void InstallLinuxUpdate_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => await Vm.InstallLinuxUpdateAsync(reason =>
             PasswordDialog.PromptAsync("安装更新", reason));
+
+    /// <summary>更新 SnowLuma（保留登录状态与配置）。</summary>
+    private async void UpdateSnowluma_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Vm.UpdateSnowlumaAsync();
 }
