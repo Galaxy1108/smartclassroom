@@ -38,9 +38,16 @@ public sealed record FeatureFlags
     /// </summary>
     public bool RequireKnownTeacher { get; init; } = true;
 
+    /// <summary>作业上墙时也给同学们发一条通知（默认关）。</summary>
+    public bool NotifyHomework { get; init; }
+
+    /// <summary>换课结果也给同学们发一条通知（默认关）。</summary>
+    public bool NotifyExchange { get; init; }
+
     public static FeatureFlags AllDisabled { get; } = new();
 
-    public bool AnyEnabled => Summon || Homework || Exchange || FileArchive || CoursewarePopup || Notice;
+    public bool AnyEnabled => Summon || Homework || Exchange || FileArchive || CoursewarePopup || Notice
+                              || NotifyHomework || NotifyExchange;
 
     /// <summary>给界面显示的一句话摘要。</summary>
     public string Describe()

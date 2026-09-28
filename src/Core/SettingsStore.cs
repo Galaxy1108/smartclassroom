@@ -95,6 +95,12 @@ public sealed class AppSettings
     /// <summary>老师通知转发（活动/集合/催交等 → ClassIsland 提醒）。默认关。</summary>
     public bool FeatureNotice { get; set; } = false;
 
+    /// <summary>作业上墙后给同学们发一条 ClassIsland 通知（默认关）。</summary>
+    public bool NotifyHomework { get; set; } = false;
+
+    /// <summary>换课成功/需要人工处理后发一条通知（默认关）。</summary>
+    public bool NotifyExchange { get; set; } = false;
+
     /// <summary>
     /// 归档后额外复制一份到系统"下载"目录（默认开）。
     /// 老师常在 QQ 里直接点开文件，而 QQ 只认自己下载目录里已有的文件。
@@ -173,6 +179,8 @@ public sealed class AppSettings
         FeatureFileArchive = d.FeatureFileArchive;
         FeatureCoursewarePopup = d.FeatureCoursewarePopup;
         FeatureNotice = d.FeatureNotice;
+        NotifyHomework = d.NotifyHomework;
+        NotifyExchange = d.NotifyExchange;
         SubjectColors = new Dictionary<string, string>(d.SubjectColors);
         RememberUnlock = d.RememberUnlock;
         Theme = d.Theme;
@@ -193,6 +201,8 @@ public sealed class AppSettings
         FileArchive = FeatureFileArchive,
         CoursewarePopup = FeatureCoursewarePopup,
         Notice = FeatureNotice,
+        NotifyHomework = NotifyHomework,
+        NotifyExchange = NotifyExchange,
         RequireKnownTeacher = RequireKnownTeacher,
         AiDecidesTeacherMessages = AiDecidesTeacherMessages
     };

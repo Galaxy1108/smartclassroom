@@ -219,6 +219,36 @@ public sealed class SettingsViewModel : ViewModelBase
 
     private bool _autoStart;
 
+    /// <summary>作业上墙后也给同学们发一条通知（走 ClassIsland，同样排队）。</summary>
+    public bool NotifyHomework
+    {
+        get => _notifyHomework;
+        set
+        {
+            if (!Set(ref _notifyHomework, value))
+                return;
+            SaveSettings();
+            AppendLog(value ? "已开启：作业上墙时发通知。" : "已关闭：作业上墙时发通知。");
+        }
+    }
+
+    private bool _notifyHomework;
+
+    /// <summary>换课结果也给同学们发通知。</summary>
+    public bool NotifyExchange
+    {
+        get => _notifyExchange;
+        set
+        {
+            if (!Set(ref _notifyExchange, value))
+                return;
+            SaveSettings();
+            AppendLog(value ? "已开启：换课时发通知。" : "已关闭：换课时发通知。");
+        }
+    }
+
+    private bool _notifyExchange;
+
     /// <summary>作业卡片独立缩放（作业页 Ctrl+滚轮也能调）。</summary>
     public double CardScale
     {
@@ -2521,6 +2551,8 @@ public sealed class SettingsViewModel : ViewModelBase
             _uiScale = ContentZoom.Clamp(s.UiScale);
             _cardScale = ContentZoom.Clamp(s.CardScale);
             _autoStart = s.AutoStart;
+            _notifyHomework = s.NotifyHomework;
+            _notifyExchange = s.NotifyExchange;
             OnPropertyChanged(nameof(CardScale));
             OnPropertyChanged(nameof(CardScaleLabel));
             _theme = AppTheme.Normalize(s.Theme);
@@ -2593,6 +2625,8 @@ public sealed class SettingsViewModel : ViewModelBase
         s.UiScale = UiScale;
         s.CardScale = CardScale;
         s.AutoStart = AutoStart;
+        s.NotifyHomework = NotifyHomework;
+        s.NotifyExchange = NotifyExchange;
         s.Theme = _theme;
 
         SettingsStore.Save(s, SettingsPath);

@@ -857,6 +857,17 @@ public sealed class PipelineService(
         });
         if (resolvePendingId is not null)
             pending.Remove(resolvePendingId);
+        if (flags.NotifyHomework)
+        {
+            var subject = d.Subject.Length > 0 ? d.Subject : (sender.Subject ?? "作业");
+            var lines = parsed.Select(x => x.Text).Where(x => x.Length > 0).ToList();
+            var body = string.Join("；", lines.Take(6))
+                       + (lines.Count > 6 ? $" 等 {lines.Count} 项" : "");
+            await gate.NotifyAsync(NotifyChannels.Manual, $"新作业：{subject}", body, Send, cancel, rowId)
+                .ConfigureAwait(false);
+            Finish(rowId, $"已执行：作业已上墙（{subject}）", body);
+            return;
+        }
         Finish(rowId, $"已执行：作业已上墙（{d.Subject}）", string.Join("；", d.Items));
     }
 
@@ -951,8 +962,18 @@ public sealed class PipelineService(
         }
         if (resolvePendingId is not null)
             pending.Remove(resolvePendingId);
+        var summary = string.Join("；", done);
+        if (flags.NotifyExchange)
+        {
+            await gate.NotifyAsync(NotifyChannels.Exchange,
+                done.Count > 1 ? $"换课已执行（{done.Count} 节）" : "换课已执行",
+                summary, Send, cancel, rowId).ConfigureAwait(false);
+            Finish(rowId, done.Count > 1 ? $"已执行：换课（{done.Count} 节）" : "已执行：换课",
+                $"{summary} · {ev.Text}");
+            return;
+        }
         Finish(rowId, done.Count > 1 ? $"已执行：换课（{done.Count} 节）" : "已执行：换课",
-            $"{string.Join("；", done)} · {ev.Text}");
+            $"{summary} · {ev.Text}");
     }
 
     /// <summary>执行一节课的换课请求。返回 (是否成功, 说明)；说明为空表示已单独记过待处理。</summary>

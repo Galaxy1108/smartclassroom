@@ -100,6 +100,20 @@
             <TextBlock Text="{Binding FeatureSummary}" FontSize="12" Opacity="0.75"
                        TextWrapping="Wrap" Margin="2,4,0,0" />
 
+            <fa:SettingsExpander Header="作业上墙时通知"
+                                 Description="作业整理好之后，用 ClassIsland 提醒同学们；上课中会排队，下课逐条发出">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding NotifyHomework}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
+            <fa:SettingsExpander Header="换课时通知"
+                                 Description="换课执行成功（或需要人工处理）时提醒同学们；同样按上课状态排队">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding NotifyExchange}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
             <!-- ================= 外观 ================= -->
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">
                 <PathIcon Width="16" Height="16" Data="{StaticResource IconInfo}" VerticalAlignment="Center" />
