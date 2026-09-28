@@ -100,9 +100,13 @@ public sealed class HomeworkViewModel : ViewModelBase
             AddResult = "请填写科目。";
             return false;
         }
-        var items = FormItems
+        var rawLines = FormItems
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToList();
+        // 行末 @日期 = 这一项的截止时间（不写就是当天）
+        var parsedLines = rawLines.Select(HomeworkDueMark.Split).ToList();
+        var items = parsedLines.Select(x => x.Text).Where(x => x.Length > 0).ToList();
+        var itemDues = parsedLines.Select(x => x.Due).ToList();
         if (items.Count == 0)
         {
             AddResult = "请至少填写一条作业内容。";
@@ -118,6 +122,7 @@ public sealed class HomeworkViewModel : ViewModelBase
                 Subject = FormSubject.Trim(),
                 Date = date,
                 Items = items,
+                ItemDues = itemDues,
                 Due = string.IsNullOrWhiteSpace(FormDue) ? null : FormDue.Trim()
             });
             AddResult = $"已修改：{FormSubject.Trim()}（{date:MM-dd}）";
@@ -133,6 +138,7 @@ public sealed class HomeworkViewModel : ViewModelBase
             Subject = FormSubject.Trim(),
             Date = date,
             Items = items,
+            ItemDues = itemDues,
             Due = string.IsNullOrWhiteSpace(FormDue) ? null : FormDue.Trim(),
             Sender = new SenderInfo { UserId = 0, TeacherName = "手动添加" },
             Source = new MessageRef { GroupId = 0, MessageId = 0 }
@@ -653,7 +659,8 @@ public sealed class HomeworkCard : ViewModelBase
         Items = item.Items
             .Select(x => (x ?? "").Trim())
             .Where(x => x.Length > 0)
-            .Select((text, i) => new HomeworkLine(i + 1, text))
+            .Select((text, i) => new HomeworkLine(i + 1, text,
+                i < item.ItemDues.Count ? item.ItemDues[i] : null))
             .ToList();
         Sender = item.Sender.TeacherName ?? "未知来源";
         IsManual = item.Sender.UserId == 0;
@@ -728,4 +735,10 @@ public sealed class HomeworkCard : ViewModelBase
 }
 
 /// <summary>作业条目 + 序号（界面上显示为 1. 2. 3.）。</summary>
-public sealed record HomeworkLine(int Number, string Text);
+public sealed record HomeworkLine(int Number, string Text, string? Due = null)
+{
+    /// <summary>这一项自己的截止时间（行末 @日期）。没写就不显示。</summary>
+    public bool HasDue => !string.IsNullOrWhiteSpace(Due);
+
+    public string DueLabel => $"截止 {Due}";
+}

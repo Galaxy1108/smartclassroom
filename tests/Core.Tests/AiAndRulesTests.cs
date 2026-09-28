@@ -230,3 +230,42 @@ public sealed class HomeworkDateCoercionTests
     public void CoerceHomeworkDate(string? raw, string expected)
         => Assert.Equal(DateOnly.Parse(expected), RuleEngine.CoerceHomeworkDate(raw, Today));
 }
+
+/// <summary>
+/// 作业行末的单项截止标记 @日期：只影响这一项，正文里不留标记。
+/// 不写 = 当天（返回 null）。
+/// </summary>
+public sealed class HomeworkDueMarkTests
+{
+    [Fact]
+    public void SplitsTrailingAtDate()
+    {
+        var (text, due) = HomeworkDueMark.Split("完成练习册 P12 @10-08");
+        Assert.Equal("完成练习册 P12", text);
+        Assert.Equal($"{DateTime.Now.Year}-10-08", due);
+    }
+
+    [Fact]
+    public void NoMark_MeansNoDue()
+    {
+        var (text, due) = HomeworkDueMark.Split("背单词");
+        Assert.Equal("背单词", text);
+        Assert.Null(due);
+    }
+
+    [Fact]
+    public void FullDateAndSeparatorsWork()
+    {
+        Assert.Equal("2026-11-03", HomeworkDueMark.Split("写作文 @2026/11/03").Due);
+        Assert.Equal("2026-11-03", HomeworkDueMark.Split("写作文 @2026.11.03").Due);
+    }
+
+    [Fact]
+    public void EmailLikeText_IsNotTreatedAsDue()
+    {
+        // 正文里的 @ 后面不是日期就不能当截止时间
+        var (text, due) = HomeworkDueMark.Split("发到 a@b.com 邮箱");
+        Assert.Null(due);
+        Assert.Contains("a@b.com", text);
+    }
+}

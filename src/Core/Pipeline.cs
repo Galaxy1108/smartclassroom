@@ -564,7 +564,9 @@ public sealed class PipelineService(
             HomeworkId = Guid.NewGuid().ToString(),
             Subject = subject.Trim(),
             Date = date,
-            Items = items.Where(i => !string.IsNullOrWhiteSpace(i)).Select(i => i.Trim()).ToList(),
+            Items = items.Select(HomeworkDueMark.Split).Select(x => x.Text)
+                .Where(i => !string.IsNullOrWhiteSpace(i)).ToList(),
+            ItemDues = items.Select(HomeworkDueMark.Split).Select(x => x.Due).ToList(),
             Sender = item.Sender,
             Source = item.Source
         });
@@ -789,12 +791,15 @@ public sealed class PipelineService(
         if (DateOnly.TryParse(d.Date, out var modelDate) && modelDate != date)
             feed.Append("homework", $"作业日期已纠偏：{modelDate:yyyy-MM-dd} → {date:yyyy-MM-dd}",
                 "模型给出的日期与今天相差过大，已按今天处理", ActivitySeverity.Warning);
+        // 行末 @日期 是**单项**截止时间：拆出来单独存，正文里不留标记
+        var parsed = d.Items.Select(HomeworkDueMark.Split).ToList();
         homework.AddOrMerge(new HomeworkItem
         {
             HomeworkId = Guid.NewGuid().ToString(),
             Subject = d.Subject.Length > 0 ? d.Subject : (sender.Subject ?? "未知科目"),
             Date = date,
-            Items = d.Items,
+            Items = parsed.Select(x => x.Text).Where(x => x.Length > 0).ToList(),
+            ItemDues = parsed.Select(x => x.Due).ToList(),
             Due = d.Due,
             Sender = sender,
             Source = new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId }

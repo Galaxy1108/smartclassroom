@@ -80,6 +80,13 @@ public sealed record HomeworkItem
     public required string Subject { get; init; }
     public required DateOnly Date { get; init; }
     public required List<string> Items { get; init; }
+
+    /// <summary>
+    /// 每一项各自的截止日期（与 <see cref="Items"/> 按下标对齐，空 = 当天）。
+    /// 老师在行末写 <c>@10-08</c> 就记在这里；作业整体什么时候被清掉仍看 <see cref="Date"/>。
+    /// </summary>
+    public List<string?> ItemDues { get; init; } = [];
+
     public string? Due { get; init; }
     public required SenderInfo Sender { get; init; }
     public required MessageRef Source { get; init; }
@@ -179,4 +186,50 @@ public sealed record MessageRef
 {
     public required long GroupId { get; init; }
     public required long MessageId { get; init; }
+}
+
+/// <summary>
+/// 作业行的行末截止标记：<c>@10-08</c> / <c>@2026-10-08</c>。
+/// 老师在每一项后面写，就只影响这一项；不写就是当天。
+/// </summary>
+public static class HomeworkDueMark
+{
+    /// <summary>拆出 (正文, 截止日期字符串或 null)。</summary>
+    public static (string Text, string? Due) Split(string line)
+    {
+        var text = (line ?? "").TrimEnd();
+        var at = text.LastIndexOf('@');
+        if (at < 0)
+            return (text.Trim(), null);
+        var tail = text[(at + 1)..].Trim();
+        if (tail.Length == 0 || tail.Any(c => !(char.IsDigit(c) || c is '-' or '/' or '.')))
+            return (text.Trim(), null);
+        var normalized = Normalize(tail);
+        return normalized is null
+            ? (text.Trim(), null)
+            : (text[..at].TrimEnd(), normalized);
+    }
+
+    /// <summary>把 MM-dd / yyyy-MM-dd 之类的写法归一成 yyyy-MM-dd。</summary>
+    private static string? Normalize(string tail)
+    {
+        var parts = tail.Replace('/', '-').Replace('.', '-').Split('-', StringSplitOptions.RemoveEmptyEntries);
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (parts.Length == 2 && int.TryParse(parts[0], out var m) && int.TryParse(parts[1], out var d))
+        {
+            var year = today.Year;
+            if (m < today.Month) year++;   // 只写月日且已过 → 认为是明年
+            return SafeDate(year, m, d)?.ToString("yyyy-MM-dd");
+        }
+        if (parts.Length == 3 && int.TryParse(parts[0], out var y)
+            && int.TryParse(parts[1], out var m2) && int.TryParse(parts[2], out var d2))
+            return SafeDate(y, m2, d2)?.ToString("yyyy-MM-dd");
+        return null;
+    }
+
+    private static DateOnly? SafeDate(int y, int m, int d)
+    {
+        try { return new DateOnly(y, m, d); }
+        catch (ArgumentOutOfRangeException) { return null; }
+    }
 }
