@@ -265,14 +265,18 @@ public sealed class HomeworkClearSelectionTests
         vm.Select(vm.Items[0]);
         Assert.True(vm.HasSelection);
 
-        // 往页面本身（空白区域）发左键按下
+        // 往**卡片区**（空白区域）发左键按下：处理器挂在 CardScroll 上，
+        // 工具栏在它外面，所以按工具栏不会走到这条分支。
+        var scroll = view.GetVisualDescendants().OfType<ScrollViewer>()
+            .First(s => s.Name == "CardScroll");
         var args = new Avalonia.Input.PointerPressedEventArgs(
-            view, new Avalonia.Input.Pointer(0, Avalonia.Input.PointerType.Mouse, true), view, default,
+            scroll, new Avalonia.Input.Pointer(0, Avalonia.Input.PointerType.Mouse, true), scroll,
+            new Avalonia.Point(400, 900),   // 卡片下方很远的位置，确保没命中任何卡片
             0, new Avalonia.Input.PointerPointProperties(
                 Avalonia.Input.RawInputModifiers.LeftMouseButton,
                 Avalonia.Input.PointerUpdateKind.LeftButtonPressed),
             Avalonia.Input.KeyModifiers.None);
-        view.RaiseEvent(args);
+        scroll.RaiseEvent(args);
         Dispatcher.UIThread.RunJobs();
 
         Assert.False(vm.HasSelection);
@@ -322,6 +326,11 @@ public sealed class HomeworkToolbarSelectionTests
         Dispatcher.UIThread.RunJobs();
 
         Assert.True(vm.HasSelection);   // 按按钮不该清掉选中
+        // 更本质的一条：工具栏按钮不在卡片区里，处理器挂在卡片区上，
+        // 所以"按工具栏"根本不会走到取消选中那条分支。
+        var scroll = view.GetVisualDescendants().OfType<ScrollViewer>()
+            .FirstOrDefault(s => s.Name == "CardScroll");
+        Assert.NotNull(scroll);
         window.Close();
     }
 }

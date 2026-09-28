@@ -97,8 +97,6 @@
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
 
-            <TextBlock Text="{Binding FeatureSummary}" FontSize="12" Opacity="0.75"
-                       TextWrapping="Wrap" Margin="2,4,0,0" />
 
             <fa:SettingsExpander Header="防止被结束"
                                  Description="{Binding ProtectFromKillHint}">

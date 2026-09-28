@@ -243,15 +243,30 @@ public partial class SettingsView : UserControl
     }
 
     /// <summary>复制 WebUI 初始密码（它默认只打到 stdout，用户看不到）。</summary>
+    /// <summary>
+    /// 复制 WebUI 密码。**必须先验证管理员密码** ——
+    /// 这是明文密码，谁点一下就能拿走等于把密码贴在墙上（用户指出）。
+    /// 没设管理员密码时干脆不复制，先让用户设一个。
+    /// </summary>
     private async void CopyWebUiPassword_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
+        if (!Runtime.Auth.IsEnabled)
+        {
+            Toasts.Warn("先设置管理员密码", "否则任何人都能一键复制这个密码");
+            return;
+        }
+        var ok = await Runtime.Auth.RequireAsync(
+            reason => PasswordDialog.PromptAsync("复制 WebUI 密码", reason),
+            "复制 WebUI 密码需要管理员密码", forcePrompt: true);
+        if (!ok)
+            return;
         try
         {
             var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
             if (clipboard is null)
                 return;
             await clipboard.SetTextAsync(Vm.WebUiPassword);
-            Toasts.Success("已复制 WebUI 初始密码");
+            Toasts.Success("已复制 WebUI 密码");
         }
         catch (Exception ex)
         {
@@ -262,6 +277,15 @@ public partial class SettingsView : UserControl
     /// <summary>让用户自己设定 SnowLuma WebUI 的初始密码（留空 = 改回自动生成）。</summary>
     private async void SetWebUiPassword_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
+        // 改 WebUI 密码同样是"改密码"，先过管理员验证（和改管理员密码一致）
+        if (Runtime.Auth.IsEnabled)
+        {
+            var authed = await Runtime.Auth.RequireAsync(
+                reason => PasswordDialog.PromptAsync("修改 WebUI 密码", reason),
+                "修改 WebUI 密码需要管理员密码", forcePrompt: true);
+            if (!authed)
+                return;
+        }
         var value = await Dialogs.PromptAsync("SnowLuma WebUI 密码",
             "设置 WebUI（http://127.0.0.1:5099，用户名 admin）的初始密码。留空则改回由应用自动生成。下次启动 SnowLuma 时生效。",
             watermark: "留空 = 自动生成", password: true);

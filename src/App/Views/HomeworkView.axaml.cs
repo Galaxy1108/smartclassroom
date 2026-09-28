@@ -34,9 +34,11 @@ public partial class HomeworkView : UserControl
         // 之前把处理器写在 DataTemplate 的 Border 里——把卡片外观抽成资源模板时漏抄了那几行，
         // 结果没人接事件、拖拽彻底失效。挂在列表上就不会因为改模板而再丢。
         HomeworkList.AddHandler(PointerPressedEvent, Card_PointerPressed, RoutingStrategies.Tunnel);
-        // 卡片之外的空白区域不在 ItemsControl 里 —— 同一处理器也挂到整页上，
-        // 否则"点空白取消选中"根本收不到事件（实测：点了没反应）。
-        AddHandler(PointerPressedEvent, Card_PointerPressed, RoutingStrategies.Tunnel);
+        // 空白区域（卡片下方）也在 ScrollViewer 里 —— 处理器挂到**卡片区**而不是整页。
+        // 这样工具栏（在卡片区之外）的按下永远不会走到"取消选中"那条分支：
+        // 之前挂在整页上，按工具栏按钮会被当成"点了空白"，选中当场被清掉，
+        // 等按钮 Click 触发时已经没有选中项（用户连报两次）。
+        CardScroll.AddHandler(PointerPressedEvent, Card_PointerPressed, RoutingStrategies.Tunnel);
         // 右键菜单走框架标准的 ContextRequested（右键/长按都会触发它），
         // 比自己在 PointerPressed 里判断更可靠 —— 实测后者在某些环境下收不到。
         HomeworkList.AddHandler(ContextRequestedEvent, Card_ContextRequested, RoutingStrategies.Tunnel);

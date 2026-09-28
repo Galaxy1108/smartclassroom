@@ -171,7 +171,7 @@ Control HomeworkSelected()
     store.AddOrMerge(new SmartClassroom.Contracts.HomeworkItem
     {
         HomeworkId = "h1", Subject = "英语", Date = DateOnly.FromDateTime(DateTime.Now),
-        Items = ["整理笔记", "朗读练习"],
+        Items = ["111"],
         Sender = new SmartClassroom.Contracts.SenderInfo { UserId = 0, TeacherName = "手动添加" },
         Source = new SmartClassroom.Contracts.MessageRef { GroupId = 0, MessageId = 0 }
     });

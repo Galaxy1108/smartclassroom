@@ -19,14 +19,14 @@
 
         <!-- 卡片外观抽成资源：列表和拖拽时的"虚"卡片共用同一模板，保证长得一样 -->
         <DataTemplate x:Key="HomeworkCardTemplate" x:DataType="vm:HomeworkCard">
-            <Border Classes="hwcard" MinHeight="120" Classes.selected="{Binding IsSelected}"
+            <Border Classes="hwcard" Classes.selected="{Binding IsSelected}"
                     CornerRadius="8" BorderThickness="1" ClipToBounds="True"
                     BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
                     Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
 >
                 <Grid ColumnDefinitions="6,*">
                     <Border Grid.Column="0" Background="{Binding AccentColor}" />
-                    <StackPanel Grid.Column="1" Margin="12,10,12,10" Spacing="6">
+                    <StackPanel Grid.Column="1" Margin="12,10,12,10" Spacing="4">
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" FontSize="16"
@@ -117,7 +117,7 @@
         </Border>
 
         <!-- 卡片区（缩放只作用于这里） -->
-        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer Grid.Row="2" x:Name="CardScroll" HorizontalScrollBarVisibility="Disabled">
             <LayoutTransformControl x:Name="CardScaler">
                 <!-- CardLayer 是拖拽覆盖层的坐标基准；overlay 不参与命中测试 -->
                 <Panel x:Name="CardLayer">
