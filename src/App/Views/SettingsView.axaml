@@ -713,6 +713,12 @@
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="{Binding DownloadUpdateButtonText}" Classes="accent"
                                 Click="DownloadUpdate_Click" IsEnabled="{Binding CanInstallUpdate}" />
+                            <Button Content="下载并安装（需要系统密码）" Classes="accent"
+                                    Click="InstallLinuxUpdate_Click"
+                                    IsVisible="{Binding CanInstallPackage}" />
+                            <Button Content="{Binding RestartUpdateButtonText}" Classes="accent"
+                                    Click="RestartUpdate_Click"
+                                    IsEnabled="{Binding CanRestartToUpdate}" />
                         <Button Content="打开 Releases 页" Click="OpenReleasePage_Click"
                                 IsEnabled="{Binding HasReleasePage}" />
                     </StackPanel>

@@ -385,4 +385,13 @@ public partial class SettingsView : UserControl
         if ((sender as Button)?.Tag is SubjectColorRow row)
             row.Color = "默认";
     }
+
+    /// <summary>重启以更新（免密码：只是重启）。</summary>
+    private void RestartUpdate_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => Vm.RestartToUpdate();
+
+    /// <summary>Linux 应用内更新：下载安装包并要一次系统密码，交给 pacman 安装。</summary>
+    private async void InstallLinuxUpdate_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Vm.InstallLinuxUpdateAsync(reason =>
+            PasswordDialog.PromptAsync("安装更新", reason));
 }

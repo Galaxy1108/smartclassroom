@@ -2387,7 +2387,9 @@ public sealed class SettingsViewModel : ViewModelBase
         get
         {
             if (!CanSelfUpdate)
-                return "Linux 平台暂不支持应用内自动更新；用包管理器更新（sudo pacman -U 新包）";
+                return CanInstallPackage
+                    ? "Linux：点「下载并安装」会下载安装包并要一次系统密码，用 pacman 装好"
+                    : "Linux：本机没有 pacman，请用发行版自带的包管理器更新";
             if (IsDownloadingUpdate)
                 return "正在下载…";
             if (!HasUpdate)
@@ -2426,8 +2428,8 @@ public sealed class SettingsViewModel : ViewModelBase
         UpdateStatusText = "检查中…";
         try
         {
-            // 只有 Windows 需要安装包；Linux 由包管理器更新，不必挑资产
-            var pattern = CanSelfUpdate ? "win-x64.zip" : null;
+            // Windows 挑 zip 自更新；Linux 挑 pacman 包（下载后交给 pacman 装）
+            var pattern = CanSelfUpdate ? "win-x64.zip" : "x86_64.pkg.tar.zst";
             var info = await _updates.CheckAsync(AppVersion.Current, assetPattern: pattern);
             _assetUrl = info.AssetUrl;
             _releaseUrl = info.ReleaseUrl;
@@ -2476,6 +2478,91 @@ public sealed class SettingsViewModel : ViewModelBase
     }
 
     /// <summary>下载新版本并生成覆盖脚本（仅 Windows 可用）。</summary>
+    /// <summary>Linux：能下载安装包并用 pacman 装（需要输一次系统密码）。</summary>
+    public bool CanInstallPackage => UpdateInstaller.CanInstallPackage;
+
+    /// <summary>
+    /// Linux 更新：下载 pacman 包 → 弹窗要系统密码 → 后台 pacman -U 安装 → 提示重启。
+    /// 用户要求的就是这个流程（Arch 系一样在应用内更新）。
+    /// </summary>
+    public async Task InstallLinuxUpdateAsync(Func<string, Task<string?>> askPassword)
+    {
+        if (_assetUrl is null)
+        {
+            Toasts.Warn("没有可下载的安装包");
+            return;
+        }
+        IsDownloadingUpdate = true;
+        UpdateProgress = 0;
+        try
+        {
+            UpdateStatusText = "正在下载安装包…";
+            var pkg = await UpdateInstaller.DownloadPackageAsync(_assetUrl, LatestVersionText,
+                new Progress<double>(p => UpdateProgress = p));
+            UpdateStatusText = "正在安装（需要系统密码）…";
+            var password = await askPassword("安装更新需要系统密码（pacman）");
+            if (password is null)
+            {
+                UpdateStatusText = "已取消安装";
+                return;
+            }
+            var (ok, output) = await UpdateInstaller.InstallPackageAsync(pkg, password);
+            AppendLog(ok ? "系统包已安装完成" : $"安装失败：{output}");
+            if (ok)
+            {
+                UpdateStatusText = "安装完成，重启应用后生效";
+                Toasts.Success("更新已安装", "重启应用即可用上新版本");
+            }
+            else
+            {
+                UpdateStatusText = "安装失败";
+                Toasts.Error("安装失败", output.Length > 200 ? output[..200] : output);
+            }
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText = $"安装失败：{ex.Message}";
+            AppendLog($"安装更新失败：{ex.Message}");
+            Toasts.Error("安装更新失败", ex.Message);
+        }
+        finally
+        {
+            IsDownloadingUpdate = false;
+            UpdateProgress = 0;
+            OnPropertyChanged(nameof(CanInstallUpdate));
+            OnPropertyChanged(nameof(UpdatePlatformHint));
+        }
+    }
+
+    /// <summary>下载完成后是否可以直接"重启以更新"（Windows）。</summary>
+    public bool CanRestartToUpdate => CanSelfUpdate && UpdateInstaller.ReadPending(_appDir) is not null;
+
+    public string RestartUpdateButtonText => "重启以更新";
+
+    /// <summary>
+    /// 重启以更新：记下待完成标记 → 生成并启动覆盖脚本 → 退出应用。
+    /// **不需要密码**：这只是重启，不是改设置（用户明确要求免密）。
+    /// </summary>
+    public bool RestartToUpdate()
+    {
+        if (!CanSelfUpdate)
+            return false;
+        if (UpdateInstaller.ReadPending(_appDir) is null)
+        {
+            Toasts.Warn("没有待安装的更新", "先点「下载并安装」");
+            return false;
+        }
+        if (!UpdateInstaller.LaunchScriptAndExit(_appDir))
+        {
+            Toasts.Error("启动更新失败", "可以到应用目录手动运行 apply-update.cmd");
+            return false;
+        }
+        Toasts.Success("正在重启以完成更新", "应用会自动关闭并重新打开");
+        // 给提示一点时间，然后退出（脚本会等我们退出后覆盖文件并重启）
+        _ = Task.Delay(800).ContinueWith(_ => Environment.Exit(0));
+        return true;
+    }
+
     public async Task DownloadUpdateAsync()
     {
         if (_assetUrl is null)
@@ -2489,9 +2576,11 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             var stage = await UpdateInstaller.StageAsync(_assetUrl, LatestVersionText, _appDir,
                 new Progress<double>(p => UpdateProgress = p));
+            UpdateInstaller.MarkPending(_appDir, stage, LatestVersionText);
             PendingUpdateScript = UpdateInstaller.WriteScript(stage, _appDir);
-            AppendLog($"更新已下载并解压到 {stage}；覆盖脚本：{PendingUpdateScript}");
-            Toasts.Success("更新已下载", "关闭应用后运行 apply-update.cmd");
+            AppendLog($"更新已下载并解压到 {stage}；点「重启以更新」即可完成");
+            OnPropertyChanged(nameof(CanRestartToUpdate));
+            Toasts.Success("更新已下载", "点「重启以更新」自动完成（不用手动跑脚本）");
         }
         catch (Exception ex)
         {

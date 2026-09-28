@@ -1,0 +1,22 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fa="using:FluentAvalonia.UI.Controls"
+        x:Class="SmartClassroom.App.Views.UpdateProgressWindow"
+        Width="460" Height="240"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        Title="正在更新智慧课堂"
+        Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+    <Grid Margin="28,24" RowDefinitions="Auto,Auto,*,Auto">
+        <TextBlock Grid.Row="0" Text="正在更新智慧课堂"
+                   FontSize="20" FontWeight="SemiBold" />
+        <TextBlock Grid.Row="1" x:Name="StatusText" Margin="0,6,0,0"
+                   Text="正在覆盖文件…" TextWrapping="Wrap" Opacity="0.8" />
+        <StackPanel Grid.Row="2" VerticalAlignment="Center" Spacing="10">
+            <ProgressBar x:Name="Bar" Minimum="0" Maximum="100" Height="6" />
+            <TextBlock x:Name="PercentText" Text="0%" FontSize="12" Opacity="0.6" />
+        </StackPanel>
+        <TextBlock Grid.Row="3" Text="请不要关闭这个窗口，几秒钟就好。"
+                   FontSize="12" Opacity="0.55" />
+    </Grid>
+</Window>

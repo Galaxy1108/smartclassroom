@@ -32,6 +32,10 @@ public partial class App : Application
                 return;
             }
 
+            // 上次点了"重启以更新"：先把新版本文件覆盖进来（带进度窗口），再进主界面
+            if (UpdateInstaller.ReadPending(AppContext.BaseDirectory) is { } pending)
+                ShowUpdateWindowAndApply(desktop, pending);
+
             var vm = new MainViewModel();
             // 先 Start（它会把 settings.json 装进 Runtime.Settings），再建主窗口——
             // 设置页与 Runtime 必须共用同一个设置对象，否则退出时 Runtime 会用启动快照
@@ -46,6 +50,24 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// 显示"正在更新"窗口并在后台覆盖文件；完成后关闭它、继续正常启动。
+    /// 故意做成"先弹窗口再进主界面"，用户重启后第一眼就知道在更新。
+    /// </summary>
+    private static void ShowUpdateWindowAndApply(IClassicDesktopStyleApplicationLifetime desktop,
+        PendingUpdate pending)
+    {
+        var window = new Views.UpdateProgressWindow();
+        desktop.MainWindow = window;
+        window.Show();
+        _ = window.RunAsync(AppContext.BaseDirectory, pending.Version)
+            .ContinueWith(_ => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                // 更新完成：把主窗口交还给正常启动流程（下面会重新赋值 MainWindow）
+                window.Close();
+            }));
     }
 
     /// <summary>

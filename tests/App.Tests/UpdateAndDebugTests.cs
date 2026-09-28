@@ -104,7 +104,7 @@ public sealed class UpdateAndDebugTests : IDisposable
         // Linux：应用由包管理器安装，绝不允许自己替换 /opt 下的文件
         Assert.False(vm.CanSelfUpdate);
         Assert.False(vm.CanInstallUpdate);
-        Assert.StartsWith("Linux 平台暂不支持应用内自动更新", vm.UpdatePlatformHint);
+        Assert.Contains("Linux", vm.UpdatePlatformHint);
     }
 
     [AvaloniaFact]
