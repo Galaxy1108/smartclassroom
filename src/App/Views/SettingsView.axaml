@@ -750,9 +750,6 @@
                 <fa:SettingsExpander.IconSource>
                     <fa:PathIconSource Data="{StaticResource IconSettings}" />
                 </fa:SettingsExpander.IconSource>
-                <TextBlock Text="{Binding IntegrityStatus}" FontSize="12" Opacity="0.75"
-                           TextWrapping="Wrap" Margin="0,2,0,0"
-                           IsVisible="{Binding IntegrityStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Content="检查完整性" Click="CheckIntegrity_Click"
@@ -762,6 +759,10 @@
                     </StackPanel>
                 </fa:SettingsExpander.Footer>
             </fa:SettingsExpander>
+            <!-- 状态写在展开项**外面**：写在里面会让 SettingsExpander 多出一个没用的折叠箭头 -->
+            <TextBlock Text="{Binding IntegrityStatus}" FontSize="12" Opacity="0.75"
+                       TextWrapping="Wrap" Margin="2,4,0,0"
+                       IsVisible="{Binding IntegrityStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
             <!-- ================= 调试 ================= -->
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,4">
