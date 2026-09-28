@@ -271,7 +271,57 @@ public static class UpdateInstaller
             return false;
         return LaunchScriptAndExit(appDir);
     }
-}
 
+    /// <summary>
+    /// 比对"官方包里的文件"与"本机已安装的文件"，找出缺失或内容不同的。
+    /// 用于「检查完整性」：大小 + SHA256，跳过 update/（那是我们自己的下载目录）。
+    /// </summary>
+    public static (int Missing, int Different, List<string> Bad) CompareWithInstalled(
+        string stageDir, string appDir)
+    {
+        var missing = 0;
+        var different = 0;
+        var bad = new List<string>();
+        foreach (var file in Directory.GetFiles(stageDir, "*", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(stageDir, file);
+            var top = rel.Split(Path.DirectorySeparatorChar, '/')[0];
+            if (top.Equals("update", StringComparison.OrdinalIgnoreCase))
+                continue;
+            var local = Path.Combine(appDir, rel);
+            if (!File.Exists(local))
+            {
+                missing++;
+                bad.Add(rel + "（缺失）");
+                continue;
+            }
+            if (!SameContent(file, local))
+            {
+                different++;
+                bad.Add(rel + "（不一致）");
+            }
+        }
+        return (missing, different, bad);
+    }
+
+    private static bool SameContent(string a, string b)
+    {
+        try
+        {
+            var fa = new FileInfo(a);
+            var fb = new FileInfo(b);
+            if (fa.Length != fb.Length)
+                return false;
+            using var sa = System.Security.Cryptography.SHA256.Create();
+            using var streamA = File.OpenRead(a);
+            using var streamB = File.OpenRead(b);
+            return sa.ComputeHash(streamA).AsSpan().SequenceEqual(sa.ComputeHash(streamB));
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+}
 /// <summary>待完成的更新：staging 目录 + 目标版本。</summary>
 public sealed record PendingUpdate(string StageDir, string Version);

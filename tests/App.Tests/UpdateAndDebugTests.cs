@@ -368,3 +368,57 @@ public sealed class LinuxUpdateGateTests
         Assert.False(vm.CanInstallLinuxUpdate || vm.CanInstallUpdate);
     }
 }
+
+/// <summary>
+/// 完整性比对：缺文件、内容不一致都要能查出来，一致时报告 0/0。
+/// "修复当前版本"就是靠这个判断要不要覆盖。
+/// </summary>
+public sealed class IntegrityCompareTests
+{
+    [Fact]
+    public void DetectsMissingAndDifferent()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "sc-int-" + Guid.NewGuid().ToString("N")[..8]);
+        var stage = Path.Combine(root, "stage");
+        var app = Path.Combine(root, "app");
+        Directory.CreateDirectory(stage);
+        Directory.CreateDirectory(app);
+        try
+        {
+            File.WriteAllText(Path.Combine(stage, "a.dll"), "same");
+            File.WriteAllText(Path.Combine(stage, "b.dll"), "official");
+            File.WriteAllText(Path.Combine(stage, "c.dll"), "missing-locally");
+            File.WriteAllText(Path.Combine(app, "a.dll"), "same");
+            File.WriteAllText(Path.Combine(app, "b.dll"), "tampered");
+
+            var (missing, different, bad) = SmartClassroom.App.UpdateInstaller
+                .CompareWithInstalled(stage, app);
+
+            Assert.Equal(1, missing);
+            Assert.Equal(1, different);
+            Assert.Contains(bad, x => x.Contains("c.dll"));
+            Assert.Contains(bad, x => x.Contains("b.dll"));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public void IdenticalInstall_ReportsClean()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "sc-int-" + Guid.NewGuid().ToString("N")[..8]);
+        var stage = Path.Combine(root, "stage");
+        var app = Path.Combine(root, "app");
+        Directory.CreateDirectory(stage);
+        Directory.CreateDirectory(app);
+        try
+        {
+            File.WriteAllText(Path.Combine(stage, "x.dll"), "v1");
+            File.WriteAllText(Path.Combine(app, "x.dll"), "v1");
+            var (missing, different, _) = SmartClassroom.App.UpdateInstaller
+                .CompareWithInstalled(stage, app);
+            Assert.Equal(0, missing);
+            Assert.Equal(0, different);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+}

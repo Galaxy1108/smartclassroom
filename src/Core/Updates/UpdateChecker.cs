@@ -196,6 +196,22 @@ public sealed class UpdateChecker(HttpClient? http = null)
     private static string? Str(JsonElement el, string name)
         => el.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 
+    /// <summary>
+    /// 取**指定版本**（tag，例如 "v0.50.10"）的安装包地址。
+    /// 用于"修复当前版本/检查完整性"：把当前版本的包重新下一遍比对或覆盖。
+    /// </summary>
+    public async Task<(string? AssetUrl, string? AssetName, bool Found)> GetVersionAssetAsync(
+        string tag, string? assetPattern = null, string owner = DefaultOwner, string repo = DefaultRepo,
+        CancellationToken cancel = default)
+    {
+        var json = await GetJsonAsync($"https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}", cancel)
+            .ConfigureAwait(false);
+        if (json is not { } release || release.ValueKind != JsonValueKind.Object)
+            return (null, null, false);
+        var (url, name) = PickAsset(release, assetPattern);
+        return (url, name, url is not null);
+    }
+
     private static (string? Url, string? Name) PickAsset(JsonElement release, string? pattern)
     {
         if (pattern is null || !release.TryGetProperty("assets", out var assets)

@@ -30,6 +30,8 @@ public partial class SettingsView : UserControl
         {
             vm.RefreshSubjectColors();
             vm.ConsentPrompt = async docs => await Dialogs.ConsentAsync(docs);
+            // 修复/重装需要系统密码时，用同一个密码对话框问
+            vm.PasswordPrompt = reason => PasswordDialog.PromptAsync("系统密码", reason);
             // 缺群号时由视图弹窗选群（在线了却开不了开关最让人困惑）
             vm.GroupPicker = async () =>
             {
@@ -419,4 +421,12 @@ public partial class SettingsView : UserControl
     /// <summary>更新 SnowLuma（保留登录状态与配置）。</summary>
     private async void UpdateSnowluma_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         => await Vm.UpdateSnowlumaAsync();
+
+    /// <summary>检查当前版本完整性（下载当前版本的官方包逐文件比对）。</summary>
+    private async void CheckIntegrity_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Vm.CheckIntegrityAsync();
+
+    /// <summary>修复当前版本（重新下载官方包覆盖 / pacman 重装）。</summary>
+    private async void RepairVersion_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => await Vm.RepairCurrentVersionAsync();
 }

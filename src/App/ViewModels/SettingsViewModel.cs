@@ -2655,6 +2655,135 @@ public sealed class SettingsViewModel : ViewModelBase
         }
     }
 
+    // ================= 完整性检查 / 修复当前版本 =================
+
+    public bool IsCheckingIntegrity { get => _isCheckingIntegrity; private set => Set(ref _isCheckingIntegrity, value); }
+    private bool _isCheckingIntegrity;
+
+    public string IntegrityStatus { get => _integrityStatus; private set => Set(ref _integrityStatus, value); }
+    private string _integrityStatus = "";
+
+    /// <summary>能修复当前版本：Windows 直接覆盖，Linux 用 pacman 重装同版本包。</summary>
+    public bool CanRepair => CanSelfUpdate || UpdateInstaller.CanInstallPackage;
+
+    /// <summary>
+    /// 检查当前版本完整性：把**当前版本**的官方包下下来，与本机文件逐个比对
+    /// （大小 + SHA256），列出缺失/不一致的文件。发现问题可直接「修复」。
+    /// </summary>
+    public async Task CheckIntegrityAsync()
+    {
+        if (IsCheckingIntegrity)
+            return;
+        IsCheckingIntegrity = true;
+        IntegrityStatus = "正在下载当前版本的官方包…";
+        try
+        {
+            var pattern = CanSelfUpdate ? "win-x64.zip" : "x86_64.pkg.tar.zst";
+            var (url, name, found) = await _updates.GetVersionAssetAsync($"v{AppVersion.Current}", pattern);
+            if (!found || url is null)
+            {
+                IntegrityStatus = $"Release 里找不到 {AppVersion.Current} 的安装包（{name ?? pattern}）";
+                Toasts.Warn("无法检查完整性", IntegrityStatus);
+                return;
+            }
+            var stage = await UpdateInstaller.StageAsync(url, AppVersion.Current, _appDir,
+                new Progress<double>(p => UpdateProgress = p));
+            IntegrityStatus = "正在比对文件…";
+            var (missing, different, bad) = await Task.Run(
+                () => UpdateInstaller.CompareWithInstalled(stage, _appDir));
+            if (missing == 0 && different == 0)
+            {
+                IntegrityStatus = $"完整：{AppVersion.Current} 的文件与官方包一致";
+                Toasts.Success("完整性检查通过", AppVersion.Current);
+                return;
+            }
+            IntegrityStatus = $"发现 {missing} 个缺失、{different} 个不一致";
+            AppendLog("完整性检查：" + string.Join("；", bad.Take(20)));
+            Toasts.ShowWithActions("安装文件有问题",
+                $"{missing} 个缺失、{different} 个不一致（详见日志）",
+                [
+                    new ToastAction("修复", () => RepairFromStage(stage, AppVersion.Current), Accent: true),
+                    new ToastAction("忽略", () => { })
+                ],
+                NoticeSeverity.Warning);
+        }
+        catch (Exception ex)
+        {
+            IntegrityStatus = $"检查失败：{ex.Message}";
+            AppendLog($"完整性检查失败：{ex.Message}");
+            Toasts.Error("完整性检查失败", ex.Message);
+        }
+        finally
+        {
+            IsCheckingIntegrity = false;
+            UpdateProgress = 0;
+        }
+    }
+
+    /// <summary>修复当前版本：重新下载官方包并覆盖（Windows 走重启脚本；Linux 用 pacman 重装）。</summary>
+    public async Task RepairCurrentVersionAsync()
+    {
+        try
+        {
+            var pattern = CanSelfUpdate ? "win-x64.zip" : "x86_64.pkg.tar.zst";
+            var (url, _, found) = await _updates.GetVersionAssetAsync($"v{AppVersion.Current}", pattern);
+            if (!found || url is null)
+            {
+                Toasts.Warn("无法修复", $"Release 里找不到 {AppVersion.Current} 的安装包");
+                return;
+            }
+            if (CanSelfUpdate)
+            {
+                var stage = await UpdateInstaller.StageAsync(url, AppVersion.Current, _appDir,
+                    new Progress<double>(p => UpdateProgress = p));
+                RepairFromStage(stage, AppVersion.Current);
+            }
+            else
+            {
+                var pkg = await UpdateInstaller.DownloadPackageAsync(url, AppVersion.Current,
+                    new Progress<double>(p => UpdateProgress = p));
+                var password = await PromptForPasswordAsync("重装当前版本需要系统密码（pacman）");
+                if (password is null)
+                    return;
+                var (ok, output) = await UpdateInstaller.InstallPackageAsync(pkg, password);
+                AppendLog(ok ? "已重装当前版本" : $"重装失败：{output}");
+                if (ok)
+                    Toasts.ShowWithActions($"已重新安装 {AppVersion.Current}", "重启应用后生效",
+                        [
+                            new ToastAction("立即重启", () => RestartApp(), Accent: true),
+                            new ToastAction("稍后重启", () => { })
+                        ],
+                        NoticeSeverity.Success);
+                else
+                    Toasts.Error("重装失败", output.Length > 200 ? output[..200] : output);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"修复失败：{ex.Message}");
+            Toasts.Error("修复失败", ex.Message);
+        }
+    }
+
+    /// <summary>把已下好的 staging 标记为"待覆盖"，并弹通知让用户选什么时候重启。</summary>
+    private void RepairFromStage(string stage, string version)
+    {
+        UpdateInstaller.MarkPending(_appDir, stage, version);
+        OnPropertyChanged(nameof(CanRestartToUpdate));
+        Toasts.ShowWithActions($"修复包已就绪（{version}）", "重启应用即可覆盖回官方文件",
+            [
+                new ToastAction("重启以修复", () => RestartToUpdate(), Accent: true),
+                new ToastAction("稍后重启", () => Toasts.Show("已稍后修复", "下次启动时会自动覆盖"))
+            ],
+            NoticeSeverity.Success);
+    }
+
+    /// <summary>取系统密码的钩子（由视图层注入对话框）。</summary>
+    public Func<string, Task<string?>>? PasswordPrompt { get; set; }
+
+    private Task<string?> PromptForPasswordAsync(string reason)
+        => PasswordPrompt is null ? Task.FromResult<string?>(null) : PasswordPrompt(reason);
+
     /// <summary>重启本应用：另起一个进程等本进程退出后再启动，然后退出自己。</summary>
     private static void RestartApp()
     {

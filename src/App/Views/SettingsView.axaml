@@ -725,6 +725,10 @@
             <TextBlock Text="{Binding LatestVersionText}" FontSize="12" Opacity="0.7" Margin="2,0,0,0" />
 
             <fa:SettingsExpander Header="获取新版本" Description="{Binding UpdatePlatformHint}">
+                <!-- 完整性状态（检查完才有内容） -->
+                <TextBlock Text="{Binding IntegrityStatus}" FontSize="12" Opacity="0.75"
+                           TextWrapping="Wrap" Margin="0,2,0,0"
+                           IsVisible="{Binding IntegrityStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <fa:SettingsExpander.Footer>
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <!-- 每个平台只显示自己那个按钮：Windows 走自更新（下载并安装 + 重启以更新），
@@ -736,6 +740,10 @@
                                 Click="InstallLinuxUpdate_Click"
                                 IsVisible="{Binding CanInstallPackage}"
                                 IsEnabled="{Binding CanInstallLinuxUpdate}" />
+                        <Button Content="检查完整性" Click="CheckIntegrity_Click"
+                                IsEnabled="{Binding CanRepair}" />
+                        <Button Content="修复当前版本" Click="RepairVersion_Click"
+                                IsEnabled="{Binding CanRepair}" />
                         <Button Content="打开 Releases 页" Click="OpenReleasePage_Click"
                                 IsEnabled="{Binding HasReleasePage}" />
                     </StackPanel>
