@@ -767,9 +767,16 @@ public sealed class PipelineService(
         HomeworkDraft d;
         try
         {
+            // 把这一科今天已有的作业一起给模型，它才能判断"这是更正还是新增"
+            var existingForSubject = homework.All
+                .Where(h => h.Date == DateOnly.FromDateTime(DateTime.Now)
+                            && (h.Subject == (sender.Subject ?? h.Subject)))
+                .SelectMany(h => h.Items)
+                .ToList();
             d = await ai.AnalyzeHomeworkAsync(ev.Text, sender.Subject, cancel,
                 msg => UpdateRow(rowId, "正在整理作业", msg),
-                await LoadImagesAsync(ev, cancel).ConfigureAwait(false)).ConfigureAwait(false);
+                await LoadImagesAsync(ev, cancel).ConfigureAwait(false),
+                existingForSubject).ConfigureAwait(false);
         }
         catch (AiException ex)
         {
@@ -793,6 +800,27 @@ public sealed class PipelineService(
                 "模型给出的日期与今天相差过大，已按今天处理", ActivitySeverity.Warning);
         // 行末 @日期 是**单项**截止时间：拆出来单独存，正文里不留标记
         var parsed = d.Items.Select(HomeworkDueMark.Split).ToList();
+        // 更正/重发：模型给出的是完整清单 → 覆盖掉这一科原有的条目（不追加）
+        if (d.Overwrite)
+        {
+            var subjectForMatch = d.Subject.Length > 0 ? d.Subject : (sender.Subject ?? "未知科目");
+            if (homework.All.FirstOrDefault(h => h.Subject == subjectForMatch && h.Date == date) is { } old)
+            {
+                homework.Replace(old with
+                {
+                    Items = parsed.Select(x => x.Text).Where(x => x.Length > 0).ToList(),
+                    ItemDues = parsed.Select(x => x.Due).ToList(),
+                    Due = d.Due
+                });
+                if (resolvePendingId is not null)
+                    pending.Remove(resolvePendingId);
+                feed.Append("homework", $"作业已更正：{subjectForMatch}",
+                    "老师重发/更正，已覆盖原来的条目", ActivitySeverity.Success);
+                Finish(rowId, $"已执行：作业已更正（{subjectForMatch}）",
+                    string.Join("；", parsed.Select(x => x.Text)));
+                return;
+            }
+        }
         homework.AddOrMerge(new HomeworkItem
         {
             HomeworkId = Guid.NewGuid().ToString(),

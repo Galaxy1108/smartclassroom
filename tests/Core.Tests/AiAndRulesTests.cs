@@ -211,6 +211,44 @@ public sealed class AiGatewayTests
 
         Assert.False(handler.Last!.Headers.Contains(OpenCodeCompat.SessionHeader));
     }
+/// <summary>
+/// 老师撤回后重发作业：模型返回 overwrite=true + 完整清单时，要**覆盖**而不是追加。
+/// 用户实测的问题：以前一律追加，同一份作业会变成两份。
+/// </summary>
+public sealed class HomeworkOverwriteTests
+{
+    private static string Reply(string json) => json;
+
+    [Fact]
+    public async Task OverwriteDraft_IsParsed()
+    {
+        var reply = """
+            {"is_homework":true,"subject":"英语","date":"2026-09-28",
+             "items":["背单词","朗读课文"],"due":"","confidence":0.9,"overwrite":true}
+            """;
+        var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
+            new HttpClient(new StubHandler(ChatReply(reply))));
+
+        var d = await new AiAnalyzer(ai).AnalyzeHomeworkAsync("改成背单词和朗读课文", "英语");
+
+        Assert.True(d.Overwrite);
+        Assert.Equal(2, d.Items.Count);
+    }
+
+    [Fact]
+    public async Task AppendDraft_DefaultsToFalse()
+    {
+        var reply = """
+            {"is_homework":true,"subject":"英语","date":"2026-09-28",
+             "items":["背单词"],"due":"","confidence":0.9}
+            """;
+        var ai = new AiGateway(new AiOptions { BaseUrl = "http://x", Model = "m" },
+            new HttpClient(new StubHandler(ChatReply(reply))));
+
+        var d = await new AiAnalyzer(ai).AnalyzeHomeworkAsync("今天背单词", "英语");
+
+        Assert.False(d.Overwrite);
+    }
 }
 
 public sealed class HomeworkDateCoercionTests
@@ -268,4 +306,6 @@ public sealed class HomeworkDueMarkTests
         Assert.Null(due);
         Assert.Contains("a@b.com", text);
     }
+}
+
 }

@@ -197,11 +197,22 @@ public sealed class AiAnalyzer(IAiClient ai)
 
     public async Task<HomeworkDraft> AnalyzeHomeworkAsync(string text, string? senderSubject,
         CancellationToken cancel = default, Action<string>? onProgress = null,
-        IReadOnlyList<AiImage>? images = null)
+        IReadOnlyList<AiImage>? images = null, IReadOnlyList<string>? existingItems = null)
     {
+        // 把"目前墙上已有的这一科作业"一起给模型：老师撤回后重发、或补一句改作业时，
+        // 模型能看出这是**更正**，于是输出更正后的完整清单（overwrite=true），
+        // 上层用它覆盖，避免同一份作业被追加成两份（用户实测的重复问题）。
+        var existingBlock = existingItems is { Count: > 0 }
+            ? "\n            【目前这一科已在墙上的作业】\n"
+              + string.Join("\n", existingItems.Select(x => "              - " + x))
+              + "\n            如果这条消息是在**更正/重发**上面这份作业（例如老师撤回后重发、"
+              + "或说「改成/改为/不是…是…」），就输出更正后的**完整清单**并令 overwrite = true；"
+              + "如果是**新增**作业，只输出新增的条目并令 overwrite = false。"
+            : "";
         var system = $$"""
             你整理老师布置的作业。发送者科目为"{{senderSubject ?? "未知"}}"（可作参考，以消息内容为准）。
-            只输出 JSON：{"is_homework":true/false,"subject":"科目","date":"yyyy-MM-dd，当日作业则为今天","items":["作业条目1","作业条目2"],"due":"截止说明，无则空字符串","confidence":0-1}
+            只输出 JSON：{"is_homework":true/false,"subject":"科目","date":"yyyy-MM-dd，当日作业则为今天","items":["作业条目1","作业条目2"],"due":"截止说明，无则空字符串","confidence":0-1,"overwrite":true/false}
+            {{existingBlock}}
             今天是 {{DateTime.Now:yyyy-MM-dd}}（{{DateTime.Now:dddd}}）。
 
             due 的三种情况：
@@ -360,7 +371,12 @@ public sealed record HomeworkDraft(
     [property: JsonPropertyName("date")] string Date,
     [property: JsonPropertyName("items")] List<string> Items,
     [property: JsonPropertyName("due")] string Due,
-    [property: JsonPropertyName("confidence")] double Confidence);
+    [property: JsonPropertyName("confidence")] double Confidence,
+    /// <summary>
+    /// 这条消息是"更正/重发"（老师撤回后重发、或补一句改作业）→ true。
+    /// 此时 items 是更正后的**完整清单**，上层用它覆盖，而不是往后追加。
+    /// </summary>
+    [property: JsonPropertyName("overwrite")] bool Overwrite = false);
 public sealed record SlotDraft(
     [property: JsonPropertyName("date")] string? Date,
     [property: JsonPropertyName("period")] int? Period,
