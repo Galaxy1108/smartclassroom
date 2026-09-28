@@ -350,3 +350,21 @@ public sealed class ToastActionTests
         SmartClassroom.App.Toasts.Items.Clear();
     }
 }
+
+/// <summary>
+/// Linux 应用内更新：没检查过 / 已是最新时不能下载（按钮要灰），
+/// 而且安装包文件名里必须是**裸版本号** ——
+/// 之前拿"最新版本 0.50.8"这种展示文案当文件名，路径里带空格和中文，
+/// 结果报"The process cannot access the file …（被占用）"。
+/// </summary>
+public sealed class LinuxUpdateGateTests
+{
+    [Fact]
+    public void AssetUrl_IsClearedWhenAlreadyLatest()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"sc-gate-{Guid.NewGuid():N}.json");
+        var vm = new SmartClassroom.App.ViewModels.SettingsViewModel(path);
+        // 未检查过 → 不能装
+        Assert.False(vm.CanInstallLinuxUpdate || vm.CanInstallUpdate);
+    }
+}

@@ -2416,6 +2416,9 @@ public sealed class SettingsViewModel : ViewModelBase
     public string CurrentVersionText => $"当前版本 {AppVersion.Current}";
 
     private string _latestVersionText = "尚未检查";
+
+    /// <summary>裸版本号（不带"最新版本"这类前缀）：给文件名、日志用。</summary>
+    private string _latestVersionBare = "";
     public string LatestVersionText { get => _latestVersionText; private set => Set(ref _latestVersionText, value); }
 
     private NoticeSeverity _updateSeverity = NoticeSeverity.Informational;
@@ -2433,6 +2436,7 @@ public sealed class SettingsViewModel : ViewModelBase
             if (!Set(ref _hasUpdate, value))
                 return;
             OnPropertyChanged(nameof(CanInstallUpdate));
+            OnPropertyChanged(nameof(CanInstallLinuxUpdate));
         }
     }
 
@@ -2458,6 +2462,7 @@ public sealed class SettingsViewModel : ViewModelBase
             if (!Set(ref _isDownloadingUpdate, value))
                 return;
             OnPropertyChanged(nameof(CanInstallUpdate));
+            OnPropertyChanged(nameof(CanInstallLinuxUpdate));
             OnPropertyChanged(nameof(DownloadUpdateButtonText));
         }
     }
@@ -2482,9 +2487,13 @@ public sealed class SettingsViewModel : ViewModelBase
         get
         {
             if (!CanSelfUpdate)
-                return CanInstallPackage
+            {
+                if (!CanInstallPackage)
+                    return "Linux：本机没有 pacman，请用发行版自带的包管理器更新";
+                return HasUpdate
                     ? "Linux：点「下载并安装」会下载安装包并要一次系统密码，用 pacman 装好"
-                    : "Linux：本机没有 pacman，请用发行版自带的包管理器更新";
+                    : "已是最新版本，无需更新";
+            }
             if (IsDownloadingUpdate)
                 return "正在下载…";
             if (!HasUpdate)
@@ -2542,6 +2551,7 @@ public sealed class SettingsViewModel : ViewModelBase
             {
                 HasUpdate = true;
                 LatestVersionText = $"最新版本 {info.LatestVersion}";
+                _latestVersionBare = info.LatestVersion;
                 UpdateSeverity = NoticeSeverity.Warning;
                 UpdateStatusText = $"发现新版本 {info.LatestVersion}（当前 {AppVersion.Current}）";
                 Toasts.Show("发现新版本", $"{AppVersion.Current} → {info.LatestVersion}", NoticeSeverity.Warning);
@@ -2550,6 +2560,9 @@ public sealed class SettingsViewModel : ViewModelBase
             {
                 HasUpdate = false;
                 LatestVersionText = $"最新版本 {info.LatestVersion}";
+                _latestVersionBare = info.LatestVersion;
+                // 已是最新：不要再留资产地址，否则按钮还能下载同一个版本
+                _assetUrl = null;
                 UpdateSeverity = NoticeSeverity.Success;
                 UpdateStatusText = "已是最新版本";
                 Toasts.Success("已是最新版本");
@@ -2568,13 +2581,18 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             IsCheckingUpdate = false;
             OnPropertyChanged(nameof(CanInstallUpdate));
+            OnPropertyChanged(nameof(CanInstallLinuxUpdate));
             OnPropertyChanged(nameof(UpdatePlatformHint));
         }
     }
 
     /// <summary>下载新版本并生成覆盖脚本（仅 Windows 可用）。</summary>
-    /// <summary>Linux：能下载安装包并用 pacman 装（需要输一次系统密码）。</summary>
+    /// <summary>Linux：本机支持应用内安装（有 pacman）。</summary>
     public bool CanInstallPackage => UpdateInstaller.CanInstallPackage;
+
+    /// <summary>Linux：能点"下载并安装" —— 必须**确实有新版本**（否则按钮灰着，和 Windows 一致）。</summary>
+    public bool CanInstallLinuxUpdate => CanInstallPackage && HasUpdate && _assetUrl is not null
+                                        && !IsDownloadingUpdate;
 
     /// <summary>
     /// Linux 更新：下载 pacman 包 → 弹窗要系统密码 → 后台 pacman -U 安装 → 提示重启。
@@ -2592,7 +2610,7 @@ public sealed class SettingsViewModel : ViewModelBase
         try
         {
             UpdateStatusText = "正在下载安装包…";
-            var pkg = await UpdateInstaller.DownloadPackageAsync(_assetUrl, LatestVersionText,
+            var pkg = await UpdateInstaller.DownloadPackageAsync(_assetUrl, _latestVersionBare,
                 new Progress<double>(p => UpdateProgress = p));
             UpdateStatusText = "正在安装（需要系统密码）…";
             var password = await askPassword("安装更新需要系统密码（pacman）");
@@ -2632,6 +2650,7 @@ public sealed class SettingsViewModel : ViewModelBase
             IsDownloadingUpdate = false;
             UpdateProgress = 0;
             OnPropertyChanged(nameof(CanInstallUpdate));
+            OnPropertyChanged(nameof(CanInstallLinuxUpdate));
             OnPropertyChanged(nameof(UpdatePlatformHint));
         }
     }
@@ -2734,6 +2753,7 @@ public sealed class SettingsViewModel : ViewModelBase
             IsDownloadingUpdate = false;
             UpdateProgress = 0;
             OnPropertyChanged(nameof(CanInstallUpdate));
+            OnPropertyChanged(nameof(CanInstallLinuxUpdate));
             OnPropertyChanged(nameof(UpdatePlatformHint));
         }
     }

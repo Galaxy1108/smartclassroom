@@ -183,16 +183,21 @@ public static class UpdateInstaller
     public static async Task<string> DownloadPackageAsync(string url, string version,
         IProgress<double>? progress = null, CancellationToken cancel = default)
     {
-        var dir = Path.Combine(Path.GetTempPath(), "smartclassroom-update");
+        // 每次下载用独立目录：避免上一次的文件还被 pacman 占着就复写（实测报
+        // "The process cannot access the file … because it is being used by another process"）
+        var safe = string.Concat((version ?? "").Where(c => char.IsLetterOrDigit(c) || c is '.' or '-'));
+        var dir = Path.Combine(Path.GetTempPath(),
+            $"smartclassroom-update-{safe}-{Guid.NewGuid().ToString("N")[..6]}");
         Directory.CreateDirectory(dir);
-        var file = Path.Combine(dir, $"smartclassroom-{version}-x86_64.pkg.tar.zst");
+        var file = Path.Combine(dir, $"smartclassroom-{safe}-x86_64.pkg.tar.zst");
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
         using var res = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancel)
             .ConfigureAwait(false);
         res.EnsureSuccessStatusCode();
         var total = res.Content.Headers.ContentLength ?? 0;
         await using var src = await res.Content.ReadAsStreamAsync(cancel).ConfigureAwait(false);
-        await using var dst = File.Create(file);
+        // FileShare.None 之外的写法在 Linux 上也可能被 pacman 撞上；这里写完即释放句柄
+        var dst = new FileStream(file, FileMode.Create, FileAccess.Write, FileShare.Read);
         var buffer = new byte[81920];
         long done = 0;
         int read;
@@ -203,6 +208,8 @@ public static class UpdateInstaller
             if (total > 0)
                 progress?.Report((double)done / total * 100);
         }
+        await dst.FlushAsync(cancel).ConfigureAwait(false);
+        await dst.DisposeAsync().ConfigureAwait(false);   // 交给 pacman 之前确保句柄已释放
         return file;
     }
 
