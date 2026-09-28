@@ -649,7 +649,12 @@ public sealed class HomeworkCard : ViewModelBase
         Subject = item.Subject;
         Date = item.Date;
         Due = item.Due;
-        Items = item.Items.Select((text, i) => new HomeworkLine(i + 1, text)).ToList();
+        // 过滤空行：AI 有时会给出空字符串项，卡片上就多出一行空白（用户实测）
+        Items = item.Items
+            .Select(x => (x ?? "").Trim())
+            .Where(x => x.Length > 0)
+            .Select((text, i) => new HomeworkLine(i + 1, text))
+            .ToList();
         Sender = item.Sender.TeacherName ?? "未知来源";
         IsManual = item.Sender.UserId == 0;
 

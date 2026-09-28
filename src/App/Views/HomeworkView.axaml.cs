@@ -375,6 +375,22 @@ public partial class HomeworkView : UserControl
     }
 
     /// <summary>
+    /// 这次按下是否来自"可交互控件"（按钮、菜单、开关、输入框…）。
+    /// 往可视树上方找：点的是按钮里的文字时 Source 是 TextBlock，
+    /// 只看 e.Source 本身会漏判。
+    /// </summary>
+    private static bool IsFromInteractiveControl(Control? source)
+    {
+        for (var c = source as Avalonia.Visual; c is not null; c = c.GetVisualParent())
+        {
+            if (c is Button or MenuItem or Avalonia.Controls.ContextMenu or ToggleSwitch or ComboBox
+                or TextBox or Slider or CheckBox)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// 从事件来源找出它属于哪张卡片。
     ///
     /// ⚠️ 不能走 <c>Control.Parent</c>：那是**逻辑树**，模板里的子控件（TextBlock 等）

@@ -280,3 +280,48 @@ public sealed class HomeworkClearSelectionTests
         window.Close();
     }
 }
+
+/// <summary>
+/// 按工具栏按钮不能把选中清掉。
+/// 踩过的坑：整页的 PointerPressed 处理器把"按在按钮上"当成"点了空白"，
+/// 于是按下的瞬间选中就没了，等 Click 触发时已经没有选中项 ——
+/// 用户看到的就是"编辑/删除点了没反应"。
+/// </summary>
+public sealed class HomeworkToolbarSelectionTests
+{
+    [AvaloniaFact]
+    public void PressingToolbarButton_KeepsSelection()
+    {
+        var store = new HomeworkStore();
+        store.AddOrMerge(new HomeworkItem
+        {
+            HomeworkId = "h1", Subject = "英语", Date = DateOnly.FromDateTime(DateTime.Now),
+            Items = ["背单词"],
+            Sender = new SmartClassroom.Contracts.SenderInfo { UserId = 0, TeacherName = "手动添加" },
+            Source = new SmartClassroom.Contracts.MessageRef { GroupId = 0, MessageId = 0 }
+        });
+        var vm = new HomeworkViewModel(store, () => new Dictionary<string, string>());
+        var view = new SmartClassroom.App.Views.HomeworkView { DataContext = vm };
+        var window = new Window { Width = 900, Height = 600, Content = view };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        vm.Select(vm.Items[0]);
+        Assert.True(vm.HasSelection);
+
+        var editButton = view.GetVisualDescendants().OfType<Button>()
+            .First(b => (b.Content as string) == "编辑");
+        var args = new Avalonia.Input.PointerPressedEventArgs(
+            editButton, new Avalonia.Input.Pointer(0, Avalonia.Input.PointerType.Mouse, true),
+            editButton, default, 0,
+            new Avalonia.Input.PointerPointProperties(
+                Avalonia.Input.RawInputModifiers.LeftMouseButton,
+                Avalonia.Input.PointerUpdateKind.LeftButtonPressed),
+            Avalonia.Input.KeyModifiers.None);
+        editButton.RaiseEvent(args);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(vm.HasSelection);   // 按按钮不该清掉选中
+        window.Close();
+    }
+}

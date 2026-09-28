@@ -31,9 +31,10 @@
                             <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="{Binding Subject}" FontWeight="SemiBold" FontSize="16"
                                        Foreground="{Binding AccentColor}" VerticalAlignment="Center" />
-                            <Border CornerRadius="4" Padding="6,1"
+                            <Border CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
                                     Background="{DynamicResource ControlFillColorSecondaryBrush}">
-                                <TextBlock Text="{Binding RelativeDay}" FontSize="11" />
+                                <TextBlock Text="{Binding RelativeDay}" FontSize="11"
+                                           VerticalAlignment="Center" LineHeight="15" />
                             </Border>
                             <TextBlock Text="{Binding DateLabel}" FontSize="12" Opacity="0.6"
                                        VerticalAlignment="Center" />

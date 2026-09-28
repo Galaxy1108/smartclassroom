@@ -17,16 +17,57 @@ public static class NodeRuntime
     public static string NodeExeName =>
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "node.exe" : "node";
 
-    /// <summary>按优先级找 node 可执行文件；都找不到返回 null。</summary>
+    /// <summary>
+    /// 找 node 可执行文件。
+    ///
+    /// ⚠️ 不能"取第一个存在的"：SnowLuma 完整版自带的 Node 可能比系统里的旧，
+    /// 而它排在候选前面 —— 于是部署 SnowLuma 之前一切正常，装完重启就突然
+    /// 报"Node 版本过低"（用户实测）。这里改成**把候选都探一遍版本，挑最高的**，
+    /// 优先挑满足最低版本要求的。
+    /// </summary>
     public static string? FindNode(string? appDir = null)
     {
-        foreach (var candidate in Candidates(appDir))
+        var cacheKey = appDir ?? "";
+        if (_cachedNode.TryGetValue(cacheKey, out var cached) && File.Exists(cached))
+            return cached;
+
+        string? best = null;
+        Version? bestVersion = null;
+        foreach (var candidate in Candidates(appDir).Append(NodeExeName))
         {
-            if (File.Exists(candidate))
-                return candidate;
+            if (candidate != NodeExeName && !File.Exists(candidate))
+                continue;
+            var version = ProbeExecutable(candidate);
+            if (version is null)
+                continue;
+            // 先满足最低版本；都满足就比谁更新
+            var better = bestVersion is null
+                         || (version >= MinimumNode && bestVersion < MinimumNode)
+                         || (version >= MinimumNode == bestVersion >= MinimumNode && version > bestVersion);
+            if (better)
+            {
+                best = candidate;
+                bestVersion = version;
+            }
         }
-        // 回退 PATH：返回裸名字，交给 Process 解析。
-        return NodeExeName;
+
+        var result = best ?? NodeExeName;
+        _cachedNode[cacheKey] = result;
+        _cachedVersion[cacheKey] = bestVersion;
+        return result;
+    }
+
+    private static readonly Dictionary<string, string> _cachedNode = new();
+    private static readonly Dictionary<string, Version?> _cachedVersion = new();
+
+    /// <summary>探测某个具体可执行文件的版本（内部用，带缓存）。</summary>
+    private static Version? ProbeExecutable(string exe)
+    {
+        if (_cachedVersion.TryGetValue("exe:" + exe, out var cached))
+            return cached;
+        var v = ProbeVersionOf(exe);
+        _cachedVersion["exe:" + exe] = v;
+        return v;
     }
 
     private static IEnumerable<string> Candidates(string? appDir)
@@ -52,9 +93,18 @@ public static class NodeRuntime
     /// <summary>探测 node 版本；不可用或版本过低返回 null，可用返回版本号。</summary>
     public static Version? ProbeVersion(string? appDir = null)
     {
+        // 命中缓存：FindNode 已经探过一遍，别再起进程
+        if (_cachedNode.TryGetValue(appDir ?? "", out var found)
+            && _cachedVersion.TryGetValue(appDir ?? "", out var cached))
+            return cached;
+        return ProbeVersionOf(FindNode(appDir) ?? NodeExeName);
+    }
+
+    private static Version? ProbeVersionOf(string exe)
+    {
         try
         {
-            using var p = Process.Start(new ProcessStartInfo(FindNode(appDir) ?? NodeExeName, "--version")
+            using var p = Process.Start(new ProcessStartInfo(exe, "--version")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
