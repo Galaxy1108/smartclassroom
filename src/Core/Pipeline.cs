@@ -24,6 +24,9 @@ public sealed class PipelineService(
 {
     private readonly HashSet<string> _disabledNotified = [];
 
+    /// <summary>构造时把"排队/已发"的界面联动挂上（在 Runtime 里也可以再调一次，幂等）。</summary>
+    public void HookQueueEvents() => HookGateQueue();
+
     /// <summary>
     /// 上一条消息的分类是谁给的（"AI 判定为 X" / "本地判定（原因）"）。
     /// 用户问过"这个已忽略经过了 AI 吗，怎么这么快" —— 直接写在事件行里，一眼可见。
@@ -51,6 +54,26 @@ public sealed class PipelineService(
         => await plugin.NotifyAsync(channel, title, body, cancel, wait: true).ConfigureAwait(false);
 
     public PendingStore Pending => pending;
+
+    /// <summary>
+    /// 通知开始排队 / 真的发出：把对应事件行在"正在等待下课"与"已执行"之间切换。
+    /// 排队期间行保持"进行中"，但计时起点在发出时才重置 —— 排队时间不算耗时。
+    /// </summary>
+    private bool _queueHooked;
+
+    private void HookGateQueue()
+    {
+        if (_queueHooked)
+            return;
+        _queueHooked = true;
+        gate.Queued += id => feed.Update(id, "正在等待下课",
+            "通知已排入队列，下课后按顺序发出（一条一条发，避免糊在一起）");
+        gate.Sent += id =>
+        {
+            feed.ResetTimer(id);
+            feed.Complete(id, "已执行：通知已发出", "下课后已发出（排队时间不计入耗时）");
+        };
+    }
 
     public event Action<IReadOnlyList<CoursewareFile>>? CoursewareSuggested;
 
@@ -648,7 +671,7 @@ public sealed class PipelineService(
         Finish(rowId, $"需要人工介入：{title}", $"原因：{reason} · {Trim(rawText)}",
             ActivitySeverity.Warning);
         // 上课时排队、下课时发；不在上课就立刻发（与召唤通知同一套调度门）
-        _ = gate.SendManualAsync($"需要人工介入：{title}", reason, Send);
+        _ = gate.SendManualAsync($"需要人工介入：{title}", reason, Send, default, rowId);
         return item;
     }
 
@@ -690,7 +713,7 @@ public sealed class PipelineService(
                 Source = new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId },
                 Confidence = 0.3
             };
-            var decision = await gate.ProcessSummonAsync(fallback, Send, cancel).ConfigureAwait(false);
+            var decision = await gate.ProcessSummonAsync(fallback, Send, cancel, rowId).ConfigureAwait(false);
             Finish(rowId, $"出现错误：召唤解析失败（已{Desc(decision)}）", ev.Text + " · " + ex.Message,
                 ActivitySeverity.Warning);
             feed.Append("summon", $"疑似召唤（AI 失败，已{Desc(decision)}）", ev.Text,
@@ -720,7 +743,7 @@ public sealed class PipelineService(
             Source = new MessageRef { GroupId = ev.GroupId, MessageId = ev.MessageId },
             Confidence = d.Confidence
         };
-        var result = await gate.ProcessSummonAsync(summon, Send, cancel).ConfigureAwait(false);
+        var result = await gate.ProcessSummonAsync(summon, Send, cancel, rowId).ConfigureAwait(false);
         if (resolvePendingId is not null)
             pending.Remove(resolvePendingId);
         Finish(rowId, $"已执行：召唤（{Desc(result)}）", $"{d.Target} · {ev.Text}");
@@ -754,7 +777,7 @@ public sealed class PipelineService(
         var who = sender.TeacherName ?? sender.Card ?? sender.Nickname ?? "老师";
         var body = d.Body.Trim().Length > 0 ? d.Body.Trim() : ev.Text;
         // 不在上课就立刻发（否则周末/假期没有下课事件，通知会永远卡在队列里）
-        var decision = await gate.SendManualAsync(d.Title.Trim(), $"{who}：{body}", Send, cancel)
+        var decision = await gate.SendManualAsync(d.Title.Trim(), $"{who}：{body}", Send, cancel, rowId)
             .ConfigureAwait(false);
         Finish(rowId, $"已执行：通知已转发（{Desc(decision)}）",
             $"{d.Title.Trim()} · {body}");

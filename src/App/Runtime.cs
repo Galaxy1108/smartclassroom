@@ -198,6 +198,7 @@ public static class Runtime
         var pipeline = new PipelineService(teachers, new AiAnalyzer(ai), gate, plugin,
             oneBot, archive, Courseware, Homework, Feed, Pending, Settings.ToFeatureFlags());
         Pipeline = pipeline;
+        pipeline.HookQueueEvents();   // 排队/已发的界面联动（"正在等待下课" → "已执行"）
         _livePipeline = pipeline;   // 设置保存时热更新功能开关用
         pipeline.CoursewareSuggested += files => Dispatcher.UIThread.Post(() =>
         {

@@ -147,6 +147,18 @@ public sealed class ActivityFeed(int capacity = 200)
     }
 
     /// <summary>结束一条进行中条目（就地变成结果行，不再转圈）。</summary>
+    /// <summary>
+    /// 把这条记录的计时起点重置为"现在"。
+    /// 用于排队通知：排队等下课的时间不该算进耗时里（用户明确要求），
+    /// 所以真正发出前先重置起点，之后 Complete 得到的耗时才是"发送本身"的耗时。
+    /// </summary>
+    public void ResetTimer(Guid id)
+    {
+        if (!_byId.TryGetValue(id, out var node))
+            return;
+        node.Value = node.Value with { At = DateTimeOffset.Now };
+    }
+
     public void Complete(Guid id, string title, string detail,
         ActivitySeverity severity = ActivitySeverity.Success)
     {

@@ -67,3 +67,62 @@ public sealed class ScheduleGateTests
         Assert.Contains("小明", sent[0]);
     }
 }
+
+/// <summary>
+/// 排队通知与事件行的联动：排队时标"正在等待下课"，真发出去了才算完成；
+/// 排队时间不计入耗时（发出前重置计时起点）。
+/// </summary>
+public sealed class QueueRowTests
+{
+    private sealed class InClass : IClassStatusProvider
+    {
+        public Task<bool> IsInClassAsync(CancellationToken cancel = default) => Task.FromResult(true);
+        public Task<CurrentLesson?> GetCurrentLessonAsync(CancellationToken cancel = default)
+            => Task.FromResult<CurrentLesson?>(null);
+    }
+
+    [Fact]
+    public async Task QueuedThenSent_FiresBothEvents()
+    {
+        ScheduleGate.Spacing = TimeSpan.Zero;
+        var gate = new ScheduleGate(new InClass());
+        var feed = new ActivityFeed();
+        var rowId = feed.Begin("summon", "正在处理消息", "x");
+        var queued = new List<Guid>();
+        var sent = new List<Guid>();
+        gate.Queued += id => { queued.Add(id); feed.Update(id, "正在等待下课", "排队中"); };
+        gate.Sent += id => { sent.Add(id); feed.ResetTimer(id); feed.Complete(id, "已执行：通知已发出", ""); };
+
+        var decision = await gate.NotifyAsync("summon", "标题", "正文",
+            (_, _, _, _) => Task.CompletedTask, default, rowId);
+
+        Assert.Equal(GateDecision.Queued, decision);
+        Assert.Equal([rowId], queued);
+        Assert.Empty(sent);                                   // 还没下课，不算发出
+        Assert.True(feed.Entries.First(e => e.Id == rowId).InProgress);
+        Assert.Equal("正在等待下课", feed.Entries.First(e => e.Id == rowId).Title);
+
+        await gate.FlushAsync((_, _, _, _) => Task.CompletedTask);
+
+        Assert.Equal([rowId], sent);
+        var row = feed.Entries.First(e => e.Id == rowId);
+        Assert.False(row.InProgress);                         // 真发出去了才完成
+        Assert.Equal("已执行：通知已发出", row.Title);
+    }
+
+    [Fact]
+    public async Task Urgent_SendsImmediatelyEvenInClass()
+    {
+        var gate = new ScheduleGate(new InClass());
+        var feed = new ActivityFeed();
+        var rowId = feed.Begin("summon", "正在处理消息", "x");
+        var sent = new List<Guid>();
+        gate.Sent += id => sent.Add(id);
+
+        var decision = await gate.NotifyAsync("summon", "立刻来", "现在来一下",
+            (_, _, _, _) => Task.CompletedTask, default, rowId, urgent: true);
+
+        Assert.Equal(GateDecision.SentNow, decision);
+        Assert.Equal([rowId], sent);                          // 紧急：上课也直接发
+    }
+}
