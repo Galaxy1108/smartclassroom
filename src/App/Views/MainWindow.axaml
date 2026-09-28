@@ -47,13 +47,6 @@
                         <TextBlock x:Name="PageTitle" Grid.Column="0"
                                    Theme="{StaticResource TitleTextBlockStyle}" Text="作业" />
                         <!-- 主题切换：跟随系统 → 浅色 → 深色 循环 -->
-                        <Button x:Name="ThemeButton" Grid.Column="1" Click="Theme_Click"
-                                ToolTip.Tip="切换主题（跟随系统 / 浅色 / 深色）">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <PathIcon x:Name="ThemeIcon" Width="16" Height="16" />
-                                <TextBlock x:Name="ThemeLabel" FontSize="12" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
                     </Grid>
                     <ContentControl x:Name="PageHost" />
                 </StackPanel>

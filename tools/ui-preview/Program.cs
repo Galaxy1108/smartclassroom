@@ -33,7 +33,7 @@ RenderShell();// 全局缩放：确认整窗缩放后没有渲染异常（黑块
 ContentZoom.Scale = 1.3;
 RenderShell("shell-zoom130.png");
 ContentZoom.Scale = 1.0;
-Render("settings-appearance.png", SettingsView(), ThemeVariant.Dark, 920, 700, scrollTo: 700);
+Render("settings-appearance.png", SettingsView(), ThemeVariant.Dark, 920, 700, scrollTo: 620);
     Render("settings-colors.png", SettingsView(), ThemeVariant.Dark, 920, 700, scrollTo: 300);
     Render("settings-full.png", SettingsView(), ThemeVariant.Light, 920, 4200);   // 整页一图，方便逐段检查
 Render("courseware-subjects.png", CoursewareSubjects(), ThemeVariant.Dark, 920, 340);

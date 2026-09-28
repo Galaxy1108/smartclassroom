@@ -22,8 +22,6 @@ public partial class MainWindow : Window
         // 全局缩放 + 主题：启动就应用一次，之后跟着设置变
         ApplyZoom(ContentZoom.Scale);
         ContentZoom.Changed += ApplyZoom;
-        ApplyTheme(AppTheme.Current);
-        AppTheme.Changed += ApplyTheme;
         _homeVm = new HomeworkViewModel(Runtime.Homework, () => Runtime.Settings.SubjectColors);
         // 设置页改完科目配色 → 立刻重建卡片（不然要等切页或定时刷新才换色）
         SettingsViewModel.SubjectColorsChanged += () => Dispatcher.UIThread.Post(() => _homeVm.Refresh());
@@ -141,55 +139,5 @@ public partial class MainWindow : Window
         {
             // 拿不到屏幕信息就不调窗口尺寸，缩放本身已经生效
         }
-    }
-
-    /// <summary>
-    /// 主题按钮的图标与文字跟着当前主题走。
-    ///
-    /// ⚠️ 这里**绝不能抛异常**：`FindResource` 找不到键时返回 UnsetValue，
-    /// 直接强转会 InvalidCastException —— 而这是在**主窗口构造函数**里调用的，
-    /// 一抛就是"应用启动即崩溃"（实测：窗口变成一块黑框 + core dump）。
-    /// 所以用 TryFindResource，取不到就只是没图标。
-    /// </summary>
-    private void ApplyTheme(string theme)
-    {
-        ThemeLabel.Text = AppTheme.Describe(theme);
-        ThemeIcon.Data = theme switch
-        {
-            AppTheme.Light => LookupGeometry("IconSun"),
-            AppTheme.Dark => LookupGeometry("IconMoon"),
-            _ => LookupGeometry("IconThemeAuto")
-        };
-    }
-
-    private static Geometry? LookupGeometry(string key)
-    {
-        try
-        {
-            // TryFindResource 需要 out 参数；找到就返回，找不到返回 null（不抛）
-            return Application.Current is { } app
-                   && app.TryFindResource(key, out var value)
-                   && value is Geometry geometry
-                ? geometry
-                : null;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>点击循环：跟随系统 → 浅色 → 深色 → 跟随系统。</summary>
-    private void Theme_Click(object? sender, RoutedEventArgs e)
-    {
-        var next = AppTheme.Current switch
-        {
-            AppTheme.System => AppTheme.Light,
-            AppTheme.Light => AppTheme.Dark,
-            _ => AppTheme.System
-        };
-        AppTheme.Apply(next);
-        Runtime.Settings.Theme = next;
-        SmartClassroom.Core.SettingsStore.Save(Runtime.Settings);
     }
 }
