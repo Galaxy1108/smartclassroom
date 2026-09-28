@@ -95,6 +95,9 @@ public sealed class AppSettings
     /// <summary>老师通知转发（活动/集合/催交等 → ClassIsland 提醒）。默认关。</summary>
     public bool FeatureNotice { get; set; } = false;
 
+    /// <summary>Windows：阻止普通用户用任务管理器结束本应用（默认关）。</summary>
+    public bool ProtectFromKill { get; set; } = false;
+
     /// <summary>作业上墙后给同学们发一条 ClassIsland 通知（默认关）。</summary>
     public bool NotifyHomework { get; set; } = false;
 
@@ -179,6 +182,7 @@ public sealed class AppSettings
         FeatureFileArchive = d.FeatureFileArchive;
         FeatureCoursewarePopup = d.FeatureCoursewarePopup;
         FeatureNotice = d.FeatureNotice;
+        ProtectFromKill = d.ProtectFromKill;
         NotifyHomework = d.NotifyHomework;
         NotifyExchange = d.NotifyExchange;
         SubjectColors = new Dictionary<string, string>(d.SubjectColors);

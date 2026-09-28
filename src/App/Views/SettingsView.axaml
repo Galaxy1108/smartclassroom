@@ -100,6 +100,14 @@
             <TextBlock Text="{Binding FeatureSummary}" FontSize="12" Opacity="0.75"
                        TextWrapping="Wrap" Margin="2,4,0,0" />
 
+            <fa:SettingsExpander Header="防止被结束"
+                                 Description="{Binding ProtectFromKillHint}">
+                <fa:SettingsExpander.Footer>
+                    <ToggleSwitch IsChecked="{Binding ProtectFromKill}"
+                                  IsEnabled="{Binding CanProtectFromKill}" />
+                </fa:SettingsExpander.Footer>
+            </fa:SettingsExpander>
+
             <fa:SettingsExpander Header="作业上墙时通知"
                                  Description="作业整理好之后，用 ClassIsland 提醒同学们；上课中会排队，下课逐条发出">
                 <fa:SettingsExpander.Footer>

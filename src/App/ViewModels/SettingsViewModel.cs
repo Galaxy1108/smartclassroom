@@ -219,6 +219,31 @@ public sealed class SettingsViewModel : ViewModelBase
 
     private bool _autoStart;
 
+    /// <summary>Windows：阻止普通用户结束本应用（任务管理器里会"拒绝访问"）。</summary>
+    public bool ProtectFromKill
+    {
+        get => _protectFromKill;
+        set
+        {
+            if (!Set(ref _protectFromKill, value))
+                return;
+            if (!ProcessGuard.Apply(value))
+                AppendLog(value ? "开启防结束失败（可能权限不足）。" : "关闭防结束失败。");
+            else
+                AppendLog(value ? "已开启：普通用户无法结束本应用。" : "已关闭防结束保护。");
+            SaveSettings();
+        }
+    }
+
+    private bool _protectFromKill;
+
+    /// <summary>防结束只支持 Windows；Linux 下这一行显示为不可用。</summary>
+    public bool CanProtectFromKill => ProcessGuard.IsSupported;
+
+    public string ProtectFromKillHint => ProcessGuard.IsSupported
+        ? "Windows：打开后，普通用户（同学）在任务管理器里结束它会显示拒绝访问；管理员仍可结束"
+        : "仅 Windows 支持（Linux 由系统权限管理）";
+
     /// <summary>作业上墙后也给同学们发一条通知（走 ClassIsland，同样排队）。</summary>
     public bool NotifyHomework
     {
@@ -2551,6 +2576,7 @@ public sealed class SettingsViewModel : ViewModelBase
             _uiScale = ContentZoom.Clamp(s.UiScale);
             _cardScale = ContentZoom.Clamp(s.CardScale);
             _autoStart = s.AutoStart;
+            _protectFromKill = s.ProtectFromKill;
             _notifyHomework = s.NotifyHomework;
             _notifyExchange = s.NotifyExchange;
             OnPropertyChanged(nameof(CardScale));
@@ -2625,6 +2651,7 @@ public sealed class SettingsViewModel : ViewModelBase
         s.UiScale = UiScale;
         s.CardScale = CardScale;
         s.AutoStart = AutoStart;
+        s.ProtectFromKill = ProtectFromKill;
         s.NotifyHomework = NotifyHomework;
         s.NotifyExchange = NotifyExchange;
         s.Theme = _theme;

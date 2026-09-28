@@ -298,3 +298,20 @@ public sealed class MainWindowConstructionTests
         window.Close();
     }
 }
+
+/// <summary>
+/// 防结束保护：只支持 Windows，Linux 下必须是"不支持且不抛异常"，
+/// 免得在 Linux 上误开、或者设置页显示成可用。
+/// </summary>
+public sealed class ProcessGuardTests
+{
+    [Fact]
+    public void OnLinux_IsUnsupportedAndSafe()
+    {
+        if (OperatingSystem.IsWindows())
+            return;   // 这条只验证非 Windows 行为
+        Assert.False(SmartClassroom.App.ProcessGuard.IsSupported);
+        Assert.False(SmartClassroom.App.ProcessGuard.Apply(true));
+        Assert.False(SmartClassroom.App.ProcessGuard.IsProtected);
+    }
+}
