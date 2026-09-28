@@ -82,9 +82,11 @@ public partial class SettingsView : UserControl
     /// <summary>设置/清除管理员密码本身也受保护（已设置密码时需先验证）。</summary>
     private async void ApplyPassword_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
+        // 改密码**永远**要重新输一次当前密码，即使还在免输冷却期内（用户要求）：
+        // 这是唯一一处不能靠"刚才解锁过"蒙过去的操作。
         var ok = await Runtime.Auth.RequireAsync(
             reason => PasswordDialog.PromptAsync("修改管理员密码", reason),
-            "修改管理员密码需要先验证当前密码");
+            "修改管理员密码需要先验证当前密码", forcePrompt: true);
         if (!ok)
             return;
         Vm.ApplyPassword();
