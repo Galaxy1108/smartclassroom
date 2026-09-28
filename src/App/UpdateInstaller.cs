@@ -145,7 +145,13 @@ public static class UpdateInstaller
             progress?.Report((double)(i + 1) / files.Length * 100);
         }
 
-        try { File.Delete(PendingFile(appDir)); } catch { /* 删不掉不影响 */ }
+        // ⚠️ 只有**全部覆盖成功**才清标记。有文件被占用（正在运行的 exe / 已加载的 dll 必然被占用）
+        // 说明这次没装完，标记要留着，等退出时由脚本收尾 ——
+        // 否则更新会被静默丢掉：下次启动还是旧版本，而标记已经没了。
+        if (skipped == 0)
+        {
+            try { File.Delete(PendingFile(appDir)); } catch { /* 删不掉不影响 */ }
+        }
         return (copied, skipped);
     }
 
@@ -252,6 +258,18 @@ public static class UpdateInstaller
         {
             return (false, ex.Message);
         }
+    }
+
+    /// <summary>
+    /// 退出前收尾：如果还有没装完的更新（有文件被占用），启动覆盖脚本
+    /// —— 它等本进程退出后再复制，这次没有占用问题，然后重启应用。
+    /// </summary>
+    public static bool FinishOnExitIfPending(string appDir)
+    {
+        var pending = ReadPending(appDir);
+        if (pending is null || !Directory.Exists(pending.StageDir))
+            return false;
+        return LaunchScriptAndExit(appDir);
     }
 }
 

@@ -40,7 +40,12 @@ public partial class App : Application
             // 先 Start（它会把 settings.json 装进 Runtime.Settings），再建主窗口——
             // 设置页与 Runtime 必须共用同一个设置对象，否则退出时 Runtime 会用启动快照
             // 把设置页刚保存的值（API Key 等）覆盖回去。
-            desktop.Exit += (_, _) => Runtime.Stop();
+            desktop.Exit += (_, _) =>
+            {
+                Runtime.Stop();
+                // 还有没装完的更新（有文件被占用）→ 交给脚本，等本进程退出后覆盖并重启
+                UpdateInstaller.FinishOnExitIfPending(AppContext.BaseDirectory);
+            };
             Runtime.Start(vm);
             desktop.MainWindow = new MainWindow
             {
