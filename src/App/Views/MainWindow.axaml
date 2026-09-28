@@ -72,8 +72,25 @@
                                          Title="{Binding Title}"
                                          Message="{Binding Message}">
                             <views:NoticeBar.ActionContent>
-                                <Button Content="关闭" FontSize="11" Padding="8,3"
-                                        Click="ToastClose_Click" Tag="{Binding}" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <!-- 动作按钮（例如"重启以更新 / 稍后重启"），没有就不显示 -->
+                                    <ItemsControl ItemsSource="{Binding ExtraActions}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" Spacing="6" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="app:ToastAction">
+                                                <Button Content="{Binding Label}" FontSize="11" Padding="8,3"
+                                                        Classes.accent="{Binding Accent}"
+                                                        Click="ToastAction_Click" Tag="{Binding}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <Button Content="关闭" FontSize="11" Padding="8,3"
+                                            Click="ToastClose_Click" Tag="{Binding}" />
+                                </StackPanel>
                             </views:NoticeBar.ActionContent>
                         </views:NoticeBar>
                     </Border>

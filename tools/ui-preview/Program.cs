@@ -29,6 +29,7 @@ Application.Current!.Resources["SymbolThemeFontFamily"] = new FontFamily("DejaVu
 
 Render("timeline-light.png", TimelineView(), ThemeVariant.Light, 920, 560);
 Render("homework-selected.png", HomeworkSelected(), ThemeVariant.Dark, 920, 420);
+RenderToastActions();
 RenderShell();// 全局缩放：确认整窗缩放后没有渲染异常（黑块 / 布局塌陷）
 ContentZoom.Scale = 1.3;
 RenderShell("shell-zoom130.png");
@@ -180,4 +181,23 @@ Control HomeworkSelected()
     vm.Select(vm.Items[0]);   // 选中第一张
     vm.Refresh();             // 模拟拖拽结束/定时刷新后的重建
     return view;
+}
+
+void RenderToastActions()
+{
+    // 一条带动作按钮的通知（"重启以更新 / 稍后重启"）长什么样
+    SmartClassroom.App.Toasts.Items.Clear();
+    // 只留这一条，免得被前面步骤的通知挤下去
+    SmartClassroom.App.Toasts.ShowWithActions("更新 0.50.11 已就绪", "重启应用即可用上新版本",
+        [
+            new SmartClassroom.App.ToastAction("重启以更新", () => { }, Accent: true),
+            new SmartClassroom.App.ToastAction("稍后重启", () => { })
+        ],
+        NoticeSeverity.Success);
+    // Show 是 Post 到 UI 线程的，先把队列跑干净再加等动画
+    Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+    System.Threading.Thread.Sleep(400);
+    Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+    RenderShell("toast-actions.png");
+    SmartClassroom.App.Toasts.Items.Clear();
 }

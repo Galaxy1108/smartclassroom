@@ -140,4 +140,12 @@ public partial class MainWindow : Window
             // 拿不到屏幕信息就不调窗口尺寸，缩放本身已经生效
         }
     }
+
+    /// <summary>通知上的动作按钮（"重启以更新 / 稍后重启"）。</summary>
+    private void ToastAction_Click(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is not ToastAction action)
+            return;
+        action.Invoke();
+    }
 }

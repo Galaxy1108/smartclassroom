@@ -4,8 +4,12 @@ using SmartClassroom.App.Views;
 
 namespace SmartClassroom.App;
 
-/// <summary>一条应用内通知。</summary>
-public sealed record ToastItem(Guid Id, string Title, string Message, NoticeSeverity Severity);
+/// <summary>一条应用内通知。<paramref name="ExtraActions"/> 是"关闭"之外的动作按钮。</summary>
+public sealed record ToastItem(Guid Id, string Title, string Message, NoticeSeverity Severity,
+    IReadOnlyList<ToastAction>? ExtraActions = null);
+
+/// <summary>通知上的一个动作按钮（例如"重启以更新 / 稍后重启"）。</summary>
+public sealed record ToastAction(string Label, Action Invoke, bool Accent = false);
 
 /// <summary>
 /// 应用内弹窗通知（右下角浮出、几秒后自动消失）。
@@ -25,9 +29,10 @@ public static class Toasts
 
     /// <summary>弹一条通知。可在任意线程调用。</summary>
     public static void Show(string title, string message = "",
-        NoticeSeverity severity = NoticeSeverity.Informational, int seconds = DefaultSeconds)
+        NoticeSeverity severity = NoticeSeverity.Informational, int seconds = DefaultSeconds,
+        IReadOnlyList<ToastAction>? actions = null)
     {
-        var item = new ToastItem(Guid.NewGuid(), title, message, severity);
+        var item = new ToastItem(Guid.NewGuid(), title, message, severity, actions);
         Post(() =>
         {
             Items.Add(item);
@@ -45,6 +50,12 @@ public static class Toasts
 
     /// <summary>操作成功。</summary>
     public static void Success(string title, string message = "") => Show(title, message, NoticeSeverity.Success);
+
+    /// <summary>带动作按钮的通知（例如"重启以更新 / 稍后重启"）；<paramref name="seconds"/> 传 0 表示不自动消失。</summary>
+    public static void ShowWithActions(string title, string message,
+        IReadOnlyList<ToastAction> actions, NoticeSeverity severity = NoticeSeverity.Informational,
+        int seconds = 0)
+        => Show(title, message, severity, seconds, actions);
 
     /// <summary>操作失败 / 明显异常。</summary>
     public static void Error(string title, string message = "") => Show(title, message, NoticeSeverity.Error);

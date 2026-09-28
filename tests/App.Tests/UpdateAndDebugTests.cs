@@ -1,3 +1,5 @@
+using Avalonia.VisualTree;
+using Avalonia.Controls;
 using System.Net;
 using Avalonia.Headless.XUnit;
 using SmartClassroom.App.ViewModels;
@@ -313,5 +315,38 @@ public sealed class ProcessGuardTests
         Assert.False(SmartClassroom.App.ProcessGuard.IsSupported);
         Assert.False(SmartClassroom.App.ProcessGuard.Apply(true));
         Assert.False(SmartClassroom.App.ProcessGuard.IsProtected);
+    }
+}
+
+/// <summary>
+/// 安装完成后的通知要带「重启以更新 / 稍后重启」两个动作按钮
+/// （用户要求入口放在通知上，而不是设置页里挂一个常驻按钮）。
+/// 这里验证通知模型与动作回调；按钮渲染由无头渲染确认。
+/// </summary>
+public sealed class ToastActionTests
+{
+    [Fact]
+    public void ToastWithActions_CarriesClickableActions()
+    {
+        SmartClassroom.App.Toasts.Items.Clear();
+        var clicked = false;
+
+        SmartClassroom.App.Toasts.ShowWithActions("更新 0.50.11 已就绪", "重启应用即可用上新版本",
+            [
+                new SmartClassroom.App.ToastAction("重启以更新", () => clicked = true, Accent: true),
+                new SmartClassroom.App.ToastAction("稍后重启", () => { })
+            ],
+            SmartClassroom.App.Views.NoticeSeverity.Success);
+
+        var item = Assert.Single(SmartClassroom.App.Toasts.Items);
+        Assert.NotNull(item.ExtraActions);
+        Assert.Equal(2, item.ExtraActions!.Count);
+        Assert.Equal("重启以更新", item.ExtraActions[0].Label);
+        Assert.True(item.ExtraActions[0].Accent);
+
+        item.ExtraActions[0].Invoke();     // 点"重启以更新"要真的触发动作
+        Assert.True(clicked);
+
+        SmartClassroom.App.Toasts.Items.Clear();
     }
 }

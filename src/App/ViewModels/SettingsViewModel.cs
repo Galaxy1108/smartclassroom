@@ -2606,7 +2606,14 @@ public sealed class SettingsViewModel : ViewModelBase
             if (ok)
             {
                 UpdateStatusText = "安装完成，重启应用后生效";
-                Toasts.Success("更新已安装", "重启应用即可用上新版本");
+                Toasts.ShowWithActions($"更新 {LatestVersionText} 已安装",
+                    "重启应用即可用上新版本",
+                    [
+                        new ToastAction("立即重启", () => RestartApp(), Accent: true),
+                        new ToastAction("稍后重启", () => Toasts.Show("已稍后更新",
+                            "下次打开应用时就是新版本"))
+                    ],
+                    NoticeSeverity.Success);
             }
             else
             {
@@ -2626,6 +2633,38 @@ public sealed class SettingsViewModel : ViewModelBase
             UpdateProgress = 0;
             OnPropertyChanged(nameof(CanInstallUpdate));
             OnPropertyChanged(nameof(UpdatePlatformHint));
+        }
+    }
+
+    /// <summary>重启本应用：另起一个进程等本进程退出后再启动，然后退出自己。</summary>
+    private static void RestartApp()
+    {
+        try
+        {
+            var exe = Environment.ProcessPath;
+            if (exe is null)
+                return;
+            if (OperatingSystem.IsWindows())
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe)
+                {
+                    UseShellExecute = true
+                });
+            }
+            else
+            {
+                // 等 1 秒再起，避开单实例锁（旧进程还在退出中）
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("/bin/sh")
+                {
+                    ArgumentList = { "-c", $"sleep 1; exec \"{exe}\"" },
+                    UseShellExecute = false
+                });
+            }
+            Environment.Exit(0);
+        }
+        catch (Exception ex)
+        {
+            Toasts.Error("重启失败", ex.Message);
         }
     }
 
@@ -2675,7 +2714,15 @@ public sealed class SettingsViewModel : ViewModelBase
             PendingUpdateScript = UpdateInstaller.WriteScript(stage, _appDir);
             AppendLog($"更新已下载并解压到 {stage}；点「重启以更新」即可完成");
             OnPropertyChanged(nameof(CanRestartToUpdate));
-            Toasts.Success("更新已下载", "点「重启以更新」自动完成（不用手动跑脚本）");
+            // 按用户要求：安装完成后弹一条通知，通知上带「重启以更新 / 稍后重启」两个按钮
+            Toasts.ShowWithActions($"更新 {LatestVersionText} 已就绪",
+                "重启应用即可用上新版本",
+                [
+                    new ToastAction("重启以更新", () => RestartToUpdate(), Accent: true),
+                    new ToastAction("稍后重启", () => Toasts.Show("已稍后更新",
+                        "下次启动应用时会自动完成覆盖"))
+                ],
+                NoticeSeverity.Success);
         }
         catch (Exception ex)
         {
